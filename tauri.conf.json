@@ -1,0 +1,23 @@
+{
+  "productName": "Claudy Analytics",
+  "version": "0.1.0",
+  "identifier": "com.claudy.analytics",
+  "build": {
+    "frontendDist": "./ui/dist",
+    "beforeBuildCommand": "npm run build --prefix ui"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Claudy Analytics",
+        "width": 1024,
+        "height": 768,
+        "url": "index.html"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:"
+    }
+  }
+}

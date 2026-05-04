@@ -1,0 +1,9 @@
+#[cfg(feature = "analytics")]
+pub mod analytics;
+pub mod channel;
+pub mod cli;
+pub mod commands;
+pub mod mcp;
+pub mod ui;
+pub mod update;
+pub mod version;

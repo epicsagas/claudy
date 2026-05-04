@@ -1,0 +1,265 @@
+use crate::config::registry::AppRegistry;
+use crate::domain::launch_blueprint::LaunchTarget;
+use crate::launcher::args;
+use crate::launcher::env_schema::EnvMap;
+
+use super::stages::{CleanupHandle, ModelResolution, ModelSource, OverlayMaterialization};
+
+type EnvResult = (Vec<String>, Box<dyn FnOnce()>);
+
+/// Prepare provider-specific environment overrides for Claude Code.
+/// Sets ANTHROPIC_MODEL, ANTHROPIC_CONFIG_OVERRIDE, etc. via env vars,
+/// letting Claude Code use its original ~/.claude/ directory (skills, plugins, etc.)
+/// without a config overlay.
+pub fn prepare_provider_env(
+    target: &LaunchTarget,
+    args: &[String],
+    env: &[String],
+    config: &AppRegistry,
+) -> anyhow::Result<EnvResult> {
+    if target.family == "claude_strict" {
+        return Ok((env.to_vec(), Box::new(|| {})));
+    }
+
+    let mut env_map = EnvMap::from_env_slice_lenient(env);
+
+    // Stage 1: Model resolution
+    let resolution = resolve_model(target, args, &env_map);
+
+    // Apply CLI override to env if present
+    if let Some(override_model) = args::model_override(args) {
+        env_map.set("ANTHROPIC_MODEL", &override_model);
+        for key in &[
+            "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+            "ANTHROPIC_DEFAULT_SONNET_MODEL",
+            "ANTHROPIC_DEFAULT_OPUS_MODEL",
+            "CLAUDE_CODE_SUBAGENT_MODEL",
+        ] {
+            env_map.set(key, &override_model);
+        }
+    }
+
+    let has_claude_vars = env_map.contains_prefix("ANTHROPIC_")
+        || env_map.get("CLAUDE_CODE_SUBAGENT_MODEL").is_some();
+    if !has_claude_vars {
+        return Ok((env_map.to_env_slice(), Box::new(|| {})));
+    }
+
+    if resolution.session_model.is_empty() {
+        return Ok((env_map.to_env_slice(), Box::new(|| {})));
+    }
+
+    // Ensure ANTHROPIC_MODEL is set to the resolved session model.
+    // This overrides whatever model is in ~/.claude/settings.json.
+    env_map.set("ANTHROPIC_MODEL", &resolution.session_model);
+
+    // Stage 2: Overlay materialization
+    let overlay = materialize_overlay(&resolution.session_model, config);
+
+    // Stage 3: Settings patch
+    if let Some(override_json) = overlay.config_override_json {
+        env_map.set("ANTHROPIC_CONFIG_OVERRIDE", &override_json);
+    }
+
+    // Stage 4: Cleanup (no-op for now)
+    let _cleanup = CleanupHandle::noop();
+
+    Ok((env_map.to_env_slice(), Box::new(|| {})))
+}
+
+/// Stage 1: Determine which model to use for this session.
+pub fn resolve_model(target: &LaunchTarget, args: &[String], env_map: &EnvMap) -> ModelResolution {
+    if let Some(override_model) = args::model_override(args) {
+        return ModelResolution {
+            session_model: override_model.clone(),
+            source: ModelSource::CliOverride(override_model),
+        };
+    }
+
+    for key in &[
+        "ANTHROPIC_MODEL",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+        "CLAUDE_CODE_SUBAGENT_MODEL",
+    ] {
+        if let Some(model) = env_map.get(key) {
+            let trimmed = model.trim();
+            if !trimmed.is_empty() {
+                return ModelResolution {
+                    session_model: trimmed.to_string(),
+                    source: ModelSource::EnvVar(trimmed.to_string()),
+                };
+            }
+        }
+    }
+
+    let model = target.model.trim();
+    if !model.is_empty() {
+        return ModelResolution {
+            session_model: model.to_string(),
+            source: ModelSource::TargetDefault(model.to_string()),
+        };
+    }
+
+    for key in &["opus", "sonnet", "haiku", "small"] {
+        if let Some(model) = target.model_tiers.get(*key) {
+            let trimmed = model.trim();
+            if !trimmed.is_empty() {
+                return ModelResolution {
+                    session_model: trimmed.to_string(),
+                    source: ModelSource::TierFallback {
+                        tier: key.to_string(),
+                        model: trimmed.to_string(),
+                    },
+                };
+            }
+        }
+    }
+
+    ModelResolution {
+        session_model: String::new(),
+        source: ModelSource::TargetDefault(String::new()),
+    }
+}
+
+/// Stage 2: Build ANTHROPIC_CONFIG_OVERRIDE JSON for compaction/model settings.
+pub fn materialize_overlay(model: &str, config: &AppRegistry) -> OverlayMaterialization {
+    OverlayMaterialization {
+        config_override_json: build_anthropic_config_override(model, config),
+    }
+}
+
+fn build_anthropic_config_override(model: &str, config: &AppRegistry) -> Option<String> {
+    let settings = config.model_settings.get(model);
+    let global_compaction = &config.compaction;
+
+    let mut map = serde_json::Map::new();
+
+    let threshold = settings
+        .and_then(|s| s.compaction_threshold)
+        .unwrap_or(global_compaction.threshold);
+    map.insert(
+        "autoCompactThreshold".to_string(),
+        serde_json::Value::from(threshold),
+    );
+
+    if let Some(max_tokens) = settings.and_then(|s| s.max_context_tokens) {
+        map.insert(
+            "maxContextTokens".to_string(),
+            serde_json::Value::from(max_tokens),
+        );
+    }
+
+    if map.is_empty() {
+        None
+    } else {
+        serde_json::to_string(&serde_json::Value::Object(map)).ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::launch_blueprint::LaunchTarget;
+    use std::collections::HashMap;
+
+    fn make_target(family: &str, model: &str) -> LaunchTarget {
+        LaunchTarget {
+            profile: "test".to_string(),
+            display_name: String::new(),
+            description: String::new(),
+            category: String::new(),
+            family: family.to_string(),
+            base_url: String::new(),
+            model: model.to_string(),
+            model_tiers: HashMap::new(),
+            auth_mode: "secret".to_string(),
+            secret_key: String::new(),
+            literal_auth_token: String::new(),
+            test_url: String::new(),
+        }
+    }
+
+    fn env_to_map(env: &[String]) -> HashMap<String, String> {
+        env.iter()
+            .filter_map(|s| s.split_once('='))
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn test_prepare_env_skips_native_claude() {
+        let target = make_target("claude_strict", "");
+        let env = vec!["PATH=/usr/bin".to_string()];
+        let cfg = AppRegistry::default();
+
+        let (result_env, cleanup) = prepare_provider_env(&target, &[], &env, &cfg).expect("env");
+        cleanup();
+
+        let map = env_to_map(&result_env);
+        assert_eq!(map.get("CLAUDE_CONFIG_DIR").map(|s| s.as_str()), None);
+    }
+
+    #[test]
+    fn test_prepare_env_sets_anthropic_model() {
+        let target = make_target("anthropic_compatible_non_claude", "glm-5");
+        let env = vec![
+            "PATH=/usr/bin".to_string(),
+            "ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic".to_string(),
+            "ANTHROPIC_AUTH_TOKEN=test-key".to_string(),
+        ];
+        let cfg = AppRegistry::default();
+
+        let (result_env, cleanup) = prepare_provider_env(&target, &[], &env, &cfg).expect("env");
+        cleanup();
+
+        let map = env_to_map(&result_env);
+        assert_eq!(
+            map.get("ANTHROPIC_MODEL").map(|s| s.as_str()),
+            Some("glm-5")
+        );
+        assert_eq!(map.get("CLAUDE_CONFIG_DIR").map(|s| s.as_str()), None);
+    }
+
+    #[test]
+    fn test_prepare_env_resolves_model_from_tiers() {
+        let mut target = make_target("anthropic_compatible_non_claude", "");
+        target.model_tiers = HashMap::from([("opus".to_string(), "glm-5".to_string())]);
+        let env = vec![
+            "PATH=/usr/bin".to_string(),
+            "ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic".to_string(),
+            "ANTHROPIC_DEFAULT_OPUS_MODEL=glm-5".to_string(),
+            "ANTHROPIC_AUTH_TOKEN=test-key".to_string(),
+        ];
+        let cfg = AppRegistry::default();
+
+        let (result_env, cleanup) = prepare_provider_env(&target, &[], &env, &cfg).expect("env");
+        cleanup();
+
+        let map = env_to_map(&result_env);
+        assert_eq!(
+            map.get("ANTHROPIC_MODEL").map(|s| s.as_str()),
+            Some("glm-5")
+        );
+    }
+
+    #[test]
+    fn test_resolve_model_from_target_default() {
+        let target = make_target("anthropic_compatible_non_claude", "glm-5");
+        let env_map = EnvMap::from_env_slice_lenient(&[]);
+        let result = resolve_model(&target, &[], &env_map);
+        assert_eq!(result.session_model, "glm-5");
+        assert!(matches!(result.source, ModelSource::TargetDefault(_)));
+    }
+
+    #[test]
+    fn test_resolve_model_from_tier_fallback() {
+        let mut target = make_target("anthropic_compatible_non_claude", "");
+        target.model_tiers = HashMap::from([("opus".to_string(), "glm-5".to_string())]);
+        let env_map = EnvMap::from_env_slice_lenient(&[]);
+        let result = resolve_model(&target, &[], &env_map);
+        assert_eq!(result.session_model, "glm-5");
+        assert!(matches!(result.source, ModelSource::TierFallback { .. }));
+    }
+}

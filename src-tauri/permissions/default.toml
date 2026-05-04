@@ -1,0 +1,13 @@
+[[permission]]
+identifier = "allow-all-commands"
+description = "Allows all analytics commands"
+commands.allow = [
+    "get_sessions",
+    "get_token_trends",
+    "get_tool_distribution",
+    "get_cost_projection",
+    "get_recommendations",
+    "trigger_ingestion",
+    "get_model_comparison",
+    "get_projects"
+]
