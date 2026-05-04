@@ -1,9 +1,9 @@
 #!/bin/bash
 # Demo recording script for claudy
-# Run: asciinema rec -c "bash docs/demo_record.sh" docs/assets/demo.cast
+# Run: asciinema rec -c "USER=user HOST=localhost bash docs/demo_record.sh" docs/assets/demo.cast
 set -e
 
-cd /Users/hackme/projects/claudy
+cd "$(dirname "$0")/.."
 
 echo ""
 sleep 1
@@ -36,9 +36,34 @@ claudy zai --yolo
 
 sleep 2
 
+# --- Part 3: Create epic mode and launch claude code with Z.AI ---
+
 echo ""
-echo "$ claudy mode create ecc"
-claudy mode create ecc
-sleep 1
-echo "$ claudy zai ecc --yolo"
-claudy zai gstack --yolo
+echo "$ claudy mode ls"
+claudy mode ls
+
+sleep 2
+
+echo ""
+echo "$ claudy mode create epic"
+claudy mode create epic
+
+sleep 2
+
+echo ""
+echo "$ claudy zai epic --yolo"
+claudy zai epic --yolo
+
+sleep 2
+
+clear
+
+echo ""
+echo "$ claudy analytics ingest"
+claudy analytics ingest
+
+echo ""
+echo "$ claudy analytics recommend"
+claudy analytics recommend
+
+sleep 2

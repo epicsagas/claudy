@@ -1,12 +1,19 @@
 <h1 align="center">claudy</h1>
 
-<p align="center"><b>Modern multi-provider launcher for Claude CLI.</b></p>
+<p align="center"><b>One command. Any provider. Full control over Claude CLI.</b></p>
 
 ---
 
 <p align="center">
-Claudy helps you run Claude against multiple providers with one consistent command surface, while keeping provider credentials and Claude config overlays organized under a single home directory.
+Stop juggling environment variables and config files.<br/>
+Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom endpoints with a single command — keeping credentials, config modes, and Claude frameworks cleanly isolated per profile.
 </p>
+
+<p align="center">
+<b>Multi-provider · Config isolation · Channel bridge · Local agent bridge · Usage analytics</b>
+</p>
+
+---
 
 <p align="center">
   <a href="docs/i18n/README.ko.md">🇰🇷 한국어</a> •
@@ -44,17 +51,17 @@ Claudy helps you run Claude against multiple providers with one consistent comma
 - **Agent MCP bridge**: delegate tasks from Claude Code to other local AI agents (Gemini, Codex, Aider, etc.) via MCP.
 - **Usage analytics**: ingest session data from `~/.claude/projects/`, track token usage and costs per session/project, view a local dashboard with recommendations.
 
-## Provider Status
+## Supported Providers
 
-> Claudy was inspired by [Clother](https://github.com/jolehuit/clother), a Go-based multi-provider launcher for Claude CLI. Only the **Z.AI provider has been fully tested**. All other alternative providers are experimental and untested — use them at your own risk.
+> Claudy was inspired by [Clother](https://github.com/jolehuit/clother), a Go-based multi-provider launcher for Claude CLI. Z.AI has been the most thoroughly tested provider. If you run into any issues with other providers, please [open an issue](https://github.com/epicsagas/claudy/issues).
 
 | Provider | Status | Notes |
 |---|---|---|
 | Built-in (Anthropic) | ✅ Tested | Default |
-| Z.AI | ✅ Tested | Fully validated |
-| OpenRouter alias | ⚠️ Experimental | Untested — use at your own risk |
-| Ollama | ⚠️ Experimental | Untested — use at your own risk |
-| Custom endpoint | ⚠️ Experimental | Untested — use at your own risk |
+| Z.AI | ✅ Tested | |
+| OpenRouter alias | ⚠️ Experimental | Not fully tested — report issues on GitHub |
+| Ollama | ⚠️ Experimental | Not fully tested — report issues on GitHub |
+| Custom endpoint | ⚠️ Experimental | Not fully tested — report issues on GitHub |
 
 ## Requirements
 
@@ -102,6 +109,8 @@ claudy --version
 ```
 
 ## Quick Start
+
+<img src="docs/assets/demo.gif" alt="Quick Start" width="100%" />
 
 ```bash
 # 1) List available/resolved profiles
