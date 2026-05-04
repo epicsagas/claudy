@@ -112,7 +112,7 @@ impl Output {
     }
 }
 
-pub fn banner(name: &str) -> String {
+pub fn banner(name: &str, mode: Option<&str>) -> String {
     use std::time::SystemTime;
 
     let tip = random_tip();
@@ -130,8 +130,13 @@ pub fn banner(name: &str) -> String {
     let dim = "\x1b[2m";
     let palette_accent = palette[0];
 
+    let mode_line = match mode {
+        Some(m) => format!("\n  {dim}mode: {bright}{m}{reset}"),
+        None => String::new(),
+    };
+
     format!(
-        "{art}  {palette_accent}{bright}Claudy{reset} with {bright}{name}{reset}\n\n  {dim}{tip}{reset}\n\n"
+        "{art}  {palette_accent}{bright}Claudy{reset} with {bright}{name}{reset}{mode_line}\n\n  {dim}{tip}{reset}\n\n"
     )
 }
 
