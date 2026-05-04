@@ -17,6 +17,7 @@ pub fn normalize_interaction(interaction: &DiscordInteraction) -> Option<Incomin
         channel_id: channel_id.to_string(),
         user_id: user_id.to_string(),
         thread_id: None,
+        guild_id: None,
     };
 
     match interaction.interaction_type {
@@ -63,11 +64,16 @@ pub fn normalize_gateway_message(data: &serde_json::Value) -> Option<IncomingEve
         .unwrap_or("");
 
     let conversation_id = ConversationId::from_platform(Platform::Discord, channel_id);
+    let guild_id = data
+        .get("guild_id")
+        .and_then(|g| g.as_str())
+        .map(String::from);
     let channel = ChannelIdentity {
         platform: Platform::Discord,
         channel_id: channel_id.to_string(),
         user_id: user_id.to_string(),
         thread_id: None,
+        guild_id,
     };
 
     Some(IncomingEvent::TextMessage(TextMessage {

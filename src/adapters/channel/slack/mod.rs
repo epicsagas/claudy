@@ -128,6 +128,7 @@ mod tests {
             channel_id: "C123".to_string(),
             user_id: "U456".to_string(),
             thread_id: None,
+            guild_id: None,
         };
         let result = adapter.ack_interaction(&channel, "interaction_123").await;
         assert!(result.is_ok());
@@ -141,6 +142,7 @@ mod tests {
             channel_id: "C123".to_string(),
             user_id: "U456".to_string(),
             thread_id: None,
+            guild_id: None,
         };
         let result = adapter.send_typing(&channel).await;
         assert!(result.is_ok());

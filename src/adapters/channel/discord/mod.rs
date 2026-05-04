@@ -12,15 +12,16 @@ use crate::ports::channel_ports::ChannelPort;
 
 use api::DiscordApi;
 
+
 /// Discord adapter implementing the [`ChannelPort`] trait.
 pub struct DiscordAdapter {
     api: DiscordApi,
 }
 
 impl DiscordAdapter {
-    pub fn new(bot_token: String, application_id: String) -> Self {
+    pub fn new(bot_token: String) -> Self {
         Self {
-            api: DiscordApi::new(bot_token, application_id),
+            api: DiscordApi::new(bot_token),
         }
     }
 }
@@ -63,14 +64,11 @@ impl ChannelPort for DiscordAdapter {
     async fn ack_interaction(
         &self,
         _channel: &ChannelIdentity,
-        interaction_id: &str,
+        _interaction_id: &str,
     ) -> Result<()> {
-        // For Discord, acknowledgment uses the interaction response API.
-        // We edit the original interaction response to confirm receipt.
-        // The interaction_id here is the interaction token provided by Discord.
-        self.api
-            .edit_original_interaction_response(interaction_id, "Processing...")
-            .await
+        // Discord interactions are acknowledged via the Gateway (defer_interaction).
+        // No REST ack needed here.
+        Ok(())
     }
 
     async fn send_typing(&self, channel: &ChannelIdentity) -> Result<()> {
@@ -89,6 +87,7 @@ mod tests {
             channel_id: "ch-1".into(),
             user_id: "u-1".into(),
             thread_id: None,
+            guild_id: None,
         }
     }
 
@@ -126,7 +125,7 @@ mod tests {
 
     #[test]
     fn adapter_new_stores_api() {
-        let _adapter = DiscordAdapter::new("token".into(), "app-id".into());
+        let _adapter = DiscordAdapter::new("token".into());
     }
 
     #[test]

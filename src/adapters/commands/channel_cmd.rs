@@ -275,19 +275,14 @@ fn run_status(ctx: &mut Context) -> anyhow::Result<i32> {
 
 fn show_channel_config(ctx: &mut Context) {
     let cfg = &ctx.config.channel;
-    let platforms = [
+    let platforms: &[(&str, &str, Option<&str>, Option<&str>)] = &[
         ("telegram", "TELEGRAM_BOT_TOKEN", None, None),
-        ("slack", "SLACK_BOT_TOKEN", Some("SLACK_SIGNING_SECRET"), Some("SLACK_APP_TOKEN")),
-        (
-            "discord",
-            "DISCORD_BOT_TOKEN",
-            Some("DISCORD_APPLICATION_ID"),
-            None,
-        ),
+        ("slack", "SLACK_BOT_TOKEN", None, Some("SLACK_APP_TOKEN")),
+        ("discord", "DISCORD_BOT_TOKEN", None, None),
     ];
 
     ctx.output.header("Channels");
-    for (platform, token_key, extra_key, socket_key) in &platforms {
+    for (platform, token_key, extra_key, socket_key) in platforms {
         let has_token = ctx
             .secrets
             .get(*token_key)
@@ -466,11 +461,127 @@ fn run_add(ctx: &mut Context, platform: &str) -> anyhow::Result<i32> {
     if !cfg.channel.enabled_platforms.iter().any(|p| p == platform) {
         cfg.channel.enabled_platforms.push(platform.to_string());
     }
+
+    // Per-channel profile/mode overrides (Discord guilds, Slack channels)
+    if platform == "discord" || platform == "slack" {
+        prompt_channel_overrides(ctx, platform, &mut cfg)?;
+    }
+
     write_registry(&ctx.paths.config_file, &cfg)?;
 
     ctx.output
         .success(&format!("Channel '{}' added and configured.", platform));
     Ok(0)
+}
+
+/// Prompt for per-channel profile/mode overrides (Discord guilds, Slack channels).
+fn prompt_channel_overrides(
+    ctx: &mut Context,
+    platform: &str,
+    cfg: &mut crate::config::registry::AppRegistry,
+) -> anyhow::Result<()> {
+    let existing_channels: Vec<String> = cfg
+        .channel
+        .channel_profiles
+        .keys()
+        .chain(cfg.channel.channel_modes.keys())
+        .filter(|k| k.starts_with(&format!("{}:", platform)))
+        .map(|k| k.to_string())
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
+    let existing_list = if existing_channels.is_empty() {
+        String::new()
+    } else {
+        format!(" (existing: {})", existing_channels.join(", "))
+    };
+
+    let channels_label = format!(
+        "{} channel IDs for per-channel overrides (comma-separated, e.g. guild or channel IDs){}",
+        platform, existing_list
+    );
+    let channels_input = ctx
+        .prompt
+        .prompt_opt(&channels_label, "")?
+        .unwrap_or_default();
+
+    let channel_ids: Vec<&str> = channels_input
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if channel_ids.is_empty() {
+        return Ok(());
+    }
+
+    let platform_profile = cfg
+        .channel
+        .platform_profiles
+        .get(platform)
+        .cloned()
+        .unwrap_or_else(|| cfg.channel.default_profile.clone());
+
+    let available_modes = list_modes(&ctx.paths.modes_dir);
+
+    for cid in &channel_ids {
+        let channel_key = format!("{}:{}", platform, cid);
+
+        // Profile
+        let current_profile = cfg
+            .channel
+            .channel_profiles
+            .get(&channel_key)
+            .cloned()
+            .unwrap_or_else(|| platform_profile.clone());
+        let profile_label = format!(
+            "Profile for {} channel {} [{}]",
+            platform, cid, current_profile
+        );
+        if let Some(input) = ctx.prompt.prompt_opt(&profile_label, &current_profile)? {
+            if !input.is_empty() && input != platform_profile {
+                cfg.channel
+                    .channel_profiles
+                    .insert(channel_key.clone(), input);
+            } else {
+                cfg.channel.channel_profiles.remove(&channel_key);
+            }
+        }
+
+        // Mode
+        let current_mode = cfg
+            .channel
+            .channel_modes
+            .get(&channel_key)
+            .cloned()
+            .unwrap_or_default();
+        let mode_default = if current_mode.is_empty() {
+            "default".to_string()
+        } else {
+            current_mode.clone()
+        };
+        let mode_hint = if available_modes.is_empty() {
+            String::new()
+        } else {
+            format!(" (available: {})", available_modes.join(", "))
+        };
+        let mode_label = format!(
+            "Mode for {} channel {} [{}]{}",
+            platform, cid, mode_default, mode_hint
+        );
+        if let Some(input) = ctx.prompt.prompt_opt(&mode_label, &mode_default)? {
+            if !input.is_empty() && input != "default" {
+                cfg.channel
+                    .channel_modes
+                    .insert(channel_key.clone(), input);
+            } else {
+                cfg.channel.channel_modes.remove(&channel_key);
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Prompt for platform-specific extra secrets (e.g. Discord APPLICATION_ID).
@@ -479,20 +590,25 @@ fn prompt_extra_secrets(
     platform: &str,
     secrets: &mut crate::config::vault::SecretVault,
 ) -> anyhow::Result<()> {
-    let extras: &[(&str, &str)] = match platform {
-        "discord" => &[("DISCORD_APPLICATION_ID", "Application ID"), ("DISCORD_PUBLIC_KEY", "Public Key")],
+    struct Extra {
+        key: &'static str,
+        label: &'static str,
+        required: bool,
+    }
+    let extras: &[Extra] = match platform {
+        "discord" => &[],
         "slack" => &[
-            ("SLACK_SIGNING_SECRET", "Signing Secret"),
-            ("SLACK_APP_TOKEN", "App Token (xapp-)"),
+            Extra { key: "SLACK_SIGNING_SECRET", label: "Signing Secret", required: false },
+            Extra { key: "SLACK_APP_TOKEN", label: "App Token (xapp-)", required: false },
         ],
         _ => &[],
     };
-    for &(key, label) in extras {
-        let existing = secrets.get(key).cloned().unwrap_or_default();
+    for extra in extras {
+        let existing = secrets.get(extra.key).cloned().unwrap_or_default();
         let display = format!(
             "{} {}{}",
             platform,
-            label,
+            extra.label,
             if existing.is_empty() {
                 String::new()
             } else {
@@ -500,12 +616,17 @@ fn prompt_extra_secrets(
             }
         );
         let value = if existing.is_empty() {
-            let v = ctx.prompt.prompt_secret(&display)?;
-            if v.trim().is_empty() {
-                ctx.output.warn(&format!("{} not provided — Discord features may be limited.", label));
-                continue;
+            let v = ctx.prompt.prompt_secret_opt(&display)?;
+            match v {
+                Some(s) if !s.trim().is_empty() => s.trim().to_string(),
+                _ => {
+                    if extra.required {
+                        ctx.output.error(&format!("{} is required.", extra.label));
+                        return Ok(());
+                    }
+                    continue;
+                }
             }
-            v.trim().to_string()
         } else {
             let v = ctx.prompt.prompt_secret_opt(&display)?;
             match v {
@@ -513,7 +634,7 @@ fn prompt_extra_secrets(
                 _ => existing,
             }
         };
-        secrets.insert(key.to_string(), value);
+        secrets.insert(extra.key.to_string(), value);
     }
     Ok(())
 }

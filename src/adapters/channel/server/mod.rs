@@ -137,22 +137,11 @@ pub async fn run(ctx: &Context, listen_addr: &str) -> anyhow::Result<i32> {
     if let Some(token) = ctx.secrets.get("DISCORD_BOT_TOKEN")
         && !token.is_empty()
     {
-        if let Some(app_id) = ctx.secrets.get("DISCORD_APPLICATION_ID")
-            && !app_id.is_empty()
-        {
-            tracing::info!("Registering Discord adapter");
-            channels.insert(
-                Platform::Discord,
-                Arc::new(super::discord::DiscordAdapter::new(
-                    token.clone(),
-                    app_id.clone(),
-                )),
-            );
-        } else {
-            tracing::warn!(
-                "DISCORD_BOT_TOKEN set but DISCORD_APPLICATION_ID missing; skipping Discord adapter"
-            );
-        }
+        tracing::info!("Registering Discord adapter");
+        channels.insert(
+            Platform::Discord,
+            Arc::new(super::discord::DiscordAdapter::new(token.clone())),
+        );
     }
 
     let state = Arc::new(AppState {

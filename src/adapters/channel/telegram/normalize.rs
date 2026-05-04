@@ -84,6 +84,7 @@ fn normalize_text_message(message: TelegramMessage) -> Option<IncomingEvent> {
         channel_id: chat_id,
         user_id,
         thread_id: None,
+        guild_id: None,
     };
 
     if let Some((command, args)) = extract_command(&message) {
@@ -145,6 +146,7 @@ fn normalize_callback(callback: TelegramCallbackQuery) -> Option<IncomingEvent> 
             channel_id: chat_id,
             user_id,
             thread_id: None,
+            guild_id: None,
         },
         action_id,
         message_ref,

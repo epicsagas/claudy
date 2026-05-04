@@ -72,12 +72,18 @@ pub struct BridgeSettings {
     /// Per-platform provider profile overrides. Key = platform name (telegram/slack/discord).
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub platform_profiles: HashMap<String, String>,
+    /// Per-channel provider profile overrides. Key = "platform:channel_id".
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub channel_profiles: HashMap<String, String>,
     /// Default mode applied to all platforms unless overridden.
     #[serde(default)]
     pub default_mode: String,
     /// Per-platform mode overrides. Key = platform, Value = mode name (from ~/.claudy/modes/).
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub platform_modes: HashMap<String, String>,
+    /// Per-channel mode overrides. Key = "platform:channel_id".
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub channel_modes: HashMap<String, String>,
     #[serde(default)]
     pub allowed_users: Vec<String>,
     /// Per-platform allowed user overrides. Key = platform, Value = user IDs/usernames.
@@ -96,13 +102,36 @@ fn default_stream_timeout_secs() -> u64 {
 }
 
 impl BridgeSettings {
-    /// Resolve the provider profile for a given platform.
-    /// Falls back to `default_profile` if no per-platform mapping exists.
+    /// Resolve the provider profile for a given platform and optional channel.
+    /// Lookup order: channel_profiles["platform:channel_id"] → platform_profiles["platform"] → default_profile.
     pub fn profile_for(&self, platform: &str) -> String {
         self.platform_profiles
             .get(platform)
             .cloned()
             .unwrap_or_else(|| self.default_profile.clone())
+    }
+
+    /// Resolve profile with channel-level and guild-level override.
+    /// Lookup: channel_profiles["platform:guild_id:channel_id"] → channel_profiles["platform:guild_id"] → channel_profiles["platform:channel_id"] → platform_profiles["platform"] → default_profile.
+    pub fn profile_for_channel(&self, platform: &str, channel_id: &str, guild_id: Option<&str>) -> String {
+        // Most specific: platform:guild_id:channel_id
+        if let Some(gid) = guild_id {
+            let full_key = format!("{}:{}:{}", platform, gid, channel_id);
+            if let Some(p) = self.channel_profiles.get(&full_key) {
+                return p.clone();
+            }
+            // Guild-level: platform:guild_id
+            let guild_key = format!("{}:{}", platform, gid);
+            if let Some(p) = self.channel_profiles.get(&guild_key) {
+                return p.clone();
+            }
+        }
+        // Channel-level: platform:channel_id
+        let channel_key = format!("{}:{}", platform, channel_id);
+        self.channel_profiles
+            .get(&channel_key)
+            .cloned()
+            .unwrap_or_else(|| self.profile_for(platform))
     }
 
     /// Resolve the mode for a given platform.
@@ -114,6 +143,34 @@ impl BridgeSettings {
             .cloned()
             .unwrap_or_else(|| self.default_mode.clone());
         if mode.is_empty() { None } else { Some(mode) }
+    }
+
+    /// Resolve mode with channel-level and guild-level override.
+    pub fn mode_for_channel(&self, platform: &str, channel_id: &str, guild_id: Option<&str>) -> Option<String> {
+        // Most specific: platform:guild_id:channel_id
+        if let Some(gid) = guild_id {
+            let full_key = format!("{}:{}:{}", platform, gid, channel_id);
+            if let Some(mode) = self.channel_modes.get(&full_key)
+                && !mode.is_empty()
+            {
+                return Some(mode.clone());
+            }
+            // Guild-level: platform:guild_id
+            let guild_key = format!("{}:{}", platform, gid);
+            if let Some(mode) = self.channel_modes.get(&guild_key)
+                && !mode.is_empty()
+            {
+                return Some(mode.clone());
+            }
+        }
+        // Channel-level: platform:channel_id
+        let channel_key = format!("{}:{}", platform, channel_id);
+        if let Some(mode) = self.channel_modes.get(&channel_key)
+            && !mode.is_empty()
+        {
+            return Some(mode.clone());
+        }
+        self.mode_for(platform)
     }
 
     /// Resolve allowed users for a given platform.

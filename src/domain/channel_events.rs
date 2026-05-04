@@ -31,6 +31,8 @@ pub struct ChannelIdentity {
     pub channel_id: String,
     pub user_id: String,
     pub thread_id: Option<String>,
+    /// Discord guild (server) ID, or Slack team/workspace ID.
+    pub guild_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

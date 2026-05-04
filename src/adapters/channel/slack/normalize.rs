@@ -106,6 +106,7 @@ pub fn normalize_event(callback: &SlackEventCallback) -> Option<IncomingEvent> {
         channel_id: channel_id.clone(),
         user_id: user_id.clone(),
         thread_id: msg.thread_ts.clone(),
+        guild_id: None,
     };
 
     let conversation_id = ConversationId::from_platform(Platform::Slack, &channel_id);
@@ -138,6 +139,7 @@ pub fn normalize_interaction(payload: &SlackInteractionPayload) -> Option<Incomi
         channel_id: slack_channel.id.clone(),
         user_id: slack_user.id.clone(),
         thread_id: None,
+        guild_id: None,
     };
 
     let conversation_id = ConversationId::from_platform(Platform::Slack, &slack_channel.id);

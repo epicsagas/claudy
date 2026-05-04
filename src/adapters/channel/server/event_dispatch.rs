@@ -41,8 +41,16 @@ pub(super) async fn handle_text_message(
         }
     }
 
-    let profile = state.channel_config.profile_for(platform.as_str());
-    let mode = state.channel_config.mode_for(platform.as_str());
+    let profile = state.channel_config.profile_for_channel(
+        platform.as_str(),
+        &msg.channel.channel_id,
+        msg.channel.guild_id.as_deref(),
+    );
+    let mode = state.channel_config.mode_for_channel(
+        platform.as_str(),
+        &msg.channel.channel_id,
+        msg.channel.guild_id.as_deref(),
+    );
 
     let _typing = TypingGuard::start(channel.clone(), msg.channel.clone());
 

@@ -23,15 +23,13 @@ struct DiscordApiError {
 pub struct DiscordApi {
     client: reqwest::Client,
     bot_token: String,
-    application_id: String,
 }
 
 impl DiscordApi {
-    pub fn new(bot_token: String, application_id: String) -> Self {
+    pub fn new(bot_token: String) -> Self {
         Self {
             client: reqwest::Client::new(),
             bot_token,
-            application_id,
         }
     }
 
@@ -159,40 +157,6 @@ impl DiscordApi {
         Ok(())
     }
 
-    /// Edit the original interaction response via the webhooks endpoint.
-    ///
-    /// Discord requires acknowledging interactions through its interaction
-    /// response API. We use the "edit original response" route for this,
-    /// which works after the initial `DEFERRED_UPDATE_MESSAGE` or similar
-    /// acknowledgement has been sent by the gateway/webhook handler.
-    pub async fn edit_original_interaction_response(
-        &self,
-        interaction_token: &str,
-        content: &str,
-    ) -> Result<()> {
-        let url = format!(
-            "{API_BASE}/webhooks/{app_id}/{token}/messages/@original",
-            app_id = self.application_id,
-            token = interaction_token,
-        );
-        let resp = self
-            .client
-            .patch(&url)
-            .header("Authorization", format!("Bot {}", self.bot_token))
-            .json(&serde_json::json!({ "content": content }))
-            .send()
-            .await
-            .context("discord edit_original_interaction_response request failed")?;
-
-        let status = resp.status();
-        if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
-            bail!("edit_original_interaction_response failed: status={status} body={text}");
-        }
-
-        Ok(())
-    }
-
     /// Acknowledge an interaction via REST (type 5 = DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE).
     /// Used by Gateway to respond to INTERACTION_CREATE events.
     pub async fn defer_interaction(
@@ -241,8 +205,7 @@ mod tests {
 
     #[test]
     fn new_constructs_api() {
-        let api = DiscordApi::new("tok".into(), "app".into());
+        let api = DiscordApi::new("tok".into());
         assert_eq!(api.bot_token, "tok");
-        assert_eq!(api.application_id, "app");
     }
 }
