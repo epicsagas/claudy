@@ -1,6 +1,7 @@
 mod api;
 mod blocks;
 mod normalize;
+pub mod socket_mode;
 mod webhook;
 
 use anyhow::Result;

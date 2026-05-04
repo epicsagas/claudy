@@ -208,6 +208,40 @@ pub async fn run(ctx: &Context, listen_addr: &str) -> anyhow::Result<i32> {
         });
     }
 
+    if let Some(token) = ctx.secrets.get("DISCORD_BOT_TOKEN")
+        && !token.is_empty()
+    {
+        let gw_state = state.clone();
+        let gw_token = token.clone();
+        tokio::spawn(async move {
+            super::discord::gateway::start_discord_gateway(gw_state, gw_token).await;
+        });
+    }
+
+    if let Some(bot_token) = ctx.secrets.get("SLACK_BOT_TOKEN")
+        && !bot_token.is_empty()
+    {
+        if let Some(app_token) = ctx.secrets.get("SLACK_APP_TOKEN")
+            && !app_token.is_empty()
+        {
+            let sm_state = state.clone();
+            let sm_bot_token = bot_token.clone();
+            let sm_app_token = app_token.clone();
+            tokio::spawn(async move {
+                super::slack::socket_mode::start_slack_socket_mode(
+                    sm_state,
+                    sm_bot_token,
+                    sm_app_token,
+                )
+                .await;
+            });
+        } else {
+            tracing::warn!(
+                "SLACK_BOT_TOKEN set but SLACK_APP_TOKEN missing; skipping Slack Socket Mode"
+            );
+        }
+    }
+
     ctx.paths.ensure_base_dirs()?;
 
     tracing::info!(addr = listen_addr, "Channel server starting");

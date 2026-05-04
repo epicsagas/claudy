@@ -276,17 +276,18 @@ fn run_status(ctx: &mut Context) -> anyhow::Result<i32> {
 fn show_channel_config(ctx: &mut Context) {
     let cfg = &ctx.config.channel;
     let platforms = [
-        ("telegram", "TELEGRAM_BOT_TOKEN", None),
-        ("slack", "SLACK_BOT_TOKEN", Some("SLACK_SIGNING_SECRET")),
+        ("telegram", "TELEGRAM_BOT_TOKEN", None, None),
+        ("slack", "SLACK_BOT_TOKEN", Some("SLACK_SIGNING_SECRET"), Some("SLACK_APP_TOKEN")),
         (
             "discord",
             "DISCORD_BOT_TOKEN",
             Some("DISCORD_APPLICATION_ID"),
+            None,
         ),
     ];
 
     ctx.output.header("Channels");
-    for (platform, token_key, extra_key) in &platforms {
+    for (platform, token_key, extra_key, socket_key) in &platforms {
         let has_token = ctx
             .secrets
             .get(*token_key)
@@ -294,11 +295,18 @@ fn show_channel_config(ctx: &mut Context) {
         let has_extra = extra_key
             .map(|k| ctx.secrets.get(k).is_some_and(|v| !v.is_empty()))
             .unwrap_or(true);
+        let has_socket = socket_key
+            .map(|k| ctx.secrets.get(k).is_some_and(|v| !v.is_empty()))
+            .unwrap_or(true);
         let configured = has_token && has_extra;
         let enabled = cfg.enabled_platforms.iter().any(|p| p == platform);
 
         let status = if configured && enabled {
-            "ready"
+            if !has_socket && socket_key.is_some() {
+                "ready (no socket mode)"
+            } else {
+                "ready"
+            }
         } else if configured {
             "configured (not enabled)"
         } else if has_token && !has_extra {
@@ -473,7 +481,10 @@ fn prompt_extra_secrets(
 ) -> anyhow::Result<()> {
     let extras: &[(&str, &str)] = match platform {
         "discord" => &[("DISCORD_APPLICATION_ID", "Application ID"), ("DISCORD_PUBLIC_KEY", "Public Key")],
-        "slack" => &[("SLACK_SIGNING_SECRET", "Signing Secret")],
+        "slack" => &[
+            ("SLACK_SIGNING_SECRET", "Signing Secret"),
+            ("SLACK_APP_TOKEN", "App Token (xapp-)"),
+        ],
         _ => &[],
     };
     for &(key, label) in extras {

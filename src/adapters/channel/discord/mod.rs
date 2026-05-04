@@ -1,5 +1,6 @@
 pub mod api;
 pub mod components;
+pub mod gateway;
 pub mod normalize;
 pub mod webhook;
 

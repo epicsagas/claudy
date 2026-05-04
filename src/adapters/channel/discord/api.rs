@@ -192,6 +192,47 @@ impl DiscordApi {
 
         Ok(())
     }
+
+    /// Acknowledge an interaction via REST (type 5 = DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE).
+    /// Used by Gateway to respond to INTERACTION_CREATE events.
+    pub async fn defer_interaction(
+        secrets: &crate::config::vault::SecretVault,
+        interaction_id: &str,
+        token: &str,
+    ) -> Result<()> {
+        let bot_token = secrets.get("DISCORD_BOT_TOKEN")
+            .cloned()
+            .unwrap_or_default();
+        let client = reqwest::Client::new();
+
+        let url = format!(
+            "{}/interactions/{}/{}/callback",
+            API_BASE, interaction_id, token
+        );
+        let body = serde_json::json!({
+            "type": 5,
+            "data": { "flags": 64 }
+        });
+
+        let resp = client
+            .post(&url)
+            .header("Authorization", format!("Bot {bot_token}"))
+            .json(&body)
+            .send()
+            .await
+            .context("defer_interaction request failed")?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = resp.text().await.unwrap_or_default();
+            tracing::warn!(
+                status = %status,
+                "defer_interaction failed: {text}"
+            );
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

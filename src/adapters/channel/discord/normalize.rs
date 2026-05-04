@@ -48,6 +48,36 @@ pub fn normalize_interaction(interaction: &DiscordInteraction) -> Option<Incomin
     }
 }
 
+/// Normalize a MESSAGE_CREATE gateway event into a domain [`IncomingEvent`].
+pub fn normalize_gateway_message(data: &serde_json::Value) -> Option<IncomingEvent> {
+    let content = data.get("content").and_then(|c| c.as_str()).unwrap_or("");
+    if content.is_empty() {
+        return None;
+    }
+
+    let channel_id = data.get("channel_id").and_then(|c| c.as_str()).unwrap_or("");
+    let user_id = data
+        .get("author")
+        .and_then(|a| a.get("id"))
+        .and_then(|id| id.as_str())
+        .unwrap_or("");
+
+    let conversation_id = ConversationId::from_platform(Platform::Discord, channel_id);
+    let channel = ChannelIdentity {
+        platform: Platform::Discord,
+        channel_id: channel_id.to_string(),
+        user_id: user_id.to_string(),
+        thread_id: None,
+    };
+
+    Some(IncomingEvent::TextMessage(TextMessage {
+        conversation_id,
+        channel,
+        text: content.to_string(),
+        reply_to_id: None,
+    }))
+}
+
 /// Extract the user's text from the first option value of a slash command.
 fn extract_command_text(interaction: &DiscordInteraction) -> Option<String> {
     interaction

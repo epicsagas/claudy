@@ -84,6 +84,44 @@ pub struct DiscordInteractionData {
     pub component_type: Option<u8>,
 }
 
+impl DiscordInteraction {
+    /// Construct from a Gateway INTERACTION_CREATE event payload.
+    pub fn from_gateway_event(data: &serde_json::Value) -> Option<Self> {
+        let interaction_type = match data.get("type").and_then(|t| t.as_u64()) {
+            Some(1) => DiscordInteractionType::Ping,
+            Some(2) => DiscordInteractionType::ApplicationCommand,
+            Some(3) => DiscordInteractionType::MessageComponent,
+            _ => return None,
+        };
+        let id = data.get("id").and_then(|v| v.as_str())?.to_string();
+        let token = data.get("token").and_then(|v| v.as_str())?.to_string();
+        let channel_id = data.get("channel_id").and_then(|v| v.as_str()).map(String::from);
+        let user_id = data
+            .get("member")
+            .and_then(|m| m.get("user"))
+            .or_else(|| data.get("user"))
+            .and_then(|u| u.get("id"))
+            .and_then(|v| v.as_str())
+            .map(String::from);
+
+        let data_field = data.get("data");
+        let discord_data = data_field.map(|d| DiscordInteractionData {
+            options: d.get("options").and_then(|o| serde_json::from_value(o.clone()).ok()),
+            custom_id: d.get("custom_id").and_then(|v| v.as_str()).map(String::from),
+            component_type: d.get("component_type").and_then(|v| v.as_u64()).map(|v| v as u8),
+        });
+
+        Some(DiscordInteraction {
+            interaction_type,
+            id,
+            token,
+            channel_id,
+            user_id,
+            data: discord_data,
+        })
+    }
+}
+
 /// A single slash-command option.
 #[derive(Debug, Deserialize)]
 pub struct DiscordOption {
