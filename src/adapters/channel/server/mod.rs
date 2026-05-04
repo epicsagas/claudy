@@ -80,10 +80,10 @@ pub struct AppState {
     pub secrets: SecretVault,
     pub catalog: ProviderIndex,
     pub channel_state: Arc<RwLock<ChannelState>>,
-    /// Active Claude child process PID for cancellation via /cancel.
-    pub active_claude: Arc<tokio::sync::Mutex<Option<u32>>>,
-    /// Auto-continue timer handle (YOLO mode). Cancelled on user button press.
-    pub auto_continue: Arc<tokio::sync::Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    /// Active Claude child PIDs keyed by scope for per-channel cancellation.
+    pub active_claude: Arc<tokio::sync::Mutex<HashMap<String, u32>>>,
+    /// Auto-continue timer handles (YOLO mode) keyed by scope.
+    pub auto_continue: Arc<tokio::sync::Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
 }
 
 fn init_tracing(logs_dir: &str) {
@@ -164,8 +164,8 @@ pub async fn run(ctx: &Context, listen_addr: &str) -> anyhow::Result<i32> {
         secrets: ctx.secrets.clone(),
         catalog: ctx.catalog.clone(),
         channel_state,
-        active_claude: Arc::new(tokio::sync::Mutex::new(None)),
-        auto_continue: Arc::new(tokio::sync::Mutex::new(None)),
+        active_claude: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+        auto_continue: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
     });
 
     let app = Router::new()

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::config::registry::BridgeSettings;
@@ -80,11 +81,12 @@ pub async fn handle_help(
 pub async fn handle_cancel(
     channel: &dyn ChannelPort,
     channel_id: &ChannelIdentity,
-    active_claude: &Arc<tokio::sync::Mutex<Option<u32>>>,
+    scope: &str,
+    active_claude: &Arc<tokio::sync::Mutex<HashMap<String, u32>>>,
 ) -> anyhow::Result<()> {
     let killed = {
         let mut active = active_claude.lock().await;
-        match active.take() {
+        match active.remove(scope) {
             Some(pid) => {
                 // Send SIGTERM to the Claude process
                 #[cfg(unix)]
@@ -735,11 +737,16 @@ async fn handle_choice_callback(
     callback_message_id: Option<i64>,
     app_state: Arc<super::server::AppState>,
 ) -> anyhow::Result<()> {
-    // Reject if Claude is already running
+    // Reject if Claude is already running for this scope
     {
+        let scope = crate::adapters::channel::state::scope_key(
+            channel_id.platform.as_str(),
+            &channel_id.channel_id,
+            &channel_id.user_id,
+        );
         let active = app_state.active_claude.try_lock();
         match active {
-            Ok(guard) if guard.is_some() => {
+            Ok(guard) if guard.contains_key(&scope) => {
                 return dismiss_keyboard(
                     channel,
                     channel_id,
@@ -757,7 +764,7 @@ async fn handle_choice_callback(
                 )
                 .await;
             }
-            _ => {} // Lock held, active is None — proceed
+            _ => {} // Lock held, not active for this scope — proceed
         }
     }
     dismiss_keyboard(

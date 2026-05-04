@@ -12,42 +12,39 @@ pub(super) async fn handle_text_message(
     state: &Arc<AppState>,
     msg: TextMessage,
 ) -> anyhow::Result<()> {
-    // Reject if a Claude process is already running
-    {
-        let active = state.active_claude.lock().await;
-        if active.is_some() {
-            let platform = msg.channel.platform;
-            if let Some(channel) = state.channels.get(&platform) {
-                let _ = channel
-                    .send_message(&OutboundMessage {
-                        conversation_id: msg.conversation_id.clone(),
-                        channel: msg.channel.clone(),
-                        text: "Busy — type /cancel first, then retry.".to_string(),
-                        message_ref: None,
-                        interaction: None,
-                    })
-                    .await;
-            }
-            return Ok(());
-        }
-    }
-
     let platform = msg.channel.platform;
     let channel = state
         .channels
         .get(&platform)
         .ok_or_else(|| anyhow::anyhow!("{platform:?} adapter not registered"))?;
 
-    let profile = state.channel_config.profile_for(platform.as_str());
-    let mode = state.channel_config.mode_for(platform.as_str());
-
-    let _typing = TypingGuard::start(channel.clone(), msg.channel.clone());
-
     let scope = scope_key(
         msg.channel.platform.as_str(),
         &msg.channel.channel_id,
         &msg.channel.user_id,
     );
+
+    // Reject if a Claude process is already running for this scope
+    {
+        let active = state.active_claude.lock().await;
+        if active.contains_key(&scope) {
+            let _ = channel
+                .send_message(&OutboundMessage {
+                    conversation_id: msg.conversation_id.clone(),
+                    channel: msg.channel.clone(),
+                    text: "Busy — type /cancel first, then retry.".to_string(),
+                    message_ref: None,
+                    interaction: None,
+                })
+                .await;
+            return Ok(());
+        }
+    }
+
+    let profile = state.channel_config.profile_for(platform.as_str());
+    let mode = state.channel_config.mode_for(platform.as_str());
+
+    let _typing = TypingGuard::start(channel.clone(), msg.channel.clone());
 
     // Read current session state for resume
     let (resume_session, working_dir, model, yolo) = {
@@ -116,7 +113,9 @@ pub(super) async fn handle_text_message(
     // Store child PID for /cancel
     {
         let mut active = state.active_claude.lock().await;
-        *active = claude.child_id();
+        if let Some(pid) = claude.child_id() {
+            active.insert(scope.clone(), pid);
+        }
     }
 
     {
@@ -186,10 +185,10 @@ pub(super) async fn handle_text_message(
 
         match stream_result {
             Ok(result) => {
-                // Clear active process
+                // Clear active process for this scope
                 {
                     let mut active = state.active_claude.lock().await;
-                    *active = None;
+                    active.remove(&scope);
                 }
 
                 if !result.has_content {
@@ -251,10 +250,10 @@ pub(super) async fn handle_text_message(
                             // Cancel old timer + store new one in a single lock scope
                             {
                                 let mut ac = ac_state.auto_continue.lock().await;
-                                if let Some(h) = ac.take() {
+                                if let Some(h) = ac.remove(&scope) {
                                     h.abort();
                                 }
-                                *ac = Some(handle);
+                                ac.insert(scope.clone(), handle);
                             }
                         }
                     }
@@ -285,7 +284,7 @@ pub(super) async fn handle_text_message(
                 tracing::error!(error = %e, "Stream error");
                 {
                     let mut active = state.active_claude.lock().await;
-                    *active = None;
+                    active.remove(&scope);
                 }
                 let _ = channel
                     .send_message(&OutboundMessage {
@@ -337,7 +336,7 @@ pub(super) async fn handle_interaction(
     // Cancel auto-continue timer on any button press
     {
         let mut ac = state.auto_continue.lock().await;
-        if let Some(h) = ac.take() {
+        if let Some(h) = ac.remove(&scope) {
             h.abort();
         }
     }
@@ -383,6 +382,7 @@ pub(super) async fn handle_bot_command(
             crate::adapters::channel::commands::handle_cancel(
                 adapter.as_ref(),
                 &bot_channel,
+                &scope,
                 &state.active_claude,
             )
             .await
