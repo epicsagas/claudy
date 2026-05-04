@@ -130,6 +130,21 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 
 这样 Claude 就会读取特定 Mode 的配置文件。
 
+Mode 同样非常适合运行携带自有 `CLAUDE.md`、技能、Agent 或设置的**专用 Claude 框架与工具包** — 例如 [gstack](https://github.com/garrytan/gstack)、[superpowers](https://github.com/obra/superpowers)、[ecc](https://github.com/affaan-m/everything-claude-code) 或自定义工具链。无需污染默认配置，将每个框架隔离到专属 Mode 中即可:
+
+```bash
+# 为框架创建专属 Mode
+claudy mode create gstack
+
+# 将框架配置复制或符号链接到 Mode 目录
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# 激活该框架并启动 Claude
+claudy <profile> gstack
+```
+
+每个 Mode 目录都是独立的 `CLAUDE_CONFIG_DIR`，框架之间以及与默认配置之间互不冲突。
+
 ## 命令参考
 
 ### 主要命令
@@ -375,6 +390,27 @@ claudy <profile> work --yolo
 ```
 
 > `--yolo` 是 claudy 中 `--dangerously-skip-permissions` 的简写。
+
+### 在专属 Mode 中运行 Claude 框架
+
+gstack、superpowers、ecc 等框架自带 `CLAUDE.md`、技能和 Agent，将它们隔离运行：
+
+```bash
+# 一次性设置：创建 Mode 并载入框架配置
+claudy mode create gstack
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# 日常使用：激活该框架并启动 Claude
+claudy <profile> gstack
+```
+
+在框架之间切换，无需修改默认配置：
+
+```bash
+claudy <profile> gstack      # 启用 gstack 框架
+claudy <profile> superpowers # 启用 superpowers 框架
+claudy <profile>             # 默认配置，保持不变
+```
 
 ### 通过 MCP 将任务委托给其他代理
 

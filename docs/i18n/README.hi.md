@@ -143,6 +143,21 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 
 ताकि Claude mode-specific config फ़ाइलें पढ़े।
 
+Modes उन **समर्पित Claude फ्रेमवर्क और टूलकिट** को चलाने के लिए भी उपयुक्त हैं जो अपना खुद का `CLAUDE.md`, स्किल्स, एजेंट या सेटिंग्स लाते हैं — जैसे [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code) या कोई कस्टम हार्नेस। अपनी डिफ़ॉल्ट config को प्रभावित करने की बजाय, प्रत्येक फ्रेमवर्क को उसके अपने Mode में अलग करें:
+
+```bash
+# फ्रेमवर्क के लिए समर्पित Mode बनाएं
+claudy mode create gstack
+
+# फ्रेमवर्क की config को Mode डायरेक्टरी में कॉपी या सिम्लिंक करें
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# उस फ्रेमवर्क को सक्रिय करके Claude लॉन्च करें
+claudy <profile> gstack
+```
+
+प्रत्येक Mode डायरेक्टरी एक स्वतंत्र `CLAUDE_CONFIG_DIR` है, इसलिए फ्रेमवर्क एक-दूसरे से या आपकी डिफ़ॉल्ट सेटअप से कभी टकराते नहीं।
+
 ## कमांड संदर्भ
 
 ### मुख्य कमांड
@@ -388,6 +403,27 @@ claudy <profile> work --yolo
 ```
 
 > `--yolo` `--dangerously-skip-permissions` के लिए claudy का shorthand है।
+
+### एक समर्पित Claude Framework को Mode में चलाएं
+
+gstack, superpowers, ecc जैसे frameworks अपना खुद का `CLAUDE.md`, skills और agents लाते हैं। उन्हें अलग रखें:
+
+```bash
+# एक बार की सेटअप: Mode बनाएं और framework config लोड करें
+claudy mode create gstack
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# दैनिक उपयोग: framework को सक्रिय करके Claude लॉन्च करें
+claudy <profile> gstack
+```
+
+डिफ़ॉल्ट config बदले बिना frameworks के बीच स्विच करें:
+
+```bash
+claudy <profile> gstack      # gstack framework सक्रिय
+claudy <profile> superpowers # superpowers framework सक्रिय
+claudy <profile>             # डिफ़ॉल्ट config, अपरिवर्तित
+```
 
 ### MCP के ज़रिए अन्य agents को टास्क सौंपें
 

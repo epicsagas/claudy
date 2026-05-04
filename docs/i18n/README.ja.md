@@ -130,6 +130,21 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 
 これにより Claude は Mode 固有の設定ファイルを読み込みます。
 
+Mode は、独自の `CLAUDE.md`、スキル、エージェント、設定を備えた **専用の Claude フレームワーク・ツールキット** を実行する場合にも最適です — 例: [gstack](https://github.com/garrytan/gstack)、[superpowers](https://github.com/obra/superpowers)、[ecc](https://github.com/affaan-m/everything-claude-code) やカスタムハーネスなど。デフォルト設定を汚さず、各フレームワークを専用の Mode に分離できます:
+
+```bash
+# フレームワーク専用の Mode を作成
+claudy mode create gstack
+
+# フレームワークの設定を Mode ディレクトリにコピーまたはシンボリックリンク
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# そのフレームワークをアクティブにして Claude を起動
+claudy <profile> gstack
+```
+
+各 Mode ディレクトリは独立した `CLAUDE_CONFIG_DIR` であるため、フレームワーク同士、またはデフォルト設定と競合しません。
+
 ## コマンドリファレンス
 
 ### メインコマンド
@@ -375,6 +390,27 @@ claudy <profile> work --yolo
 ```
 
 > `--yolo` は claudy における `--dangerously-skip-permissions` の省略形です。
+
+### 専用の Claude フレームワークを Mode で実行
+
+gstack、superpowers、ecc などのフレームワークは独自の `CLAUDE.md`、スキル、エージェントを提供します。それぞれを独立した Mode で実行:
+
+```bash
+# 初期設定: Mode を作成してフレームワークの設定を反映
+claudy mode create gstack
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# 日常使用: そのフレームワークをアクティブにして Claude を起動
+claudy <profile> gstack
+```
+
+デフォルト設定を変えずにフレームワークを切り替え:
+
+```bash
+claudy <profile> gstack      # gstack フレームワーク有効
+claudy <profile> superpowers # superpowers フレームワーク有効
+claudy <profile>             # デフォルト設定のまま
+```
 
 ### MCP を通じて他のエージェントにタスクを委譲
 

@@ -143,6 +143,21 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 
 para que o Claude leia os arquivos de configuração específicos do Mode.
 
+Os Modes também são ideais para executar **frameworks e toolkits dedicados do Claude** que incluem seu próprio `CLAUDE.md`, habilidades, agentes ou configurações — como [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code) ou qualquer harness personalizado. Em vez de poluir sua configuração padrão, isole cada framework em seu próprio Mode:
+
+```bash
+# Criar um Mode dedicado para o framework
+claudy mode create gstack
+
+# Copiar ou criar link simbólico da config do framework no diretório do Mode
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# Iniciar o Claude com esse framework ativo
+claudy <profile> gstack
+```
+
+Cada diretório Mode é um `CLAUDE_CONFIG_DIR` independente, então os frameworks nunca entram em conflito entre si ou com sua configuração padrão.
+
 ## Referência de Comandos
 
 ### Comandos principais
@@ -388,6 +403,27 @@ claudy <profile> work --yolo
 ```
 
 > `--yolo` é o atalho do claudy para `--dangerously-skip-permissions`.
+
+### Executar um framework Claude dedicado em seu próprio Mode
+
+Frameworks como gstack, superpowers ou ecc incluem seu próprio `CLAUDE.md`, habilidades e agentes. Mantenha-os isolados:
+
+```bash
+# Configuração única: criar o Mode e carregar a config do framework
+claudy mode create gstack
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# Uso diário: iniciar o Claude com o framework ativo
+claudy <profile> gstack
+```
+
+Alternar entre frameworks sem alterar a configuração padrão:
+
+```bash
+claudy <profile> gstack      # framework gstack ativo
+claudy <profile> superpowers # framework superpowers ativo
+claudy <profile>             # configuração padrão, sem alterações
+```
 
 ### Delegar tarefas para outros agentes via MCP
 

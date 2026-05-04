@@ -143,6 +143,21 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 
 afin que Claude lise les fichiers de configuration spécifiques au Mode.
 
+Les Modes sont également parfaitement adaptés pour exécuter des **frameworks et toolkits Claude dédiés** qui livrent leur propre `CLAUDE.md`, compétences, agents ou paramètres — comme [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code) ou tout harnais personnalisé. Plutôt que de polluer votre configuration par défaut, isolez chaque framework dans son propre Mode :
+
+```bash
+# Créer un Mode dédié pour le framework
+claudy mode create gstack
+
+# Copier ou lier symboliquement la config du framework dans le répertoire du Mode
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# Lancer Claude avec ce framework actif
+claudy <profile> gstack
+```
+
+Chaque répertoire Mode est un `CLAUDE_CONFIG_DIR` autonome, donc les frameworks ne se conflictuent jamais entre eux ni avec votre configuration par défaut.
+
 ## Référence des Commandes
 
 ### Commandes principales
@@ -388,6 +403,27 @@ claudy <profile> work --yolo
 ```
 
 > `--yolo` est le raccourci de claudy pour `--dangerously-skip-permissions`.
+
+### Exécuter un framework Claude dédié dans son propre Mode
+
+Les frameworks comme gstack, superpowers ou ecc fournissent leur propre `CLAUDE.md`, compétences et agents. Gardez-les isolés :
+
+```bash
+# Configuration unique : créer le Mode et y intégrer la config du framework
+claudy mode create gstack
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# Utilisation quotidienne : lancer Claude avec le framework actif
+claudy <profile> gstack
+```
+
+Basculer entre frameworks sans toucher à la configuration par défaut :
+
+```bash
+claudy <profile> gstack      # framework gstack actif
+claudy <profile> superpowers # framework superpowers actif
+claudy <profile>             # configuration par défaut, inchangée
+```
 
 ### Déléguer des tâches à d'autres agents via MCP
 

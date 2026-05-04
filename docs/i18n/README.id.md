@@ -143,6 +143,21 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 
 sehingga Claude membaca file konfigurasi khusus Mode.
 
+Mode juga sangat cocok untuk menjalankan **framework dan toolkit Claude khusus** yang membawa `CLAUDE.md`, skill, agen, atau pengaturan mereka sendiri — seperti [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code), atau harness kustom apa pun. Daripada mengotori konfigurasi default, isolasi setiap framework di Mode-nya sendiri:
+
+```bash
+# Buat Mode khusus untuk framework
+claudy mode create gstack
+
+# Salin atau buat symlink konfigurasi framework ke direktori Mode
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# Jalankan Claude dengan framework tersebut aktif
+claudy <profile> gstack
+```
+
+Setiap direktori Mode adalah `CLAUDE_CONFIG_DIR` yang mandiri, sehingga framework tidak pernah saling berkonflik satu sama lain maupun dengan konfigurasi default Anda.
+
 ## Referensi Perintah
 
 ### Perintah Utama
@@ -388,6 +403,27 @@ claudy <profile> work --yolo
 ```
 
 > `--yolo` adalah singkatan claudy untuk `--dangerously-skip-permissions`.
+
+### Menjalankan Framework Claude Khusus dalam Mode-nya Sendiri
+
+Framework seperti gstack, superpowers, atau ecc membawa `CLAUDE.md`, skill, dan agen mereka sendiri. Jalankan secara terisolasi:
+
+```bash
+# Pengaturan sekali: buat Mode dan muat konfigurasi framework
+claudy mode create gstack
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# Penggunaan harian: jalankan Claude dengan framework aktif
+claudy <profile> gstack
+```
+
+Beralih antar framework tanpa mengubah konfigurasi default:
+
+```bash
+claudy <profile> gstack      # framework gstack aktif
+claudy <profile> superpowers # framework superpowers aktif
+claudy <profile>             # konfigurasi default, tidak berubah
+```
 
 ### Delegasikan tugas ke agen lain melalui MCP
 

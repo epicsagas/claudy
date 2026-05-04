@@ -130,6 +130,21 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 
 그러면 Claude가 Mode별 설정 파일을 읽습니다.
 
+Mode는 자체적인 `CLAUDE.md`, 스킬, 에이전트, 설정을 포함하는 **전용 Claude 프레임워크 및 툴킷**을 실행하는 데도 최적입니다 — 예: [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code) 또는 커스텀 하네스. 기본 설정을 오염시키는 대신, 각 프레임워크를 전용 Mode로 격리할 수 있습니다:
+
+```bash
+# 프레임워크 전용 Mode 생성
+claudy mode create gstack
+
+# 프레임워크 설정을 Mode 디렉터리에 복사 또는 심볼릭 링크
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# 해당 프레임워크를 활성화하여 Claude 실행
+claudy <profile> gstack
+```
+
+각 Mode 디렉터리는 독립적인 `CLAUDE_CONFIG_DIR`이므로 프레임워크들이 서로, 또는 기본 설정과 충돌하지 않습니다.
+
 ## 명령어 참조
 
 ### 주요 명령어
@@ -375,6 +390,27 @@ claudy <profile> work --yolo
 ```
 
 > `--yolo`는 `--dangerously-skip-permissions`의 claudy 단축어입니다.
+
+### 전용 Claude 프레임워크를 Mode로 실행
+
+gstack, superpowers, ecc 같은 프레임워크는 자체적인 `CLAUDE.md`, 스킬, 에이전트를 제공합니다. 격리하여 실행하세요:
+
+```bash
+# 최초 설정: Mode 생성 후 프레임워크 설정 반영
+claudy mode create gstack
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# 일상 사용: 프레임워크를 활성화하여 Claude 실행
+claudy <profile> gstack
+```
+
+기본 설정에 영향 없이 프레임워크 간 전환:
+
+```bash
+claudy <profile> gstack      # gstack 프레임워크 활성화
+claudy <profile> superpowers # superpowers 프레임워크 활성화
+claudy <profile>             # 기본 설정 그대로
+```
 
 ### MCP를 통해 다른 에이전트에 작업 위임
 

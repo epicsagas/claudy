@@ -181,6 +181,25 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 
 حتى يقرأ Claude ملفات الإعداد الخاصة بالـ Mode.
 
+تُعدّ Modes أيضاً خياراً مثالياً لتشغيل **أُطر عمل وأدوات Claude المتخصصة** التي تأتي بـ `CLAUDE.md` وskills وagents وإعدادات خاصة بها — مثل [gstack](https://github.com/garrytan/gstack) و[superpowers](https://github.com/obra/superpowers) و[ecc](https://github.com/affaan-m/everything-claude-code) أو أي harness مخصص. بدلاً من تلويث إعداداتك الافتراضية، عزل كل إطار عمل في Mode خاص به:
+
+</div>
+
+```bash
+# إنشاء Mode مخصص لإطار العمل
+claudy mode create gstack
+
+# نسخ أو ربط إعداد إطار العمل بدليل الـ Mode
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# تشغيل Claude مع تفعيل إطار العمل
+claudy <profile> gstack
+```
+
+<div dir="rtl">
+
+كل دليل Mode هو `CLAUDE_CONFIG_DIR` مستقل، لذا لن تتعارض أُطر العمل مع بعضها أو مع إعداداتك الافتراضية.
+
 ## مرجع الأوامر
 
 ### الأوامر الرئيسية
@@ -490,6 +509,35 @@ claudy <profile> work --yolo
 <div dir="rtl">
 
 > `--yolo` هو اختصار claudy لـ `--dangerously-skip-permissions`.
+
+### تشغيل إطار عمل Claude مخصص في Mode خاص به
+
+أُطر العمل مثل gstack وsuperpowers وecc تأتي بـ `CLAUDE.md` وskills وagents خاصة بها. شغّلها بشكل معزول:
+
+</div>
+
+```bash
+# إعداد لمرة واحدة: إنشاء Mode وتحميل إعدادات إطار العمل
+claudy mode create gstack
+cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
+
+# الاستخدام اليومي: تشغيل Claude مع تفعيل إطار العمل
+claudy <profile> gstack
+```
+
+<div dir="rtl">
+
+التبديل بين أُطر العمل دون تعديل الإعدادات الافتراضية:
+
+</div>
+
+```bash
+claudy <profile> gstack      # إطار عمل gstack مفعّل
+claudy <profile> superpowers # إطار عمل superpowers مفعّل
+claudy <profile>             # الإعدادات الافتراضية، دون تغيير
+```
+
+<div dir="rtl">
 
 ### تفويض المهام إلى وكلاء آخرين عبر MCP
 
