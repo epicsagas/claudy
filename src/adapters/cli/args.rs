@@ -156,4 +156,6 @@ pub enum AnalyticsCommands {
         #[arg(long, default_value = "30")]
         days: u32,
     },
+    /// Sync model pricing from models.dev and Anthropic pricing page
+    SyncPricing,
 }

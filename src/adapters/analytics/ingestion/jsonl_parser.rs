@@ -1,5 +1,5 @@
 use crate::domain::analytics::{JsonlEvent, NewSession, NewTokenUsage, NewToolCall, NewTurn};
-use crate::ports::analytics_ports::AnalyticsStore;
+use crate::ports::analytics_ports::{AnalyticsStore, PricingStore};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
@@ -45,6 +45,7 @@ pub fn parse_and_ingest(
     file_path: &Path,
     path_str: &str,
     _full: bool,
+    pricing_store: Option<&dyn PricingStore>,
 ) -> anyhow::Result<IngestionStats> {
     let file = std::fs::File::open(file_path)?;
     let reader = BufReader::new(file);
@@ -170,13 +171,24 @@ pub fn parse_and_ingest(
                             .and_then(serde_json::Value::as_i64)
                             .unwrap_or(0);
                         let model_str = current_model.as_deref().unwrap_or("unknown");
-                        let cost = crate::adapters::analytics::analysis::cost::estimate_cost(
-                            model_str,
-                            input,
-                            output,
-                            cache_creation,
-                            cache_read,
-                        );
+                        let cost = if let Some(ps) = pricing_store {
+                            crate::adapters::analytics::analysis::cost::estimate_cost_with_store(
+                                ps,
+                                model_str,
+                                input,
+                                output,
+                                cache_creation,
+                                cache_read,
+                            )
+                        } else {
+                            crate::adapters::analytics::analysis::cost::estimate_cost(
+                                model_str,
+                                input,
+                                output,
+                                cache_creation,
+                                cache_read,
+                            )
+                        };
                         total_cost += cost;
 
                         if let Some(tid) = pending_turn_id {

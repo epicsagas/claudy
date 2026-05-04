@@ -12,6 +12,7 @@ pub fn run_analytics(ctx: &mut Context, action: AnalyticsAction) -> anyhow::Resu
             project,
             days,
         } => run_export(ctx, &format, project.as_deref(), days),
+        AnalyticsAction::SyncPricing => run_sync_pricing(ctx),
     }
 }
 
@@ -134,5 +135,30 @@ fn run_export(
             return Ok(1);
         }
     }
+    Ok(0)
+}
+
+fn run_sync_pricing(ctx: &mut Context) -> anyhow::Result<i32> {
+    let db_path = &ctx.paths.analytics_db;
+    let store = crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore::open(db_path)?;
+    store.initialize_schema()?;
+
+    let cache_path = dirs::home_dir()
+        .map(|h| h.join(".claudy").join("cache").join("models_dev.json"))
+        .ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
+
+    let result =
+        crate::adapters::analytics::pricing::sync::run_pricing_sync(&store, &cache_path)?;
+
+    for warning in &result.warnings {
+        println!("Warning: {warning}");
+    }
+
+    println!(
+        "Pricing sync complete: {} models synced (source: {})",
+        result.models_synced,
+        result.source.label(),
+    );
+
     Ok(0)
 }

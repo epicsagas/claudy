@@ -281,6 +281,19 @@ pub struct IngestionResult {
     pub elapsed_ms: u64,
 }
 
+// ── Pricing types ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelPricing {
+    pub model_id: String,
+    pub input: f64,
+    pub output: f64,
+    pub cache_write: f64,
+    pub cache_read: f64,
+    pub source: String,
+    pub synced_at: String,
+}
+
 // ── Parsed JSONL event (intermediate) ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

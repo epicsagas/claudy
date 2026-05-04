@@ -1,6 +1,6 @@
 use crate::adapters::analytics::analysis::cost::estimate_cache_savings;
 use crate::domain::analytics::*;
-use crate::ports::analytics_ports::AnalyticsStore;
+use crate::ports::analytics_ports::{AnalyticsStore, PricingStore};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::sync::{Mutex, MutexGuard};
 
@@ -26,6 +26,39 @@ impl SqliteAnalyticsStore {
         self.conn
             .lock()
             .map_err(|e| anyhow::anyhow!("db lock poisoned: {}", e))
+    }
+
+    /// Upsert all pricing rows inside a single transaction.
+    pub fn batch_upsert_model_pricing_impl(
+        &self,
+        pricings: &[crate::domain::analytics::ModelPricing],
+    ) -> anyhow::Result<()> {
+        let mut conn = self.lock()?;
+        let tx = conn.transaction()?;
+        for pricing in pricings {
+            tx.execute(
+                "INSERT INTO model_pricing (model_id, input, output, cache_write, cache_read, source, synced_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                 ON CONFLICT(model_id) DO UPDATE SET
+                   input       = excluded.input,
+                   output      = excluded.output,
+                   cache_write = excluded.cache_write,
+                   cache_read  = excluded.cache_read,
+                   source      = excluded.source,
+                   synced_at   = excluded.synced_at",
+                params![
+                    pricing.model_id,
+                    pricing.input,
+                    pricing.output,
+                    pricing.cache_write,
+                    pricing.cache_read,
+                    pricing.source,
+                    pricing.synced_at,
+                ],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
     }
 }
 
@@ -652,6 +685,23 @@ impl AnalyticsStore for SqliteAnalyticsStore {
                  WHERE s.started_at > date('now', '-' || ?1 || ' days')
                  GROUP BY tu.model",
         };
+        // Fetch all model_pricing rows into a map so we can look them up inside
+        // the loop below without re-acquiring the mutex (which would deadlock).
+        let pricing_map: std::collections::HashMap<String, (f64, f64)> = {
+            let mut ps = conn.prepare(
+                "SELECT model_id, input, cache_read FROM model_pricing",
+            )?;
+            let iter = ps.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?, row.get::<_, f64>(2)?))
+            })?;
+            let mut map = std::collections::HashMap::new();
+            for r in iter {
+                let (id, inp, cr) = r?;
+                map.insert(id, (inp, cr));
+            }
+            map
+        };
+
         let mut stmt = conn.prepare(breakdown_sql)?;
         let mut rows = if let Some(pid) = project_id {
             stmt.query(params![days, pid])?
@@ -669,7 +719,14 @@ impl AnalyticsStore for SqliteAnalyticsStore {
             let cache_read: i64 = row.get(4)?;
             let session_count: i64 = row.get(5)?;
 
-            cache_savings_usd += estimate_cache_savings(&model, cache_read);
+            // Use DB pricing when available; fall back to hardcoded estimates.
+            cache_savings_usd += if let Some(&(inp_rate, cr_rate)) = pricing_map.get(&model) {
+                #[allow(clippy::cast_precision_loss)]
+                let tokens_m = cache_read as f64 / 1_000_000.0;
+                tokens_m * (inp_rate - cr_rate)
+            } else {
+                estimate_cache_savings(&model, cache_read)
+            };
 
             let percentage = if total_cost > 0.0 {
                 (cost / total_cost) * 100.0
@@ -769,6 +826,83 @@ fn map_session_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRecord> {
         first_message: row.get(10)?,
         source_file: row.get(11)?,
     })
+}
+
+impl PricingStore for SqliteAnalyticsStore {
+    fn upsert_model_pricing(&self, pricing: &ModelPricing) -> anyhow::Result<()> {
+        self.lock()?.execute(
+            "INSERT INTO model_pricing (model_id, input, output, cache_write, cache_read, source, synced_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(model_id) DO UPDATE SET
+               input       = excluded.input,
+               output      = excluded.output,
+               cache_write = excluded.cache_write,
+               cache_read  = excluded.cache_read,
+               source      = excluded.source,
+               synced_at   = excluded.synced_at",
+            params![
+                pricing.model_id,
+                pricing.input,
+                pricing.output,
+                pricing.cache_write,
+                pricing.cache_read,
+                pricing.source,
+                pricing.synced_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    fn batch_upsert_model_pricing(&self, pricings: &[ModelPricing]) -> anyhow::Result<()> {
+        self.batch_upsert_model_pricing_impl(pricings)
+    }
+
+    fn get_model_pricing(&self, model_id: &str) -> anyhow::Result<Option<ModelPricing>> {
+        let conn = self.lock()?;
+        let result = conn
+            .query_row(
+                "SELECT model_id, input, output, cache_write, cache_read, source, synced_at
+                 FROM model_pricing WHERE model_id = ?1",
+                params![model_id],
+                |row| {
+                    Ok(ModelPricing {
+                        model_id: row.get(0)?,
+                        input: row.get(1)?,
+                        output: row.get(2)?,
+                        cache_write: row.get(3)?,
+                        cache_read: row.get(4)?,
+                        source: row.get(5)?,
+                        synced_at: row.get(6)?,
+                    })
+                },
+            )
+            .optional()?;
+        Ok(result)
+    }
+
+    fn list_model_pricing(&self) -> anyhow::Result<Vec<ModelPricing>> {
+        let conn = self.lock()?;
+        let mut stmt = conn.prepare(
+            "SELECT model_id, input, output, cache_write, cache_read, source, synced_at
+             FROM model_pricing ORDER BY model_id",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(ModelPricing {
+                model_id: row.get(0)?,
+                input: row.get(1)?,
+                output: row.get(2)?,
+                cache_write: row.get(3)?,
+                cache_read: row.get(4)?,
+                source: row.get(5)?,
+                synced_at: row.get(6)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row?);
+        }
+        Ok(result)
+    }
 }
 
 const SCHEMA: &str = r"
@@ -879,6 +1013,16 @@ CREATE TABLE IF NOT EXISTS ingestion_checkpoints (
     byte_offset     INTEGER NOT NULL DEFAULT 0,
     line_count      INTEGER NOT NULL DEFAULT 0,
     ingested_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS model_pricing (
+    model_id    TEXT    PRIMARY KEY,
+    input       REAL    NOT NULL,
+    output      REAL    NOT NULL,
+    cache_write REAL    NOT NULL,
+    cache_read  REAL    NOT NULL,
+    source      TEXT    NOT NULL,
+    synced_at   TEXT    NOT NULL
 );
 ";
 
@@ -1068,5 +1212,98 @@ mod tests {
         assert_eq!(recs[0].title, "High cost");
         store.clear_recommendations().unwrap();
         assert!(store.get_recommendations().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_batch_upsert_model_pricing_impl_is_callable() {
+        // Verify the renamed inherent method exists and works correctly.
+        let store = test_store();
+        let pricings = vec![crate::domain::analytics::ModelPricing {
+            model_id: "claude-impl-test".into(),
+            input: 3.0,
+            output: 15.0,
+            cache_write: 3.75,
+            cache_read: 0.30,
+            source: "test".into(),
+            synced_at: "2026-01-01T00:00:00Z".into(),
+        }];
+        // Call the renamed inherent method directly.
+        store.batch_upsert_model_pricing_impl(&pricings).unwrap();
+        let fetched = store
+            .get_model_pricing("claude-impl-test")
+            .unwrap()
+            .expect("found");
+        assert!((fetched.input - 3.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_aggregate_cost_metrics_uses_db_cache_savings() {
+        use crate::ports::analytics_ports::PricingStore as _;
+        let store = test_store();
+
+        // Insert a model pricing row with exaggerated rates so the DB path produces
+        // a detectably different result from the hardcoded fallback.
+        // savings = cache_read_tokens * (input_rate - cache_read_rate) / 1_000_000
+        //         = 1_000_000 * (10.0 - 1.0) / 1_000_000 = $9.0
+        store
+            .upsert_model_pricing(&crate::domain::analytics::ModelPricing {
+                model_id: "claude-haiku-test".into(),
+                input: 10.0,
+                output: 30.0,
+                cache_write: 5.0,
+                cache_read: 1.0,
+                source: "test".into(),
+                synced_at: "2026-01-01T00:00:00Z".into(),
+            })
+            .unwrap();
+
+        let pid = store.upsert_project("-test-cost", "cost-proj", None).unwrap();
+        let sid = store
+            .upsert_session(&NewSession {
+                session_uuid: "uuid-cost-db".into(),
+                project_id: pid,
+                source_file: "/cost.jsonl".into(),
+                cwd: None,
+                model: Some("claude-haiku-test".into()),
+                first_message: None,
+                started_at: Some("2026-01-01T00:00:00".into()),
+            })
+            .unwrap();
+        store
+            .update_session_completion(sid, "2026-01-01T01:00:00", 1, 0.10, 60_000)
+            .unwrap();
+        let tid = store
+            .insert_turn(&NewTurn {
+                session_id: sid,
+                turn_number: 1,
+                prompt_text: None,
+                response_text: None,
+                model: Some("claude-haiku-test".into()),
+                duration_ms: None,
+                started_at: Some("2026-01-01T00:00:00".into()),
+            })
+            .unwrap();
+        store
+            .insert_token_usage(&NewTokenUsage {
+                turn_id: tid,
+                model: "claude-haiku-test".into(),
+                input_tokens: 1000,
+                output_tokens: 500,
+                cache_creation_input_tokens: 0,
+                cache_read_input_tokens: 1_000_000,
+                estimated_cost_usd: 0.10,
+            })
+            .unwrap();
+
+        // Use a large window so the 2026-01-01 session is always included.
+        let metrics = store.aggregate_cost_metrics(9999, None).unwrap();
+
+        // DB path: $9.0. Hardcoded fallback for an unknown model would be $0.0
+        // (get_pricing returns defaults with equal input/cache_read for unknown models).
+        assert!(
+            (metrics.cache_savings_usd - 9.0).abs() < 0.001,
+            "expected $9.0 cache savings from DB rates, got {}",
+            metrics.cache_savings_usd
+        );
     }
 }
