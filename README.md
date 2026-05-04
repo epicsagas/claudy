@@ -1,3 +1,13 @@
+<h1 align="center">claudy</h1>
+
+<p align="center"><b>Modern multi-provider launcher for Claude CLI.</b></p>
+
+---
+
+<p align="center">
+Claudy helps you run Claude against multiple providers with one consistent command surface, while keeping provider credentials and Claude config overlays organized under a single home directory.
+</p>
+
 <p align="center">
   <a href="docs/i18n/README.ko.md">🇰🇷 한국어</a> •
   <a href="docs/i18n/README.zh-Hans.md">🇨🇳 中文</a> •
@@ -11,16 +21,6 @@
   <a href="docs/i18n/README.ar.md">🇸🇦 العربية</a>
 </p>
 
-<h1 align="center">claudy</h1>
-
-<p align="center"><b>Modern multi-provider launcher for Claude CLI.</b></p>
-
----
-
-<p align="center">
-Claudy helps you run Claude against multiple providers with one consistent command surface, while keeping provider credentials and Claude config overlays organized under a single home directory.
-</p>
-
 <p align="center">
     <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-1.92%2B-orange.svg" alt="rust-lang" /></a>
     <a href="https://crates.io/crates/claudy"><img src="https://img.shields.io/crates/v/claudy.svg" alt="crates.io" /></a>
@@ -31,7 +31,7 @@ Claudy helps you run Claude against multiple providers with one consistent comma
 
 ---
 
-<img src="assets/features-2048.png" alt="Why Claudy" width="100%" />
+<img src="docs/assets/features-2048.png" alt="Why Claudy" width="100%" />
 
 ## Why Claudy
 
@@ -360,7 +360,7 @@ Analytics tracks:
 
 Data is stored in a local SQLite database under `~/.claudy/analytics/`. The dashboard runs as a high-performance local Tauri 2 + Svelte app. Use the **[Sync]** button in the dashboard to instantly refresh data from your Claude CLI history.
 
-<img src="assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
+<img src="docs/assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
 
 ## Files and Directory Layout
 

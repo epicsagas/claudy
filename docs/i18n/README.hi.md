@@ -33,7 +33,7 @@ Claudy आपको एक सुसंगत कमांड इंटरफे
 
 ---
 
-<img src="../../assets/features-2048.png" alt="Why Claudy" width="100%" />
+<img src="../assets/features-2048.png" alt="Why Claudy" width="100%" />
 
 ## Claudy क्यों?
 
@@ -360,7 +360,7 @@ Analytics ट्रैक करता है:
 
 डेटा `~/.claudy/analytics/` के अंतर्गत एक लोकल SQLite डेटाबेस में संग्रहीत है। Dashboard एक high-performance लोकल Tauri 2 + Svelte ऐप के रूप में चलता है। अपने Claude CLI इतिहास से डेटा तुरंत रिफ्रेश करने के लिए dashboard में **[Sync]** बटन का उपयोग करें।
 
-<img src="../../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
+<img src="../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
 
 ## फ़ाइलें और डायरेक्टरी लेआउट
 

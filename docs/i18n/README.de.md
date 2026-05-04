@@ -33,7 +33,7 @@ Claudy ermöglicht es Ihnen, Claude mit mehreren Providern über eine einheitlic
 
 ---
 
-<img src="../../assets/features-2048.png" alt="Warum Claudy" width="100%" />
+<img src="../assets/features-2048.png" alt="Warum Claudy" width="100%" />
 
 ## Warum Claudy
 
@@ -360,7 +360,7 @@ Analytics verfolgt:
 
 Daten werden in einer lokalen SQLite-Datenbank unter `~/.claudy/analytics/` gespeichert. Das Dashboard läuft als hochperformante lokale Tauri 2 + Svelte-App. Verwenden Sie die **[Sync]**-Schaltfläche im Dashboard, um Daten aus Ihrem Claude CLI-Verlauf sofort zu aktualisieren.
 
-<img src="../../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
+<img src="../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
 
 ## Dateien und Verzeichnisstruktur
 

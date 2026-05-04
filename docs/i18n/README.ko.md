@@ -20,7 +20,7 @@ Claudy는 하나의 일관된 명령어 인터페이스로 여러 Provider에서
 
 ---
 
-<img src="../../assets/features-2048.png" alt="Why Claudy" width="100%" />
+<img src="../assets/features-2048.png" alt="Why Claudy" width="100%" />
 
 ## Claudy를 사용하는 이유
 
@@ -347,7 +347,7 @@ claudy analytics export --format csv --days 7  # 지난 7일간 CSV로 내보내
 
 데이터는 `~/.claudy/analytics/` 아래 로컬 SQLite 데이터베이스에 저장됩니다. 대시보드는 고성능 로컬 Tauri 2 + Svelte 앱으로 실행됩니다. 대시보드의 **[Sync]** 버튼을 사용하여 Claude CLI 기록에서 데이터를 즉시 새로고침하세요.
 
-<img src="../../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
+<img src="../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
 
 ## 파일 및 디렉터리 구조
 

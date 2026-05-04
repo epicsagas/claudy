@@ -33,7 +33,7 @@
 
 ---
 
-<img src="../../assets/features-2048.png" alt="Why Claudy" width="100%" />
+<img src="../assets/features-2048.png" alt="Why Claudy" width="100%" />
 
 <div dir="rtl">
 
@@ -452,7 +452,7 @@ claudy analytics export --format csv --days 7  # تصدير CSV لآخر 7 أي�
 
 </div>
 
-<img src="../../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
+<img src="../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
 
 <div dir="rtl">
 

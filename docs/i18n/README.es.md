@@ -33,7 +33,7 @@ Claudy te permite ejecutar Claude con múltiples providers a través de una inte
 
 ---
 
-<img src="../../assets/features-2048.png" alt="Por qué Claudy" width="100%" />
+<img src="../assets/features-2048.png" alt="Por qué Claudy" width="100%" />
 
 ## Por qué Claudy
 
@@ -360,7 +360,7 @@ Analytics rastrea:
 
 Los datos se almacenan en una base de datos SQLite local bajo `~/.claudy/analytics/`. El dashboard se ejecuta como una aplicación local de alto rendimiento con Tauri 2 + Svelte. Usa el botón **[Sync]** en el dashboard para actualizar instantáneamente los datos desde tu historial de Claude CLI.
 
-<img src="../../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
+<img src="../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
 
 ## Archivos y Estructura de Directorios
 

@@ -33,7 +33,7 @@ Claudy membantu Anda menjalankan Claude terhadap berbagai provider dengan satu a
 
 ---
 
-<img src="../../assets/features-2048.png" alt="Why Claudy" width="100%" />
+<img src="../assets/features-2048.png" alt="Why Claudy" width="100%" />
 
 ## Mengapa Claudy?
 
@@ -360,7 +360,7 @@ Analytics melacak:
 
 Data disimpan dalam database SQLite lokal di `~/.claudy/analytics/`. Dashboard berjalan sebagai aplikasi Tauri 2 + Svelte lokal berkinerja tinggi. Gunakan tombol **[Sync]** di dashboard untuk langsung menyegarkan data dari riwayat Claude CLI Anda.
 
-<img src="../../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
+<img src="../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
 
 ## Tata Letak File dan Direktori
 
