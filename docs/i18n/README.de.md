@@ -1,19 +1,21 @@
 [← English](../../README.md)
 
+<h1 align="center">claudy</h1>
+
+<p align="center"><b>Ein Befehl. Jeder Provider. Volle Kontrolle über das Claude CLI.</b></p>
+
+---
+
 <p align="center">
-  <a href="README_ko.md">🇰🇷 한국어</a> •
-  <a href="README_zh.md">🇨🇳 中文</a> •
-  <a href="README_ja.md">🇯🇵 日本語</a> •
-  <a href="README_de.md">🇩🇪 Deutsch</a> •
-  <a href="README_fr.md">🇫🇷 Français</a> •
-  <a href="README_es.md">🇪🇸 Español</a> •
-  <a href="README_hi.md">🇮🇳 हिन्दी</a> •
-  <a href="README_pt.md">🇧🇷 Português</a> •
-  <a href="README_id.md">🇮🇩 Bahasa</a> •
-  <a href="README_ar.md">🇸🇦 العربية</a>
+Schluss mit dem Jonglieren von Umgebungsvariablen und Konfigurationsdateien.<br/>
+Mit Claudy wechseln Sie mit einem einzigen Befehl zwischen Anthropic, Z.AI, OpenRouter, Ollama und benutzerdefinierten Endpoints — Zugangsdaten, Konfigurationsmodi und Claude-Frameworks bleiben sauber pro Profil isoliert.
 </p>
 
-<h1 align="center">claudy</h1>
+<p align="center">
+<b>Multi-Provider · Konfigurations-Isolation · Channel-Bridge · Lokale Agent-Bridge · Nutzungsanalyse</b>
+</p>
+
+---
 
 <p align="center"><b>Moderner Multi-Provider-Launcher für das Claude CLI.</b></p>
 
@@ -46,17 +48,17 @@ Claudy ermöglicht es Ihnen, Claude mit mehreren Providern über eine einheitlic
 - **Agent MCP Bridge**: Delegieren Sie Aufgaben von Claude Code an andere lokale KI-Agenten (Gemini, Codex, Aider usw.) über MCP.
 - **Nutzungsanalysen**: Liest Sitzungsdaten aus `~/.claude/projects/`, verfolgt Token-Nutzung und Kosten pro Sitzung/Projekt und zeigt ein lokales Dashboard mit Empfehlungen an.
 
-## Provider-Status
+## Unterstützte Provider
 
-> Claudy wurde von [Clother](https://github.com/jolehuit/clother) inspiriert, einem Go-basierten Multi-Provider-Launcher für das Claude CLI. **Nur der Z.AI-Provider wurde vollständig getestet**. Alle anderen alternativen Provider sind experimentell und ungetestet — verwenden Sie sie auf eigene Gefahr.
+> Claudy wurde von [Clother](https://github.com/jolehuit/clother) inspiriert, einem Go-basierten Multi-Provider-Launcher für das Claude CLI. Z.AI wurde am gründlichsten getestet. Wenn Sie bei anderen Providern auf Probleme stoßen, [öffnen Sie bitte ein Issue](https://github.com/epicsagas/claudy/issues).
 
 | Provider | Status | Hinweise |
 |---|---|---|
 | Built-in (Anthropic) | ✅ Getestet | Standard |
-| Z.AI | ✅ Getestet | Vollständig validiert |
-| OpenRouter alias | ⚠️ Experimentell | Ungetestet — auf eigene Gefahr verwenden |
-| Ollama | ⚠️ Experimentell | Ungetestet — auf eigene Gefahr verwenden |
-| Custom endpoint | ⚠️ Experimentell | Ungetestet — auf eigene Gefahr verwenden |
+| Z.AI | ✅ Getestet | |
+| OpenRouter alias | ⚠️ Experimentell | Noch nicht vollständig getestet — bitte auf GitHub melden |
+| Ollama | ⚠️ Experimentell | Noch nicht vollständig getestet — bitte auf GitHub melden |
+| Custom endpoint | ⚠️ Experimentell | Noch nicht vollständig getestet — bitte auf GitHub melden |
 
 ## Voraussetzungen
 
@@ -104,6 +106,8 @@ claudy --version
 ```
 
 ## Schnellstart
+
+<img src="docs/assets/demo.gif" alt="Quick Start" width="100%" />
 
 ```bash
 # 1) Verfügbare/aufgelöste Profiles auflisten

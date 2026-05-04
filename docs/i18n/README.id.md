@@ -1,19 +1,21 @@
 [← English](../../README.md)
 
+<h1 align="center">claudy</h1>
+
+<p align="center"><b>Satu perintah. Provider apa pun. Kendali penuh atas Claude CLI.</b></p>
+
+---
+
 <p align="center">
-  <a href="README_ko.md">🇰🇷 한국어</a> •
-  <a href="README_zh.md">🇨🇳 中文</a> •
-  <a href="README_ja.md">🇯🇵 日本語</a> •
-  <a href="README_de.md">🇩🇪 Deutsch</a> •
-  <a href="README_fr.md">🇫🇷 Français</a> •
-  <a href="README_es.md">🇪🇸 Español</a> •
-  <a href="README_hi.md">🇮🇳 हिन्दी</a> •
-  <a href="README_pt.md">🇧🇷 Português</a> •
-  <a href="README_id.md">🇮🇩 Bahasa</a> •
-  <a href="README_ar.md">🇸🇦 العربية</a>
+Tidak perlu lagi pusing mengurus variabel lingkungan dan file konfigurasi.<br/>
+Claudy memungkinkan Anda beralih antara Anthropic, Z.AI, OpenRouter, Ollama, dan endpoint kustom hanya dengan satu perintah — menjaga credential, mode konfigurasi, dan framework Claude tetap terisolasi dengan rapi per profil.
 </p>
 
-<h1 align="center">claudy</h1>
+<p align="center">
+<b>Multi-provider · Isolasi config · Channel bridge · Bridge agen lokal · Analytics penggunaan</b>
+</p>
+
+---
 
 <p align="center"><b>Launcher multi-provider modern untuk Claude CLI.</b></p>
 
@@ -46,17 +48,17 @@ Claudy membantu Anda menjalankan Claude terhadap berbagai provider dengan satu a
 - **Agent MCP bridge**: delegasikan tugas dari Claude Code ke agen AI lokal lainnya (Gemini, Codex, Aider, dll.) melalui MCP.
 - **Usage analytics**: serap data sesi dari `~/.claude/projects/`, lacak penggunaan token dan biaya per sesi/proyek, lihat dashboard lokal dengan rekomendasi.
 
-## Status Provider
+## Provider yang Didukung
 
-> Claudy terinspirasi dari [Clother](https://github.com/jolehuit/clother), launcher multi-provider berbasis Go untuk Claude CLI. Hanya **Z.AI provider yang telah diuji sepenuhnya**. Semua provider alternatif lainnya bersifat eksperimental dan belum diuji — gunakan dengan risiko Anda sendiri.
+> Claudy terinspirasi dari [Clother](https://github.com/jolehuit/clother), launcher multi-provider berbasis Go untuk Claude CLI. Z.AI adalah provider yang paling banyak diuji. Jika Anda menemukan masalah dengan provider lain, silakan [buka issue](https://github.com/epicsagas/claudy/issues).
 
 | Provider | Status | Catatan |
 |---|---|---|
 | Built-in (Anthropic) | ✅ Diuji | Default |
-| Z.AI | ✅ Diuji | Tervalidasi penuh |
-| OpenRouter alias | ⚠️ Eksperimental | Belum diuji — gunakan dengan risiko sendiri |
-| Ollama | ⚠️ Eksperimental | Belum diuji — gunakan dengan risiko sendiri |
-| Custom endpoint | ⚠️ Eksperimental | Belum diuji — gunakan dengan risiko sendiri |
+| Z.AI | ✅ Diuji | |
+| OpenRouter alias | ⚠️ Eksperimental | Belum sepenuhnya diuji — laporkan masalah di GitHub |
+| Ollama | ⚠️ Eksperimental | Belum sepenuhnya diuji — laporkan masalah di GitHub |
+| Custom endpoint | ⚠️ Eksperimental | Belum sepenuhnya diuji — laporkan masalah di GitHub |
 
 ## Persyaratan
 
@@ -104,6 +106,8 @@ claudy --version
 ```
 
 ## Mulai Cepat
+
+<img src="docs/assets/demo.gif" alt="Quick Start" width="100%" />
 
 ```bash
 # 1) Tampilkan daftar profiles yang tersedia/terselesaikan

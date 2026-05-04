@@ -1,19 +1,21 @@
 [← English](../../README.md)
 
+<h1 align="center">claudy</h1>
+
+<p align="center"><b>أمر واحد. أي Provider. تحكم كامل في Claude CLI.</b></p>
+
+---
+
 <p align="center">
-  <a href="README_ko.md">🇰🇷 한국어</a> •
-  <a href="README_zh.md">🇨🇳 中文</a> •
-  <a href="README_ja.md">🇯🇵 日本語</a> •
-  <a href="README_de.md">🇩🇪 Deutsch</a> •
-  <a href="README_fr.md">🇫🇷 Français</a> •
-  <a href="README_es.md">🇪🇸 Español</a> •
-  <a href="README_hi.md">🇮🇳 हिन्दी</a> •
-  <a href="README_pt.md">🇧🇷 Português</a> •
-  <a href="README_id.md">🇮🇩 Bahasa</a> •
-  <a href="README_ar.md">🇸🇦 العربية</a>
+توقف عن التنقل بين متغيرات البيئة وملفات الإعداد.<br/>
+يتيح لك Claudy التبديل بين Anthropic وZ.AI وOpenRouter وOllama ونقاط النهاية المخصصة بأمر واحد — مع إبقاء بيانات الاعتماد وأوضاع الإعداد وأُطر عمل Claude معزولة بشكل نظيف لكل Profile.
 </p>
 
-<h1 align="center">claudy</h1>
+<p align="center">
+<b>متعدد الـ Providers · عزل الإعدادات · Channel bridge · جسر الوكلاء المحليين · تحليلات الاستخدام</b>
+</p>
+
+---
 
 <p align="center"><b>مُشغِّل حديث متعدد الـ providers لـ Claude CLI.</b></p>
 
@@ -48,19 +50,19 @@
 - **Agent MCP bridge**: تفويض المهام من Claude Code إلى وكلاء AI محليين آخرين (Gemini و Codex و Aider وغيرها) عبر MCP.
 - **تحليلات الاستخدام**: استيعاب بيانات الجلسة من `~/.claude/projects/`، وتتبع استخدام الرموز (tokens) والتكاليف لكل جلسة/مشروع، وعرض لوحة تحكم محلية مع توصيات.
 
-## حالة الـ Provider
+## الـ Providers المدعومة
 
-> استوحى Claudy الإلهام من [Clother](https://github.com/jolehuit/clother)، وهو مُشغِّل متعدد الـ providers لـ Claude CLI مبني بـ Go. **تم اختبار Z.AI provider فقط بالكامل**. جميع الـ providers البديلة الأخرى تجريبية وغير مختبرة — استخدمها على مسؤوليتك الخاصة.
+> استوحى Claudy الإلهام من [Clother](https://github.com/jolehuit/clother)، وهو مُشغِّل متعدد الـ providers لـ Claude CLI مبني بـ Go. Z.AI هو الـ provider الأكثر اختباراً. إذا واجهت أي مشكلة مع providers أخرى، يرجى [فتح issue](https://github.com/epicsagas/claudy/issues).
 
 </div>
 
 | Provider | الحالة | ملاحظات |
 |---|---|---|
 | Built-in (Anthropic) | ✅ مختبر | الافتراضي |
-| Z.AI | ✅ مختبر | تم التحقق منه بالكامل |
-| OpenRouter alias | ⚠️ تجريبي | غير مختبر — استخدم على مسؤوليتك |
-| Ollama | ⚠️ تجريبي | غير مختبر — استخدم على مسؤوليتك |
-| Custom endpoint | ⚠️ تجريبي | غير مختبر — استخدم على مسؤوليتك |
+| Z.AI | ✅ مختبر | |
+| OpenRouter alias | ⚠️ تجريبي | لم يُختبر بالكامل بعد — أبلغ عن المشكلات على GitHub |
+| Ollama | ⚠️ تجريبي | لم يُختبر بالكامل بعد — أبلغ عن المشكلات على GitHub |
+| Custom endpoint | ⚠️ تجريبي | لم يُختبر بالكامل بعد — أبلغ عن المشكلات على GitHub |
 
 <div dir="rtl">
 
@@ -132,6 +134,8 @@ claudy --version
 ## البدء السريع
 
 </div>
+
+<img src="docs/assets/demo.gif" alt="Quick Start" width="100%" />
 
 ```bash
 # 1) عرض قائمة الـ profiles المتاحة/المحلولة

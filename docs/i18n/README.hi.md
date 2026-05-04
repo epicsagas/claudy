@@ -1,19 +1,21 @@
 [← English](../../README.md)
 
+<h1 align="center">claudy</h1>
+
+<p align="center"><b>एक कमांड। कोई भी Provider। Claude CLI पर पूरा नियंत्रण।</b></p>
+
+---
+
 <p align="center">
-  <a href="README_ko.md">🇰🇷 한국어</a> •
-  <a href="README_zh.md">🇨🇳 中文</a> •
-  <a href="README_ja.md">🇯🇵 日本語</a> •
-  <a href="README_de.md">🇩🇪 Deutsch</a> •
-  <a href="README_fr.md">🇫🇷 Français</a> •
-  <a href="README_es.md">🇪🇸 Español</a> •
-  <a href="README_hi.md">🇮🇳 हिन्दी</a> •
-  <a href="README_pt.md">🇧🇷 Português</a> •
-  <a href="README_id.md">🇮🇩 Bahasa</a> •
-  <a href="README_ar.md">🇸🇦 العربية</a>
+Environment variables और config files के बीच उलझने की जरूरत नहीं।<br/>
+Claudy एक ही कमांड से Anthropic, Z.AI, OpenRouter, Ollama और कस्टम endpoints के बीच स्विच करने देता है — credentials, config modes और Claude frameworks को profile के अनुसार साफ तरीके से अलग रखता है।
 </p>
 
-<h1 align="center">claudy</h1>
+<p align="center">
+<b>Multi-provider · Config isolation · Channel bridge · Local agent bridge · Usage analytics</b>
+</p>
+
+---
 
 <p align="center"><b>Claude CLI के लिए आधुनिक मल्टी-provider लॉन्चर।</b></p>
 
@@ -46,17 +48,17 @@ Claudy आपको एक सुसंगत कमांड इंटरफे
 - **Agent MCP bridge**: MCP के ज़रिए Claude Code से अन्य लोकल AI agents (Gemini, Codex, Aider, आदि) को टास्क सौंपें।
 - **Usage analytics**: `~/.claude/projects/` से session डेटा इनजेस्ट करें, प्रति session/project टोकन उपयोग और लागत ट्रैक करें, recommendations के साथ एक लोकल dashboard देखें।
 
-## Provider Status
+## समर्थित Providers
 
-> Claudy को [Clother](https://github.com/jolehuit/clother) से प्रेरणा मिली है, जो Claude CLI के लिए एक Go-आधारित मल्टी-provider लॉन्चर है। केवल **Z.AI provider को पूरी तरह से परीक्षण किया गया है**। अन्य सभी वैकल्पिक providers प्रयोगात्मक और अपरीक्षित हैं — इनका उपयोग अपने जोखिम पर करें।
+> Claudy को [Clother](https://github.com/jolehuit/clother) से प्रेरणा मिली है, जो Claude CLI के लिए एक Go-आधारित मल्टी-provider लॉन्चर है। Z.AI provider का सबसे गहन परीक्षण किया गया है। यदि अन्य providers के साथ कोई समस्या आती है, तो कृपया [एक issue खोलें](https://github.com/epicsagas/claudy/issues)।
 
 | Provider | Status | Notes |
 |---|---|---|
 | Built-in (Anthropic) | ✅ परीक्षित | डिफ़ॉल्ट |
-| Z.AI | ✅ परीक्षित | पूरी तरह से मान्य |
-| OpenRouter alias | ⚠️ प्रयोगात्मक | अपरीक्षित — अपने जोखिम पर उपयोग करें |
-| Ollama | ⚠️ प्रयोगात्मक | अपरीक्षित — अपने जोखिम पर उपयोग करें |
-| Custom endpoint | ⚠️ प्रयोगात्मक | अपरीक्षित — अपने जोखिम पर उपयोग करें |
+| Z.AI | ✅ परीक्षित | |
+| OpenRouter alias | ⚠️ प्रयोगात्मक | अभी पूरी तरह परीक्षित नहीं — GitHub पर समस्या रिपोर्ट करें |
+| Ollama | ⚠️ प्रयोगात्मक | अभी पूरी तरह परीक्षित नहीं — GitHub पर समस्या रिपोर्ट करें |
+| Custom endpoint | ⚠️ प्रयोगात्मक | अभी पूरी तरह परीक्षित नहीं — GitHub पर समस्या रिपोर्ट करें |
 
 ## आवश्यकताएं
 
@@ -104,6 +106,8 @@ claudy --version
 ```
 
 ## Quick Start
+
+<img src="docs/assets/demo.gif" alt="Quick Start" width="100%" />
 
 ```bash
 # 1) उपलब्ध/resolved profiles की सूची देखें

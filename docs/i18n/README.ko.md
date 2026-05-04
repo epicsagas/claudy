@@ -2,7 +2,22 @@
 
 <h1 align="center">claudy</h1>
 
-<p align="center"><b>Claude CLI를 위한 현대적인 멀티 Provider 런처.</b></p>
+<p align="center"><b>하나의 명령어. 어떤 Provider든. Claude CLI에 대한 완전한 제어.</b></p>
+
+---
+
+<p align="center">
+환경 변수와 설정 파일을 뒤적이는 것은 그만하세요.<br/>
+Claudy를 사용하면 단 하나의 명령어로 Anthropic, Z.AI, OpenRouter, Ollama, 커스텀 엔드포인트 간에 전환할 수 있으며, 자격증명, 설정 모드, Claude 프레임워크를 프로필별로 깔끔하게 분리해 관리합니다.
+</p>
+
+<p align="center">
+<b>멀티 Provider · 설정 격리 · Channel 브릿지 · 로컬 에이전트 브릿지 · 사용량 분석</b>
+</p>
+
+---
+
+<p align="center"><b>Claude CLI를 위한 멀티 Provider 런처.</b></p>
 
 ---
 
@@ -33,17 +48,17 @@ Claudy는 하나의 일관된 명령어 인터페이스로 여러 Provider에서
 - **에이전트 MCP 브릿지**: MCP를 통해 Claude Code에서 다른 로컬 AI 에이전트(Gemini, Codex, Aider 등)로 작업 위임.
 - **사용량 분석**: `~/.claude/projects/`에서 세션 데이터를 수집하고, 세션/프로젝트별 토큰 사용량 및 비용을 추적하며, 권장 사항이 포함된 로컬 대시보드를 제공.
 
-## Provider 현황
+## 지원 Provider
 
-> Claudy는 Go 기반의 Claude CLI 멀티 Provider 런처인 [Clother](https://github.com/jolehuit/clother)에서 영감을 받았습니다. **Z.AI Provider만 완전히 테스트되었습니다**. 다른 대체 Provider는 모두 실험적이며 테스트되지 않았습니다 — 사용 시 위험을 감수하세요.
+> Claudy는 Go 기반의 Claude CLI 멀티 Provider 런처인 [Clother](https://github.com/jolehuit/clother)에서 영감을 받았습니다. Z.AI Provider가 가장 철저하게 테스트되었습니다. 다른 Provider에서 문제가 발생하면 [이슈를 등록해 주세요](https://github.com/epicsagas/claudy/issues).
 
 | Provider | 상태 | 비고 |
 |---|---|---|
 | 빌트인 (Anthropic) | ✅ 테스트 완료 | 기본값 |
-| Z.AI | ✅ 테스트 완료 | 완전히 검증됨 |
-| OpenRouter 별칭 | ⚠️ 실험적 | 테스트되지 않음 — 사용 시 위험 감수 필요 |
-| Ollama | ⚠️ 실험적 | 테스트되지 않음 — 사용 시 위험 감수 필요 |
-| 커스텀 엔드포인트 | ⚠️ 실험적 | 테스트되지 않음 — 사용 시 위험 감수 필요 |
+| Z.AI | ✅ 테스트 완료 | |
+| OpenRouter 별칭 | ⚠️ 실험적 | 아직 완전히 테스트되지 않음 — GitHub에 이슈를 등록해 주세요 |
+| Ollama | ⚠️ 실험적 | 아직 완전히 테스트되지 않음 — GitHub에 이슈를 등록해 주세요 |
+| 커스텀 엔드포인트 | ⚠️ 실험적 | 아직 완전히 테스트되지 않음 — GitHub에 이슈를 등록해 주세요 |
 
 ## 요구 사항
 
@@ -91,6 +106,8 @@ claudy --version
 ```
 
 ## 빠른 시작
+
+<img src="docs/assets/demo.gif" alt="Quick Start" width="100%" />
 
 ```bash
 # 1) 사용 가능한/해석된 Profile 나열

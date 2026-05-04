@@ -1,19 +1,21 @@
 [← English](../../README.md)
 
+<h1 align="center">claudy</h1>
+
+<p align="center"><b>Une commande. N'importe quel provider. Contrôle total sur Claude CLI.</b></p>
+
+---
+
 <p align="center">
-  <a href="README_ko.md">🇰🇷 한국어</a> •
-  <a href="README_zh.md">🇨🇳 中文</a> •
-  <a href="README_ja.md">🇯🇵 日本語</a> •
-  <a href="README_de.md">🇩🇪 Deutsch</a> •
-  <a href="README_fr.md">🇫🇷 Français</a> •
-  <a href="README_es.md">🇪🇸 Español</a> •
-  <a href="README_hi.md">🇮🇳 हिन्दी</a> •
-  <a href="README_pt.md">🇧🇷 Português</a> •
-  <a href="README_id.md">🇮🇩 Bahasa</a> •
-  <a href="README_ar.md">🇸🇦 العربية</a>
+Fini de jongler avec les variables d'environnement et les fichiers de configuration.<br/>
+Claudy vous permet de basculer entre Anthropic, Z.AI, OpenRouter, Ollama et des endpoints personnalisés avec une seule commande — en gardant les identifiants, les modes de configuration et les frameworks Claude proprement isolés par profil.
 </p>
 
-<h1 align="center">claudy</h1>
+<p align="center">
+<b>Multi-provider · Isolation de config · Channel bridge · Bridge d'agents locaux · Analytics d'utilisation</b>
+</p>
+
+---
 
 <p align="center"><b>Lanceur multi-fournisseur moderne pour Claude CLI.</b></p>
 
@@ -46,17 +48,17 @@ Claudy vous permet d'exécuter Claude avec plusieurs providers via une interface
 - **Agent MCP bridge** : déléguez des tâches depuis Claude Code vers d'autres agents IA locaux (Gemini, Codex, Aider, etc.) via MCP.
 - **Analytics d'utilisation** : ingère les données de session depuis `~/.claude/projects/`, suit l'utilisation des tokens et les coûts par session/projet, et affiche un tableau de bord local avec des recommandations.
 
-## Statut des Providers
+## Providers pris en charge
 
-> Claudy a été inspiré par [Clother](https://github.com/jolehuit/clother), un lanceur multi-fournisseur basé sur Go pour Claude CLI. **Seul le provider Z.AI a été entièrement testé**. Tous les autres providers alternatifs sont expérimentaux et non testés — utilisez-les à vos propres risques.
+> Claudy a été inspiré par [Clother](https://github.com/jolehuit/clother), un lanceur multi-fournisseur basé sur Go pour Claude CLI. Z.AI est le provider le plus rigoureusement testé. Si vous rencontrez des problèmes avec d'autres providers, [ouvrez une issue](https://github.com/epicsagas/claudy/issues).
 
 | Provider | Statut | Notes |
 |---|---|---|
 | Built-in (Anthropic) | ✅ Testé | Par défaut |
-| Z.AI | ✅ Testé | Entièrement validé |
-| OpenRouter alias | ⚠️ Expérimental | Non testé — utilisez à vos propres risques |
-| Ollama | ⚠️ Expérimental | Non testé — utilisez à vos propres risques |
-| Custom endpoint | ⚠️ Expérimental | Non testé — utilisez à vos propres risques |
+| Z.AI | ✅ Testé | |
+| OpenRouter alias | ⚠️ Expérimental | Pas encore entièrement testé — signalez les problèmes sur GitHub |
+| Ollama | ⚠️ Expérimental | Pas encore entièrement testé — signalez les problèmes sur GitHub |
+| Custom endpoint | ⚠️ Expérimental | Pas encore entièrement testé — signalez les problèmes sur GitHub |
 
 ## Prérequis
 
@@ -104,6 +106,8 @@ claudy --version
 ```
 
 ## Démarrage Rapide
+
+<img src="docs/assets/demo.gif" alt="Quick Start" width="100%" />
 
 ```bash
 # 1) Lister les profiles disponibles/résolus
