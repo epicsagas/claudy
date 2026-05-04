@@ -252,18 +252,16 @@ pub async fn process_event(state: &Arc<AppState>, event: IncomingEvent) -> anyho
     }
 }
 
-/// Returns `true` when `user_id` is allowed to interact.
+/// Returns `true` when `user_id` is allowed to interact on the given platform.
 ///
-/// If `allowed_users` is empty, everyone is permitted.
-pub(super) fn is_authorized(state: &AppState, user_id: &str) -> bool {
-    if state.channel_config.allowed_users.is_empty() {
+/// Checks `platform_allowed_users` first, falls back to `allowed_users`.
+/// If neither list is set for the platform, everyone is permitted.
+pub(super) fn is_authorized(state: &AppState, platform: Platform, user_id: &str) -> bool {
+    let users = state.channel_config.allowed_users_for(platform.as_str());
+    if users.is_empty() {
         return true;
     }
-    state
-        .channel_config
-        .allowed_users
-        .iter()
-        .any(|u| u == user_id)
+    users.iter().any(|u| u == user_id)
 }
 
 /// Constant-time comparison to prevent timing attacks on secret tokens.

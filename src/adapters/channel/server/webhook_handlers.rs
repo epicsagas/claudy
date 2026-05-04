@@ -5,7 +5,7 @@ use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 
-use crate::domain::channel_events::IncomingEvent;
+use crate::domain::channel_events::{IncomingEvent, Platform};
 
 use super::{AppState, constant_time_eq, is_authorized, process_event};
 
@@ -61,7 +61,7 @@ pub(super) async fn telegram_webhook(
         IncomingEvent::Interaction(inter) => &inter.channel.user_id,
         _ => return StatusCode::OK,
     };
-    if !is_authorized(&state, user_id) {
+    if !is_authorized(&state, Platform::Telegram, user_id) {
         tracing::warn!(user_id, "Unauthorized user");
         return StatusCode::OK;
     }
@@ -151,7 +151,7 @@ pub(super) async fn slack_webhook(
                             IncomingEvent::Interaction(inter) => inter.channel.user_id.as_str(),
                             _ => "",
                         };
-                        if !is_authorized(&state, user_id) {
+                        if !is_authorized(&state, Platform::Slack, user_id) {
                             tracing::warn!(user_id, "Unauthorized Slack user");
                             return StatusCode::OK.into_response();
                         }
@@ -197,7 +197,7 @@ pub(super) async fn slack_webhook(
                         IncomingEvent::TextMessage(msg) => msg.channel.user_id.as_str(),
                         _ => "",
                     };
-                    if !is_authorized(&state, user_id) {
+                    if !is_authorized(&state, Platform::Slack, user_id) {
                         tracing::warn!(user_id, "Unauthorized Slack user");
                         return StatusCode::OK.into_response();
                     }
@@ -285,7 +285,7 @@ pub(super) async fn discord_webhook(
             IncomingEvent::Interaction(inter) => inter.channel.user_id.as_str(),
             _ => "",
         };
-        if !is_authorized(&state, user_id) {
+        if !is_authorized(&state, Platform::Discord, user_id) {
             tracing::warn!(user_id, "Unauthorized Discord user");
             return StatusCode::OK.into_response();
         }

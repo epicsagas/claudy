@@ -80,6 +80,10 @@ pub struct BridgeSettings {
     pub platform_modes: HashMap<String, String>,
     #[serde(default)]
     pub allowed_users: Vec<String>,
+    /// Per-platform allowed user overrides. Key = platform, Value = user IDs/usernames.
+    /// Falls back to `allowed_users` if not set for a platform.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub platform_allowed_users: HashMap<String, Vec<String>>,
     #[serde(default)]
     pub max_concurrent_sessions: usize,
     /// Maximum seconds to wait for a Claude stream response (default: 1800 = 30 min).
@@ -110,6 +114,15 @@ impl BridgeSettings {
             .cloned()
             .unwrap_or_else(|| self.default_mode.clone());
         if mode.is_empty() { None } else { Some(mode) }
+    }
+
+    /// Resolve allowed users for a given platform.
+    /// Falls back to `allowed_users` if no per-platform list exists.
+    pub fn allowed_users_for(&self, platform: &str) -> &[String] {
+        self.platform_allowed_users
+            .get(platform)
+            .map(|v| v.as_slice())
+            .unwrap_or(&self.allowed_users)
     }
 }
 

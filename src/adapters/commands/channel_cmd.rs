@@ -225,6 +225,7 @@ fn run_status(ctx: &mut Context) -> anyhow::Result<i32> {
         Ok(s) => s,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             ctx.output.info("Channel server is not running.");
+            show_channel_config(ctx);
             return Ok(1);
         }
         Err(e) => return Err(e.into()),
@@ -252,14 +253,12 @@ fn run_status(ctx: &mut Context) -> anyhow::Result<i32> {
                     "Channel server is running (PID {}, listening on {})",
                     pid, listen_addr
                 ));
-                Ok(0)
             }
             Err(_) => {
                 ctx.output.warn(&format!(
                     "Channel process exists (PID {}) but health check failed on {}",
                     pid, listen_addr
                 ));
-                Ok(2)
             }
         }
     } else {
@@ -268,7 +267,65 @@ fn run_status(ctx: &mut Context) -> anyhow::Result<i32> {
             pid
         ));
         std::fs::remove_file(pid_path).ok();
-        Ok(1)
+    }
+
+    show_channel_config(ctx);
+    Ok(if running { 0 } else { 1 })
+}
+
+fn show_channel_config(ctx: &mut Context) {
+    let cfg = &ctx.config.channel;
+    let platforms = [
+        ("telegram", "TELEGRAM_BOT_TOKEN", None),
+        ("slack", "SLACK_BOT_TOKEN", Some("SLACK_SIGNING_SECRET")),
+        (
+            "discord",
+            "DISCORD_BOT_TOKEN",
+            Some("DISCORD_APPLICATION_ID"),
+        ),
+    ];
+
+    ctx.output.header("Channels");
+    for (platform, token_key, extra_key) in &platforms {
+        let has_token = ctx
+            .secrets
+            .get(*token_key)
+            .is_some_and(|v| !v.is_empty());
+        let has_extra = extra_key
+            .map(|k| ctx.secrets.get(k).is_some_and(|v| !v.is_empty()))
+            .unwrap_or(true);
+        let configured = has_token && has_extra;
+        let enabled = cfg.enabled_platforms.iter().any(|p| p == platform);
+
+        let status = if configured && enabled {
+            "ready"
+        } else if configured {
+            "configured (not enabled)"
+        } else if has_token && !has_extra {
+            "incomplete"
+        } else {
+            "not configured"
+        };
+
+        let profile = cfg.profile_for(platform);
+        let mode = cfg
+            .mode_for(platform)
+            .unwrap_or_else(|| "default".to_string());
+        let users = cfg.allowed_users_for(platform);
+
+        let mut details = vec![status.to_string()];
+        if !profile.is_empty() {
+            details.push(format!("profile={}", profile));
+        }
+        if mode != "default" {
+            details.push(format!("mode={}", mode));
+        }
+        if !users.is_empty() {
+            details.push(format!("users={}", users.join(",")));
+        }
+
+        ctx.output
+            .info(&format!("  {}: {}", platform, details.join(", ")));
     }
 }
 
@@ -287,14 +344,29 @@ fn run_add(ctx: &mut Context, platform: &str) -> anyhow::Result<i32> {
         }
     );
 
-    let token = ctx.prompt.prompt_secret(&display_label)?;
-    if token.trim().is_empty() {
-        ctx.output.error("Bot token is required.");
-        return Ok(1);
-    }
-    let token = token.trim().to_string();
+    let token = if existing.is_empty() {
+        let t = ctx.prompt.prompt_secret(&display_label)?;
+        if t.trim().is_empty() {
+            ctx.output.error("Bot token is required.");
+            return Ok(1);
+        }
+        t.trim().to_string()
+    } else {
+        let t = ctx.prompt.prompt_secret_opt(&display_label)?;
+        match t {
+            Some(s) if !s.trim().is_empty() => s.trim().to_string(),
+            _ => existing.clone(),
+        }
+    };
 
-    let current_users = ctx.config.channel.allowed_users.join(", ");
+    let current_users = ctx
+        .config
+        .channel
+        .platform_allowed_users
+        .get(platform)
+        .cloned()
+        .unwrap_or_default()
+        .join(", ");
     let users_label = format!(
         "Allowed user IDs/usernames (comma-separated){}",
         if current_users.is_empty() {
@@ -363,11 +435,14 @@ fn run_add(ctx: &mut Context, platform: &str) -> anyhow::Result<i32> {
 
     let mut secrets = load_vault(&ctx.paths.secrets_file)?;
     secrets.insert(key.to_string(), token);
+    prompt_extra_secrets(ctx, platform, &mut secrets)?;
     persist_vault(&ctx.paths.secrets_file, &secrets)?;
     ctx.output
         .success(&format!("Saved {} bot token.", platform));
 
-    cfg.channel.allowed_users = allowed_users;
+    cfg.channel
+        .platform_allowed_users
+        .insert(platform.to_string(), allowed_users);
     if !profile_input.is_empty() {
         cfg.channel
             .platform_profiles
@@ -388,6 +463,48 @@ fn run_add(ctx: &mut Context, platform: &str) -> anyhow::Result<i32> {
     ctx.output
         .success(&format!("Channel '{}' added and configured.", platform));
     Ok(0)
+}
+
+/// Prompt for platform-specific extra secrets (e.g. Discord APPLICATION_ID).
+fn prompt_extra_secrets(
+    ctx: &mut Context,
+    platform: &str,
+    secrets: &mut crate::config::vault::SecretVault,
+) -> anyhow::Result<()> {
+    let extras: &[(&str, &str)] = match platform {
+        "discord" => &[("DISCORD_APPLICATION_ID", "Application ID"), ("DISCORD_PUBLIC_KEY", "Public Key")],
+        "slack" => &[("SLACK_SIGNING_SECRET", "Signing Secret")],
+        _ => &[],
+    };
+    for &(key, label) in extras {
+        let existing = secrets.get(key).cloned().unwrap_or_default();
+        let display = format!(
+            "{} {}{}",
+            platform,
+            label,
+            if existing.is_empty() {
+                String::new()
+            } else {
+                format!(" (current: {})", redact_credential(&existing))
+            }
+        );
+        let value = if existing.is_empty() {
+            let v = ctx.prompt.prompt_secret(&display)?;
+            if v.trim().is_empty() {
+                ctx.output.warn(&format!("{} not provided — Discord features may be limited.", label));
+                continue;
+            }
+            v.trim().to_string()
+        } else {
+            let v = ctx.prompt.prompt_secret_opt(&display)?;
+            match v {
+                Some(s) if !s.trim().is_empty() => s.trim().to_string(),
+                _ => existing,
+            }
+        };
+        secrets.insert(key.to_string(), value);
+    }
+    Ok(())
 }
 
 fn run_remove(ctx: &mut Context, platform: &str) -> anyhow::Result<i32> {

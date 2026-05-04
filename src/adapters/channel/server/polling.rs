@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::domain::channel_events::IncomingEvent;
+use crate::domain::channel_events::{IncomingEvent, Platform};
 
 use super::{AppState, is_authorized, process_event};
 
@@ -46,7 +46,7 @@ pub(super) async fn start_telegram_polling(state: Arc<AppState>, bot_token: Stri
                         IncomingEvent::Interaction(inter) => &inter.channel.user_id,
                         _ => continue,
                     };
-                    if !is_authorized(&state, user_id) {
+                    if !is_authorized(&state, Platform::Telegram, user_id) {
                         tracing::warn!(user_id, "Unauthorized user");
                         continue;
                     }
