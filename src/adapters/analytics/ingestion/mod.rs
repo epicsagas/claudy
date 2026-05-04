@@ -14,6 +14,27 @@ pub fn run_ingestion(
     let store = crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore::open(db_path)?;
     store.initialize_schema()?;
 
+    // Auto-trigger pricing sync before scanning JSONL files
+    let cache_path = dirs::home_dir()
+        .map(|h| h.join(".claudy").join("cache").join("models_dev.json"))
+        .ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
+
+    match crate::adapters::analytics::pricing::sync::run_pricing_sync(&store, &cache_path) {
+        Ok(result) => {
+            for warning in &result.warnings {
+                println!("[pricing] warning: {warning}");
+            }
+            println!(
+                "[pricing] synced {} models (source: {})",
+                result.models_synced,
+                result.source.label(),
+            );
+        }
+        Err(e) => {
+            println!("[pricing] skipped: {e}");
+        }
+    }
+
     let claude_projects_dir = dirs::home_dir()
         .map(|h| h.join(".claude").join("projects"))
         .ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
@@ -74,7 +95,7 @@ pub fn run_ingestion(
                 continue;
             }
 
-            match jsonl_parser::parse_and_ingest(&store, project_id, &file_path, &path_str, full) {
+            match jsonl_parser::parse_and_ingest(&store, project_id, &file_path, &path_str, full, Some(&store)) {
                 Ok(stats) => {
                     result.files_ingested += 1;
                     result.sessions_created += stats.sessions_created;

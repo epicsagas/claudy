@@ -215,3 +215,4 @@ ui/dist/
 
 # Tauri generated
 gen/
+.claude/worktrees/

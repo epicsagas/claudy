@@ -66,4 +66,5 @@ pub enum AnalyticsAction {
         project: Option<String>,
         days: u32,
     },
+    SyncPricing,
 }

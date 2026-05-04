@@ -117,6 +117,9 @@ pub fn map_cli_to_domain(command: Commands) -> DomainCommand {
                 project,
                 days,
             }),
+            crate::adapters::cli::args::AnalyticsCommands::SyncPricing => {
+                DomainCommand::Analytics(AnalyticsAction::SyncPricing)
+            }
         },
     }
 }

@@ -1,6 +1,6 @@
 use crate::adapters::analytics::analysis::cost::estimate_cache_savings;
 use crate::domain::analytics::*;
-use crate::ports::analytics_ports::AnalyticsStore;
+use crate::ports::analytics_ports::{AnalyticsStore, PricingStore};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::sync::{Mutex, MutexGuard};
 
@@ -771,6 +771,79 @@ fn map_session_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRecord> {
     })
 }
 
+impl PricingStore for SqliteAnalyticsStore {
+    fn upsert_model_pricing(&self, pricing: &ModelPricing) -> anyhow::Result<()> {
+        self.lock()?.execute(
+            "INSERT INTO model_pricing (model_id, input, output, cache_write, cache_read, source, synced_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(model_id) DO UPDATE SET
+               input       = excluded.input,
+               output      = excluded.output,
+               cache_write = excluded.cache_write,
+               cache_read  = excluded.cache_read,
+               source      = excluded.source,
+               synced_at   = excluded.synced_at",
+            params![
+                pricing.model_id,
+                pricing.input,
+                pricing.output,
+                pricing.cache_write,
+                pricing.cache_read,
+                pricing.source,
+                pricing.synced_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    fn get_model_pricing(&self, model_id: &str) -> anyhow::Result<Option<ModelPricing>> {
+        let conn = self.lock()?;
+        let result = conn
+            .query_row(
+                "SELECT model_id, input, output, cache_write, cache_read, source, synced_at
+                 FROM model_pricing WHERE model_id = ?1",
+                params![model_id],
+                |row| {
+                    Ok(ModelPricing {
+                        model_id: row.get(0)?,
+                        input: row.get(1)?,
+                        output: row.get(2)?,
+                        cache_write: row.get(3)?,
+                        cache_read: row.get(4)?,
+                        source: row.get(5)?,
+                        synced_at: row.get(6)?,
+                    })
+                },
+            )
+            .optional()?;
+        Ok(result)
+    }
+
+    fn list_model_pricing(&self) -> anyhow::Result<Vec<ModelPricing>> {
+        let conn = self.lock()?;
+        let mut stmt = conn.prepare(
+            "SELECT model_id, input, output, cache_write, cache_read, source, synced_at
+             FROM model_pricing ORDER BY model_id",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(ModelPricing {
+                model_id: row.get(0)?,
+                input: row.get(1)?,
+                output: row.get(2)?,
+                cache_write: row.get(3)?,
+                cache_read: row.get(4)?,
+                source: row.get(5)?,
+                synced_at: row.get(6)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row?);
+        }
+        Ok(result)
+    }
+}
+
 const SCHEMA: &str = r"
 CREATE TABLE IF NOT EXISTS migration_version (
 version INTEGER PRIMARY KEY
@@ -879,6 +952,16 @@ CREATE TABLE IF NOT EXISTS ingestion_checkpoints (
     byte_offset     INTEGER NOT NULL DEFAULT 0,
     line_count      INTEGER NOT NULL DEFAULT 0,
     ingested_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS model_pricing (
+    model_id    TEXT    PRIMARY KEY,
+    input       REAL    NOT NULL,
+    output      REAL    NOT NULL,
+    cache_write REAL    NOT NULL,
+    cache_read  REAL    NOT NULL,
+    source      TEXT    NOT NULL,
+    synced_at   TEXT    NOT NULL
 );
 ";
 

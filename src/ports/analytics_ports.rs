@@ -73,6 +73,12 @@ pub trait AnalyticsStore: Send + Sync {
     ) -> anyhow::Result<CostMetrics>;
 }
 
+pub trait PricingStore: Send + Sync {
+    fn upsert_model_pricing(&self, pricing: &ModelPricing) -> anyhow::Result<()>;
+    fn get_model_pricing(&self, model_id: &str) -> anyhow::Result<Option<ModelPricing>>;
+    fn list_model_pricing(&self) -> anyhow::Result<Vec<ModelPricing>>;
+}
+
 pub trait AnalysisEngine: Send + Sync {
     fn compute_token_trends(&self, days: u32, project_id: Option<i64>) -> anyhow::Result<Vec<TokenTrendPoint>>;
     fn compute_tool_distribution(
