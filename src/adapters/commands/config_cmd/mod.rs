@@ -8,14 +8,14 @@ use crate::domain::context::Context;
 
 pub fn run_config(ctx: &mut Context, args: &[String]) -> anyhow::Result<i32> {
     if let Some(id) = args.first() {
-        if let Some(provider) = ctx.catalog.get(id) {
-            if provider.family == "claude_strict" {
-                ctx.output.info(&format!(
-                    "{} (native) requires no configuration — it uses Claude Code's built-in auth.",
-                    provider.display_name
-                ));
-                return Ok(0);
-            }
+        if let Some(provider) = ctx.catalog.get(id)
+            && provider.family == "claude_strict"
+        {
+            ctx.output.info(&format!(
+                "{} (native) requires no configuration — it uses Claude Code's built-in auth.",
+                provider.display_name
+            ));
+            return Ok(0);
         }
         if id == "settings" {
             general_settings::config_general_settings(ctx)?;
