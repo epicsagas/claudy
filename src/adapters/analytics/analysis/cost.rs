@@ -1,6 +1,7 @@
-/// Model pricing per 1M tokens (USD).
+/// File-private fallback pricing per 1M tokens (USD).
 /// Source: https://platform.claude.com/docs/en/about-claude/pricing
-struct ModelPricing {
+/// Named `FallbackPricing` to avoid shadowing `crate::domain::analytics::ModelPricing`.
+struct FallbackPricing {
     input: f64,
     output: f64,
     cache_write: f64,
@@ -26,7 +27,7 @@ fn parse_version(model: &str) -> Option<(u32, u32)> {
     }
 }
 
-fn get_pricing(model: &str) -> ModelPricing {
+fn get_pricing(model: &str) -> FallbackPricing {
     let m = model.to_lowercase();
 
     // Extract version number from model ID (e.g. "claude-opus-4-7" → major=4, minor=7)
@@ -38,35 +39,35 @@ fn get_pricing(model: &str) -> ModelPricing {
         // Opus 4.0, 4.1: $15 input
         // Opus 3: $15 input
         if major >= 4 && minor >= 5 {
-            ModelPricing { input: 5.0, output: 25.0, cache_write: 6.25, cache_read: 0.50 }
+            FallbackPricing { input: 5.0, output: 25.0, cache_write: 6.25, cache_read: 0.50 }
         } else {
-            ModelPricing { input: 15.0, output: 75.0, cache_write: 18.75, cache_read: 1.50 }
+            FallbackPricing { input: 15.0, output: 75.0, cache_write: 18.75, cache_read: 1.50 }
         }
     } else if m.contains("sonnet") {
         // All Sonnet 3.x and 4.x: $3 input
-        ModelPricing { input: 3.0, output: 15.0, cache_write: 3.75, cache_read: 0.30 }
+        FallbackPricing { input: 3.0, output: 15.0, cache_write: 3.75, cache_read: 0.30 }
     } else if m.contains("haiku") {
         if major >= 4 {
             // Haiku 4.5+: $1 input
-            ModelPricing { input: 1.0, output: 5.0, cache_write: 1.25, cache_read: 0.10 }
+            FallbackPricing { input: 1.0, output: 5.0, cache_write: 1.25, cache_read: 0.10 }
         } else {
             // Haiku 3.5: $0.80, Haiku 3: $0.25
             let is_3_5 = minor >= 5;
             if is_3_5 {
-                ModelPricing { input: 0.80, output: 4.0, cache_write: 1.0, cache_read: 0.08 }
+                FallbackPricing { input: 0.80, output: 4.0, cache_write: 1.0, cache_read: 0.08 }
             } else {
-                ModelPricing { input: 0.25, output: 1.25, cache_write: 0.30, cache_read: 0.03 }
+                FallbackPricing { input: 0.25, output: 1.25, cache_write: 0.30, cache_read: 0.03 }
             }
         }
     } else if m.contains("gpt-4o") {
-        ModelPricing { input: 2.5, output: 10.0, cache_write: 2.5, cache_read: 1.25 }
+        FallbackPricing { input: 2.5, output: 10.0, cache_write: 2.5, cache_read: 1.25 }
     } else if m.contains("gpt-4") {
-        ModelPricing { input: 30.0, output: 60.0, cache_write: 30.0, cache_read: 15.0 }
+        FallbackPricing { input: 30.0, output: 60.0, cache_write: 30.0, cache_read: 15.0 }
     } else if m.contains("deepseek") {
-        ModelPricing { input: 0.27, output: 1.10, cache_write: 0.27, cache_read: 0.07 }
+        FallbackPricing { input: 0.27, output: 1.10, cache_write: 0.27, cache_read: 0.07 }
     } else {
         // Conservative default: Sonnet pricing
-        ModelPricing { input: 3.0, output: 15.0, cache_write: 3.75, cache_read: 0.30 }
+        FallbackPricing { input: 3.0, output: 15.0, cache_write: 3.75, cache_read: 0.30 }
     }
 }
 
@@ -113,7 +114,10 @@ pub fn estimate_cost_with_store(
     let (input_rate, output_rate, cache_write_rate, cache_read_rate) =
         match store.get_model_pricing(model) {
             Ok(Some(p)) => (p.input, p.output, p.cache_write, p.cache_read),
-            _ => {
+            other => {
+                if let Err(ref e) = other {
+                    eprintln!("[pricing] warn: DB lookup failed for {model}: {e}");
+                }
                 let p = get_pricing(model);
                 (p.input, p.output, p.cache_write, p.cache_read)
             }
@@ -138,7 +142,10 @@ pub fn estimate_cache_savings_with_store(
 ) -> f64 {
     let (input_rate, cache_read_rate) = match store.get_model_pricing(model) {
         Ok(Some(p)) => (p.input, p.cache_read),
-        _ => {
+        other => {
+            if let Err(ref e) = other {
+                eprintln!("[pricing] warn: DB lookup failed for {model}: {e}");
+            }
             let p = get_pricing(model);
             (p.input, p.cache_read)
         }
@@ -155,6 +162,63 @@ mod tests {
     use crate::domain::analytics::ModelPricing;
     use crate::ports::analytics_ports::{AnalyticsStore as _, PricingStore};
     use tempfile::tempdir;
+
+    // ── Warning-1 & Warning-2 regression tests ──────────────────────────────
+
+    /// Verify the file-private fallback struct is named `FallbackPricing`,
+    /// not `ModelPricing` (which would shadow the domain type).
+    #[test]
+    fn test_fallback_pricing_struct_exists() {
+        // This test compiles only if `FallbackPricing` is the name of the
+        // private struct returned by `get_pricing()`.
+        let p: FallbackPricing = get_pricing("claude-sonnet-4-5");
+        assert!(p.input > 0.0);
+    }
+
+    /// A mock `PricingStore` that always returns `Err` so we can exercise the
+    /// DB-error warning path in `estimate_cost_with_store` and
+    /// `estimate_cache_savings_with_store`.
+    struct AlwaysErrStore;
+    impl PricingStore for AlwaysErrStore {
+        fn upsert_model_pricing(&self, _: &ModelPricing) -> anyhow::Result<()> {
+            Err(anyhow::anyhow!("injected DB error"))
+        }
+        fn batch_upsert_model_pricing(&self, _: &[ModelPricing]) -> anyhow::Result<()> {
+            Err(anyhow::anyhow!("injected DB error"))
+        }
+        fn get_model_pricing(&self, _: &str) -> anyhow::Result<Option<ModelPricing>> {
+            Err(anyhow::anyhow!("injected DB error"))
+        }
+        fn list_model_pricing(&self) -> anyhow::Result<Vec<ModelPricing>> {
+            Err(anyhow::anyhow!("injected DB error"))
+        }
+    }
+
+    /// When the store returns `Err`, both `_with_store` functions must still
+    /// return the same result as the pure fallback (not panic / return 0).
+    #[test]
+    fn test_estimate_cost_with_store_falls_back_on_db_error() {
+        let store = AlwaysErrStore;
+        let expected =
+            estimate_cost("claude-sonnet-4-5", 1_000_000, 1_000_000, 1_000_000, 1_000_000);
+        let got = estimate_cost_with_store(
+            &store,
+            "claude-sonnet-4-5",
+            1_000_000,
+            1_000_000,
+            1_000_000,
+            1_000_000,
+        );
+        assert!((got - expected).abs() < 1e-9, "expected {expected}, got {got}");
+    }
+
+    #[test]
+    fn test_estimate_cache_savings_with_store_falls_back_on_db_error() {
+        let store = AlwaysErrStore;
+        let expected = estimate_cache_savings("claude-sonnet-4-5", 1_000_000);
+        let got = estimate_cache_savings_with_store(&store, "claude-sonnet-4-5", 1_000_000);
+        assert!((got - expected).abs() < 1e-9, "expected {expected}, got {got}");
+    }
 
     fn test_store() -> SqliteAnalyticsStore {
         let dir = tempdir().expect("tempdir");

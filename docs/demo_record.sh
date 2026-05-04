@@ -32,4 +32,10 @@ echo ""
 sleep 1
 
 # --- Part 2: Launch Claude Code with Z.AI ---
-exec claudy zai --yolo
+claudy zai --yolo
+
+sleep 2
+
+echo ""
+echo "$ claudy zai gstack --yolo"
+claudy zai gstack --yolo

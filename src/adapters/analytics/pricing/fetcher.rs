@@ -97,13 +97,21 @@ impl ModelsDev {
         let raw: HashMap<String, RawProvider> = resp.body_mut().read_json()?;
         let entries = parse_raw_response(raw);
 
-        if let Some(parent) = self.cache_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let json = serde_json::to_string_pretty(&entries)?;
-        fs::write(&self.cache_path, json)?;
+        self.write_cache_atomic(&entries)?;
 
         Ok(entries)
+    }
+
+    /// Serialize `entries` to JSON and write atomically (temp-file + rename).
+    pub fn write_cache_atomic(&self, entries: &[ModelsDevEntry]) -> anyhow::Result<()> {
+        let json = serde_json::to_string_pretty(entries)?;
+        crate::config::atomic::write_atomic(
+            self.cache_path
+                .to_str()
+                .ok_or_else(|| anyhow::anyhow!("invalid cache path"))?,
+            json.as_bytes(),
+            0o644,
+        )
     }
 
     pub fn load_cache(&self) -> anyhow::Result<Vec<ModelsDevEntry>> {
@@ -198,5 +206,36 @@ mod tests {
         let entries = fetcher.load_cache().unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries[0].cost.is_none());
+    }
+
+    /// Verify that write_cache_atomic writes valid JSON that load_cache can read back.
+    /// This exercises the atomic write path end-to-end without a network call.
+    #[test]
+    fn test_write_cache_atomic_round_trips() {
+        use tempfile::tempdir;
+        let dir = tempdir().unwrap();
+        let cache_path = dir.path().join("cache.json");
+
+        let fetcher = ModelsDev::new(cache_path.clone());
+
+        let entries = vec![ModelsDevEntry {
+            id: "claude-atomic-test".to_string(),
+            name: Some("Atomic Test".to_string()),
+            cost: Some(ModelsDevCost {
+                input: Some(1.0),
+                output: Some(5.0),
+                cache_read: Some(0.1),
+                cache_write: Some(1.25),
+            }),
+        }];
+
+        fetcher.write_cache_atomic(&entries).unwrap();
+        assert!(cache_path.exists(), "cache file must exist after atomic write");
+
+        let loaded = fetcher.load_cache().unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].id, "claude-atomic-test");
+        let cost = loaded[0].cost.as_ref().unwrap();
+        assert_eq!(cost.input, Some(1.0));
     }
 }

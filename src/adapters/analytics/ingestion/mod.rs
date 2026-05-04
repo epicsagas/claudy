@@ -22,16 +22,16 @@ pub fn run_ingestion(
     match crate::adapters::analytics::pricing::sync::run_pricing_sync(&store, &cache_path) {
         Ok(result) => {
             for warning in &result.warnings {
-                println!("[pricing] warning: {warning}");
+                eprintln!("[pricing] warning: {warning}");
             }
-            println!(
+            eprintln!(
                 "[pricing] synced {} models (source: {})",
                 result.models_synced,
                 result.source.label(),
             );
         }
         Err(e) => {
-            println!("[pricing] skipped: {e}");
+            eprintln!("[pricing] skipped: {e}");
         }
     }
 

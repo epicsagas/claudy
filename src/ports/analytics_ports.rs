@@ -75,6 +75,7 @@ pub trait AnalyticsStore: Send + Sync {
 
 pub trait PricingStore: Send + Sync {
     fn upsert_model_pricing(&self, pricing: &ModelPricing) -> anyhow::Result<()>;
+    fn batch_upsert_model_pricing(&self, pricings: &[ModelPricing]) -> anyhow::Result<()>;
     fn get_model_pricing(&self, model_id: &str) -> anyhow::Result<Option<ModelPricing>>;
     fn list_model_pricing(&self) -> anyhow::Result<Vec<ModelPricing>>;
 }

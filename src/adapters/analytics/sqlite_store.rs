@@ -27,6 +27,39 @@ impl SqliteAnalyticsStore {
             .lock()
             .map_err(|e| anyhow::anyhow!("db lock poisoned: {}", e))
     }
+
+    /// Upsert all pricing rows inside a single transaction.
+    pub fn batch_upsert_model_pricing(
+        &self,
+        pricings: &[crate::domain::analytics::ModelPricing],
+    ) -> anyhow::Result<()> {
+        let mut conn = self.lock()?;
+        let tx = conn.transaction()?;
+        for pricing in pricings {
+            tx.execute(
+                "INSERT INTO model_pricing (model_id, input, output, cache_write, cache_read, source, synced_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                 ON CONFLICT(model_id) DO UPDATE SET
+                   input       = excluded.input,
+                   output      = excluded.output,
+                   cache_write = excluded.cache_write,
+                   cache_read  = excluded.cache_read,
+                   source      = excluded.source,
+                   synced_at   = excluded.synced_at",
+                params![
+                    pricing.model_id,
+                    pricing.input,
+                    pricing.output,
+                    pricing.cache_write,
+                    pricing.cache_read,
+                    pricing.source,
+                    pricing.synced_at,
+                ],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
 }
 
 impl AnalyticsStore for SqliteAnalyticsStore {
@@ -794,6 +827,10 @@ impl PricingStore for SqliteAnalyticsStore {
             ],
         )?;
         Ok(())
+    }
+
+    fn batch_upsert_model_pricing(&self, pricings: &[ModelPricing]) -> anyhow::Result<()> {
+        self.batch_upsert_model_pricing(pricings)
     }
 
     fn get_model_pricing(&self, model_id: &str) -> anyhow::Result<Option<ModelPricing>> {

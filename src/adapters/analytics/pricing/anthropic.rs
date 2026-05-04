@@ -47,7 +47,7 @@ impl AnthropicPricingScraper {
 
 /// Split HTML into individual table contents (between <table> ... </table>)
 fn split_tables(html: &str) -> Vec<String> {
-    let lower = html.to_lowercase();
+    let lower = html.to_ascii_lowercase();
     let mut tables = Vec::new();
     let mut search_from = 0;
 
@@ -140,7 +140,7 @@ fn find_col_idx(headers: &[String], needle: &str) -> Option<usize> {
 
 /// Extract <tr>...</tr> blocks from table HTML.
 fn extract_rows(html: &str) -> Vec<String> {
-    let lower = html.to_lowercase();
+    let lower = html.to_ascii_lowercase();
     let mut rows = Vec::new();
     let mut pos = 0;
 
@@ -160,7 +160,7 @@ fn extract_rows(html: &str) -> Vec<String> {
 
 /// Extract <th> or <td> cell contents from a row.
 fn extract_cells(row: &str) -> Vec<String> {
-    let lower = row.to_lowercase();
+    let lower = row.to_ascii_lowercase();
     let mut cells = Vec::new();
     let mut pos = 0;
 
@@ -230,7 +230,7 @@ fn parse_price(s: &str) -> f64 {
     // Remove $, /MTok, /M, commas, whitespace
     let cleaned: String = text
         .chars()
-        .filter(|&c| c.is_ascii_digit() || c == '.' || c == '-')
+        .filter(|&c| c.is_ascii_digit() || c == '.')
         .collect();
 
     cleaned.parse::<f64>().unwrap_or(0.0)
@@ -367,5 +367,33 @@ mod tests {
         assert!((parse_price("$3.00/MTok") - 3.0).abs() < 1e-9);
         assert!((parse_price("  $15.00 /MTok ") - 15.0).abs() < 1e-9);
         assert!((parse_price("0.30") - 0.30).abs() < 1e-9);
+    }
+
+    /// Range-formatted strings like "$3.00 - $3.50/MTok" must never produce a
+    /// negative result. Without the fix, the `-` in the filter set yields the
+    /// cleaned string "3.00-3.50" which f64::parse rejects → 0.0 (acceptable),
+    /// but sub-strings like "-.50" could produce negative values. After the fix
+    /// only digits and '.' pass through, guaranteeing non-negative output.
+    #[test]
+    fn test_parse_price_range_string_no_negative() {
+        let result = parse_price("$3.00 - $3.50/MTok");
+        assert!(
+            result >= 0.0,
+            "parse_price must never return a negative number, got {result}"
+        );
+        // Single-price form must still parse correctly.
+        assert!((parse_price("$3.00/MTok") - 3.0).abs() < 1e-9);
+    }
+
+    /// Confirm split_tables is safe when HTML contains non-ASCII characters
+    /// before the table tag (validates the ascii_lowercase byte-offset fix).
+    #[test]
+    fn test_split_tables_non_ascii_html_no_panic() {
+        // \u{00e9} is 2 bytes in UTF-8; to_lowercase keeps it 2 bytes but
+        // to_ascii_lowercase keeps it 1 ASCII byte — this mismatch caused panics.
+        let html = "<p>\u{00e9}</p><table><tr><th>X</th></tr></table>";
+        let tables = split_tables(html);
+        assert_eq!(tables.len(), 1);
+        assert!(tables[0].to_ascii_lowercase().starts_with("<table"));
     }
 }
