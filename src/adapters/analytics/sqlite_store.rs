@@ -1,3 +1,4 @@
+use crate::adapters::analytics::analysis::cost::estimate_cache_savings;
 use crate::domain::analytics::*;
 use crate::ports::analytics_ports::AnalyticsStore;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -668,7 +669,7 @@ impl AnalyticsStore for SqliteAnalyticsStore {
             let cache_read: i64 = row.get(4)?;
             let session_count: i64 = row.get(5)?;
 
-            cache_savings_usd += cache_read as f64 / 1_000_000.0 * 2.7;
+            cache_savings_usd += estimate_cache_savings(&model, cache_read);
 
             let percentage = if total_cost > 0.0 {
                 (cost / total_cost) * 100.0
