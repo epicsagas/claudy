@@ -6,7 +6,7 @@ fn main() {
         let ui_dir = std::path::Path::new(&manifest_dir).join("ui");
         let dist_dir = ui_dir.join("dist");
 
-        if !dist_dir.exists() && ui_dir.join("package.json").exists() {
+        if !dist_dir.join("assets").exists() && ui_dir.join("package.json").exists() {
             let status = std::process::Command::new("npm")
                 .arg("ci")
                 .current_dir(&ui_dir)

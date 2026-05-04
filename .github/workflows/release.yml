@@ -143,6 +143,10 @@ jobs:
           PKGS="${{ matrix.packages_install }}"
           PKGS="${PKGS//libwebkit2gtk-4/libwebkit2gtk-4.1-dev}"
           eval "$PKGS"
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
       - name: Build artifacts
         run: |
           # Actually do builds and make zips and whatnot
