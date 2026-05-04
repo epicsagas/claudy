@@ -42,9 +42,15 @@ impl PricingMerger {
                         synced_at: synced_at.clone(),
                     })
                 } else if let Some(cost) = &entry.cost {
-                    // Fall back to models.dev if it has at least input cost
-                    let input = cost.input?;
-                    let output = cost.output.unwrap_or(input * 5.0);
+                    // Fall back to models.dev if it has a finite, positive input cost
+                    let input = match cost.input {
+                        Some(v) if v.is_finite() && v > 0.0 => v,
+                        _ => return None, // skip models with missing or non-finite input price
+                    };
+                    let output = match cost.output {
+                        Some(v) if v.is_finite() && v > 0.0 => v,
+                        _ => input * 5.0,
+                    };
                     Some(ModelPricing {
                         model_id: entry.id.clone(),
                         input,
@@ -260,6 +266,25 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].source, "anthropic+models_dev");
         assert!((result[0].input - 15.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_merge_skips_models_with_non_finite_or_zero_input() {
+        // input = 0.0 should be skipped (not positive)
+        let models_dev_zero = vec![make_entry("claude-test-zero", Some(0.0), Some(15.0))];
+        let anthropic: Vec<AnthropicModelPrice> = vec![];
+        let result = PricingMerger::merge(&models_dev_zero, &anthropic);
+        assert!(result.is_empty(), "zero input price must be skipped");
+
+        // input = NaN should be skipped
+        let models_dev_nan = vec![make_entry("claude-test-nan", Some(f64::NAN), Some(15.0))];
+        let result = PricingMerger::merge(&models_dev_nan, &anthropic);
+        assert!(result.is_empty(), "NaN input price must be skipped");
+
+        // input = Infinity should be skipped
+        let models_dev_inf = vec![make_entry("claude-test-inf", Some(f64::INFINITY), Some(15.0))];
+        let result = PricingMerger::merge(&models_dev_inf, &anthropic);
+        assert!(result.is_empty(), "Infinity input price must be skipped");
     }
 
     #[test]

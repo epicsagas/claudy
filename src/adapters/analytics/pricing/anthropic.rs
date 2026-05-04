@@ -21,7 +21,11 @@ impl AnthropicPricingScraper {
             .build();
         let agent = ureq::Agent::new_with_config(config);
         let mut resp = agent.get(ANTHROPIC_PRICING_URL).call()?;
-        let html = resp.body_mut().read_to_string()?;
+        let html = resp
+            .body_mut()
+            .with_config()
+            .limit(4 * 1024 * 1024)
+            .read_to_string()?;
         Ok(Self::parse(&html))
     }
 
@@ -224,16 +228,19 @@ fn strip_html_tags(s: &str) -> String {
         .replace("&dollar;", "$")
 }
 
-/// Parse a price string like "$3.00/MTok" → 3.0
+/// Parse a price string like "$3.00/MTok" or "$3.00 - $3.50/MTok" → 3.0
+///
+/// Extracts the first contiguous run of ASCII digits and '.' characters,
+/// skipping any leading non-digit chars (e.g. '$'). This correctly handles
+/// range strings — only the first price token is returned.
 fn parse_price(s: &str) -> f64 {
     let text = strip_html_tags(s);
-    // Remove $, /MTok, /M, commas, whitespace
-    let cleaned: String = text
+    let first: String = text
         .chars()
-        .filter(|&c| c.is_ascii_digit() || c == '.')
+        .skip_while(|c| !c.is_ascii_digit())
+        .take_while(|c| c.is_ascii_digit() || *c == '.')
         .collect();
-
-    cleaned.parse::<f64>().unwrap_or(0.0)
+    first.parse::<f64>().unwrap_or(0.0)
 }
 
 #[cfg(test)]
@@ -383,6 +390,18 @@ mod tests {
         );
         // Single-price form must still parse correctly.
         assert!((parse_price("$3.00/MTok") - 3.0).abs() < 1e-9);
+    }
+
+    /// Range strings must parse to the first (lower) price value, not 0.0
+    /// or a concatenated garbage number like 3.003.50.
+    #[test]
+    fn test_parse_price_range_string_first_value() {
+        // "$3.00 - $3.50/MTok" should yield 3.0, not 0.0 or 3.003
+        let result = parse_price("$3.00 - $3.50/MTok");
+        assert!(
+            (result - 3.0).abs() < 1e-9,
+            "expected 3.0 for range string, got {result}"
+        );
     }
 
     /// Confirm split_tables is safe when HTML contains non-ASCII characters

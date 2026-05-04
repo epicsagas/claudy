@@ -37,5 +37,8 @@ claudy zai --yolo
 sleep 2
 
 echo ""
-echo "$ claudy zai gstack --yolo"
+echo "$ claudy mode create ecc"
+claudy mode create ecc
+sleep 1
+echo "$ claudy zai ecc --yolo"
 claudy zai gstack --yolo

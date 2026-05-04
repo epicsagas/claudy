@@ -31,7 +31,7 @@ pub fn run_ingestion(
             );
         }
         Err(e) => {
-            eprintln!("[pricing] skipped: {e}");
+            eprintln!("[pricing] sync failed (ingestion continues): {e}");
         }
     }
 
