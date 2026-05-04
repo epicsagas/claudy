@@ -216,3 +216,6 @@ ui/dist/
 # Tauri generated
 gen/
 .claude/worktrees/
+
+# fastembed runtime model cache (auto-generated on first run)
+.fastembed_cache/
