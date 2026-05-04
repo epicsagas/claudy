@@ -304,7 +304,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp
 
 #### कस्टम agents
 
-`~/.claudy/config.json` में agents जोड़ें:
+`~/.claudy/config.yaml` में agents जोड़ें:
 
 ```json
 {
@@ -357,7 +357,7 @@ Analytics ट्रैक करता है:
 
 महत्वपूर्ण फ़ाइलें/डायरेक्टरी:
 
-- `config.json`: provider + channel + agent कॉन्फ़िगरेशन।
+- `config.yaml`: provider + channel + agent कॉन्फ़िगरेशन।
 - `secrets.env`: provider/bot credentials।
 - `launchers.json`: launcher/symlink manifest।
 - `modes/`: Claude config modes।
@@ -416,7 +416,7 @@ claudy ping
 - **Permission prompt दिखाई नहीं दे रहा**: सुनिश्चित करें कि Claude CLI `--dangerously-skip-permissions` के साथ नहीं चल रहा। prompt केवल तब trigger होता है जब Claude को tool use के लिए स्पष्ट अनुमोदन की आवश्यकता होती है।
 - **install के बाद Binary नहीं मिला**: सुनिश्चित करें कि Claudy की bin डायरेक्टरी `PATH` पर है, फिर अपना shell रिस्टार्ट करें।
 - **MCP में Agent नहीं दिख रहा**: सुनिश्चित करें कि agent binary `PATH` पर है (`which gemini`)। केवल इंस्टॉल किए गए agents `tools/list` में दिखाई देते हैं।
-- **Agent timeout**: `config.json` agents field में timeout बढ़ाएं (डिफ़ॉल्ट: 120s)।
+- **Agent timeout**: `config.yaml` agents field में timeout बढ़ाएं (डिफ़ॉल्ट: 120s)।
 - **MCP रजिस्टर नहीं**: एक बार मैन्युअल रूप से `claudy mcp` चलाएं, या `~/.claude/settings.json` में `mcpServers.claudy` entry जांचें।
 - **Agent output truncated**: agent stdout 10MB पर cap है। बड़े outputs के लिए, agent को फ़ाइल में लिखने के लिए redirect करें।
 - **Analytics डेटा missing**: `~/.claude/projects/` से populate करने के लिए `claudy analytics ingest` चलाएं। सब कुछ फिर से इनजेस्ट करने के लिए `--full` उपयोग करें।

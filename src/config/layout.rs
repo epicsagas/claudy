@@ -59,7 +59,7 @@ pub fn discover() -> anyhow::Result<AppPaths> {
         cache_dir: cache_dir.clone(),
         bin_dir: bin_dir.clone(),
         config_file: Path::new(&config_dir)
-            .join("config.json")
+            .join("config.yaml")
             .to_string_lossy()
             .to_string(),
         secrets_file: Path::new(&data_dir)

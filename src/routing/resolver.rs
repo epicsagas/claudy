@@ -79,7 +79,7 @@ impl<'a> ProfileRouter<'a> {
             model_tiers: tiers,
             auth_mode: p.auth_mode.clone(),
             secret_key: p.key_var.clone(),
-            literal_auth_token: String::new(),
+            literal_auth_token: p.literal_auth_token.clone(),
             test_url: p.test_url.clone(),
         })
     }

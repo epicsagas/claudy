@@ -203,7 +203,7 @@ const TIPS: &[&str] = &[
     "try 'claudy channel start' to run a Telegram/Slack/Discord bot bridge",
     "use modes to switch between work/personal Claude configurations",
     "run 'claudy channel add telegram' to set up a Telegram bot",
-    "custom agents go in config.json under 'agents' — any CLI with headless mode",
+    "custom agents go in config.yaml under 'agents' — any CLI with headless mode",
     "run 'claudy sync' to install or update the claudy binary",
 ];
 

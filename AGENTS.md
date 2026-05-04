@@ -41,7 +41,7 @@ src/
 └── adapters/                  — Concrete implementations of ports
     ├── cli/                   — clap arg definitions, parse, help
     ├── commands/              — Subcommand handlers (dispatch, config_cmd/*, list, info, status, test, install, mode_cmd, channel_cmd, update, uninstall)
-    ├── config/                — paths (XDG), store (config.json), secrets (secrets.env), atomic (temp+rename)
+    ├── config/                — paths (XDG), store (config.yaml), secrets (secrets.env), atomic (temp+rename)
     ├── infrastructure/        — catalog (providers JSON), models_dev, capabilities (AuthStrategy, CapabilityProfile)
     ├── launch/                — CatalogProfileAdapter, SecretEnvAdapter, RuntimeSessionAdapter
     ├── profiles/              — resolve (catalog → or-* → custom chain)

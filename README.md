@@ -304,7 +304,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp
 
 #### Custom agents
 
-Add agents in `~/.claudy/config.json`:
+Add agents in `~/.claudy/config.yaml`:
 
 ```json
 {
@@ -357,7 +357,7 @@ By default, Claudy stores data under:
 
 Important files/directories:
 
-- `config.json`: provider + channel + agent configuration.
+- `config.yaml`: provider + channel + agent configuration.
 - `secrets.env`: provider/bot credentials.
 - `launchers.json`: launcher/symlink manifest.
 - `modes/`: Claude config modes.
@@ -416,7 +416,7 @@ claudy ping
 - **Permission prompt not appearing**: ensure Claude CLI is not running with `--dangerously-skip-permissions`. The prompt only triggers when Claude needs explicit approval for tool use.
 - **Binary not found after install**: ensure Claudy's bin directory is on `PATH`, then restart your shell.
 - **Agent not showing in MCP**: ensure the agent binary is on `PATH` (`which gemini`). Only installed agents appear in `tools/list`.
-- **Agent timeout**: increase timeout in `config.json` agents field (default: 120s).
+- **Agent timeout**: increase timeout in `config.yaml` agents field (default: 120s).
 - **MCP not registered**: run `claudy mcp` once manually, or check `~/.claude/settings.json` for the `mcpServers.claudy` entry.
 - **Agent output truncated**: agent stdout is capped at 10MB. For large outputs, redirect the agent to write to a file instead.
 - **Analytics data missing**: run `claudy analytics ingest` to populate from `~/.claude/projects/`. Use `--full` to re-ingest everything.

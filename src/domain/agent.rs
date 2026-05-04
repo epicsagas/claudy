@@ -12,7 +12,7 @@ pub struct AgentDefinition {
     pub timeout: u64,
 }
 
-/// User-configurable agent override from config.json.
+/// User-configurable agent override from config.yaml.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
     pub binary: String,

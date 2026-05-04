@@ -27,6 +27,7 @@ thiserror = "2"
 dialoguer = "0.12"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+serde_yaml = "0.9"
 flate2 = "1"
 tar = "0.4"
 sha2 = "0.11"

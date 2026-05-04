@@ -16,11 +16,22 @@ pub fn run_info(ctx: &mut Context, args: &[String]) -> anyhow::Result<i32> {
     if !target.model.is_empty() {
         ctx.output.info(&format!("Model:       {}", target.model));
     }
+    for tier in ["haiku", "sonnet", "opus"] {
+        if let Some(m) = target.model_tiers.get(tier) {
+            ctx.output
+                .info(&format!("  {:<8}   {}", tier, m));
+        }
+    }
     if !target.secret_key.is_empty() {
-        let status = match ctx.secrets.get(&target.secret_key) {
-            Some(v) if !v.is_empty() => "configured",
-            _ => "not configured",
-        };
+        let configured = ctx
+            .secrets
+            .get(&target.secret_key)
+            .map(|v| !v.is_empty())
+            .unwrap_or(false)
+            || std::env::var(&target.secret_key)
+                .map(|v| !v.is_empty())
+                .unwrap_or(false);
+        let status = if configured { "configured" } else { "not configured" };
         ctx.output
             .info(&format!("Credential:  {} ({})", target.secret_key, status));
     }

@@ -158,13 +158,28 @@ impl Default for AppRegistry {
 
 impl AppRegistry {
     /// Read from disk, returning default if the file doesn't exist.
+    /// Auto-migrates legacy config.yaml to config.yaml on first run.
     pub fn open(path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        let raw = match std::fs::read(path.as_ref()) {
+        let path = path.as_ref();
+
+        // Migrate config.yaml → config.yaml if yaml doesn't exist yet
+        if path.extension().and_then(|e| e.to_str()) == Some("yaml") && !path.exists() {
+            let json_path = path.with_extension("json");
+            if json_path.exists() {
+                let raw = std::fs::read(&json_path)?;
+                let cfg: Self = serde_json::from_slice(&raw)?;
+                cfg.write_to(path)?;
+                let _ = std::fs::remove_file(&json_path);
+                return Ok(cfg);
+            }
+        }
+
+        let raw = match std::fs::read(path) {
             Ok(d) => d,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Self::default()),
             Err(e) => return Err(e.into()),
         };
-        serde_json::from_slice(&raw).map_err(Into::into)
+        serde_yaml::from_slice(&raw).map_err(Into::into)
     }
 
     /// Serialize and write atomically.
@@ -173,12 +188,8 @@ impl AppRegistry {
         if let Some(parent) = p.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let json = serde_json::to_string_pretty(self)?;
-        super::atomic::write_atomic(
-            &p.to_string_lossy(),
-            format!("{}\n", json).as_bytes(),
-            0o644,
-        )?;
+        let yaml = serde_yaml::to_string(self)?;
+        super::atomic::write_atomic(&p.to_string_lossy(), yaml.as_bytes(), 0o644)?;
         Ok(())
     }
 

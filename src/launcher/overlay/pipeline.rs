@@ -136,13 +136,15 @@ fn build_anthropic_config_override(model: &str, config: &AppRegistry) -> Option<
 
     let mut map = serde_json::Map::new();
 
-    let threshold = settings
-        .and_then(|s| s.compaction_threshold)
-        .unwrap_or(global_compaction.threshold);
-    map.insert(
-        "autoCompactThreshold".to_string(),
-        serde_json::Value::from(threshold),
-    );
+    if global_compaction.auto_compact {
+        let threshold = settings
+            .and_then(|s| s.compaction_threshold)
+            .unwrap_or(global_compaction.threshold);
+        map.insert(
+            "autoCompactThreshold".to_string(),
+            serde_json::Value::from(threshold),
+        );
+    }
 
     if let Some(max_tokens) = settings.and_then(|s| s.max_context_tokens) {
         map.insert(
@@ -261,5 +263,69 @@ mod tests {
         let result = resolve_model(&target, &[], &env_map);
         assert_eq!(result.session_model, "glm-5");
         assert!(matches!(result.source, ModelSource::TierFallback { .. }));
+    }
+
+    #[test]
+    fn test_overlay_auto_compact_off_omits_threshold() {
+        let cfg = AppRegistry {
+            compaction: crate::config::registry::ContextWindowPolicy {
+                auto_compact: false,
+                threshold: 0.8,
+            },
+            ..AppRegistry::default()
+        };
+        let result = build_anthropic_config_override("any-model", &cfg);
+        assert!(result.is_none(), "auto_compact=false should produce no override");
+    }
+
+    #[test]
+    fn test_overlay_auto_compact_on_includes_threshold() {
+        let cfg = AppRegistry {
+            compaction: crate::config::registry::ContextWindowPolicy {
+                auto_compact: true,
+                threshold: 0.7,
+            },
+            ..AppRegistry::default()
+        };
+        let json = build_anthropic_config_override("any-model", &cfg)
+            .expect("should produce override");
+        assert!(json.contains("autoCompactThreshold"));
+        assert!(json.contains("0.7"));
+    }
+
+    #[test]
+    fn test_overlay_max_context_tokens_applied() {
+        let mut cfg = AppRegistry::default();
+        cfg.model_settings.insert(
+            "glm-5".to_string(),
+            crate::config::registry::PerModelOverrides {
+                max_context_tokens: Some(128000),
+                compaction_threshold: None,
+            },
+        );
+        let json = build_anthropic_config_override("glm-5", &cfg).expect("override");
+        assert!(json.contains("maxContextTokens"));
+        assert!(json.contains("128000"));
+    }
+
+    #[test]
+    fn test_overlay_per_model_threshold_overrides_global() {
+        let mut cfg = AppRegistry {
+            compaction: crate::config::registry::ContextWindowPolicy {
+                auto_compact: true,
+                threshold: 0.8,
+            },
+            ..AppRegistry::default()
+        };
+        cfg.model_settings.insert(
+            "glm-5".to_string(),
+            crate::config::registry::PerModelOverrides {
+                max_context_tokens: None,
+                compaction_threshold: Some(0.5),
+            },
+        );
+        let json = build_anthropic_config_override("glm-5", &cfg).expect("override");
+        assert!(json.contains("0.5"));
+        assert!(!json.contains("0.8"));
     }
 }

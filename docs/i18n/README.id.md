@@ -304,7 +304,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp
 
 #### Agen kustom
 
-Tambahkan agen di `~/.claudy/config.json`:
+Tambahkan agen di `~/.claudy/config.yaml`:
 
 ```json
 {
@@ -357,7 +357,7 @@ Secara default, Claudy menyimpan data di:
 
 File/direktori penting:
 
-- `config.json`: konfigurasi provider + channel + agent.
+- `config.yaml`: konfigurasi provider + channel + agent.
 - `secrets.env`: credential provider/bot.
 - `launchers.json`: manifest launcher/symlink.
 - `modes/`: Claude config modes.
@@ -416,7 +416,7 @@ claudy ping
 - **Permission prompt tidak muncul**: pastikan Claude CLI tidak berjalan dengan `--dangerously-skip-permissions`. Prompt hanya terpicu saat Claude membutuhkan persetujuan eksplisit untuk penggunaan alat.
 - **Binary tidak ditemukan setelah instalasi**: pastikan direktori bin Claudy ada di `PATH`, lalu restart shell Anda.
 - **Agen tidak muncul di MCP**: pastikan binary agen ada di `PATH` (`which gemini`). Hanya agen yang terinstal yang muncul di `tools/list`.
-- **Agent timeout**: tingkatkan timeout di field agents `config.json` (default: 120s).
+- **Agent timeout**: tingkatkan timeout di field agents `config.yaml` (default: 120s).
 - **MCP belum terdaftar**: jalankan `claudy mcp` sekali secara manual, atau periksa entri `mcpServers.claudy` di `~/.claude/settings.json`.
 - **Output agen terpotong**: stdout agen dibatasi 10MB. Untuk output besar, arahkan agen untuk menulis ke file.
 - **Data Analytics hilang**: jalankan `claudy analytics ingest` untuk mengisi dari `~/.claude/projects/`. Gunakan `--full` untuk menyerap ulang semuanya.

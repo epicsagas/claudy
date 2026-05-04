@@ -304,7 +304,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp
 
 #### Agentes personalizados
 
-Adicione agentes em `~/.claudy/config.json`:
+Adicione agentes em `~/.claudy/config.yaml`:
 
 ```json
 {
@@ -357,7 +357,7 @@ Por padrão, o Claudy armazena os dados em:
 
 Arquivos/diretórios importantes:
 
-- `config.json`: configuração de provider, Channel e agente.
+- `config.yaml`: configuração de provider, Channel e agente.
 - `secrets.env`: credenciais do provider/bot.
 - `launchers.json`: manifesto de lançadores/symlinks.
 - `modes/`: Config Modes do Claude.
@@ -416,7 +416,7 @@ claudy ping
 - **Solicitação de permissão não aparece**: certifique-se de que o Claude CLI não está sendo executado com `--dangerously-skip-permissions`. A solicitação só é acionada quando o Claude precisa de aprovação explícita para o uso de ferramentas.
 - **Binário não encontrado após a instalação**: certifique-se de que o diretório bin do Claudy está no `PATH`, depois reinicie o seu shell.
 - **Agente não aparece no MCP**: certifique-se de que o binário do agente está no `PATH` (`which gemini`). Apenas os agentes instalados aparecem em `tools/list`.
-- **Timeout do agente**: aumente o timeout no campo agents de `config.json` (padrão: 120s).
+- **Timeout do agente**: aumente o timeout no campo agents de `config.yaml` (padrão: 120s).
 - **MCP não registrado**: execute `claudy mcp` uma vez manualmente, ou verifique `~/.claude/settings.json` para a entrada `mcpServers.claudy`.
 - **Saída do agente truncada**: a saída stdout do agente é limitada a 10MB. Para saídas grandes, redirecione o agente para escrever em um arquivo.
 - **Dados de analytics ausentes**: execute `claudy analytics ingest` para popular a partir de `~/.claude/projects/`. Use `--full` para reingerir tudo.

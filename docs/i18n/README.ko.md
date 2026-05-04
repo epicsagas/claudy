@@ -291,7 +291,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp
 
 #### 커스텀 에이전트
 
-`~/.claudy/config.json`에 에이전트를 추가하세요:
+`~/.claudy/config.yaml`에 에이전트를 추가하세요:
 
 ```json
 {
@@ -344,7 +344,7 @@ claudy analytics export --format csv --days 7  # 지난 7일간 CSV로 내보내
 
 주요 파일/디렉터리:
 
-- `config.json`: Provider + Channel + 에이전트 설정.
+- `config.yaml`: Provider + Channel + 에이전트 설정.
 - `secrets.env`: Provider/봇 자격증명.
 - `launchers.json`: 런처/심볼릭 링크 매니페스트.
 - `modes/`: Claude 설정 Mode.
@@ -403,7 +403,7 @@ claudy ping
 - **권한 프롬프트 미표시**: Claude CLI가 `--dangerously-skip-permissions`로 실행되지 않는지 확인하세요. 프롬프트는 Claude가 도구 사용에 대한 명시적 승인이 필요할 때만 트리거됩니다.
 - **설치 후 바이너리를 찾을 수 없음**: Claudy의 bin 디렉터리가 `PATH`에 있는지 확인한 후 셸을 재시작하세요.
 - **MCP에서 에이전트가 표시되지 않음**: 에이전트 바이너리가 `PATH`에 있는지 확인하세요(`which gemini`). 설치된 에이전트만 `tools/list`에 표시됩니다.
-- **에이전트 타임아웃**: `config.json` 에이전트 필드에서 타임아웃을 늘리세요 (기본값: 120초).
+- **에이전트 타임아웃**: `config.yaml` 에이전트 필드에서 타임아웃을 늘리세요 (기본값: 120초).
 - **MCP가 등록되지 않음**: `claudy mcp`를 한 번 수동으로 실행하거나 `~/.claude/settings.json`에서 `mcpServers.claudy` 항목을 확인하세요.
 - **에이전트 출력 잘림**: 에이전트 stdout은 10MB로 제한됩니다. 큰 출력의 경우 에이전트가 파일에 쓰도록 리디렉션하세요.
 - **분석 데이터 없음**: `claudy analytics ingest`를 실행하여 `~/.claude/projects/`에서 데이터를 채우세요. `--full`을 사용하면 모든 것을 재수집합니다.
