@@ -19,18 +19,22 @@ impl AppState {
 }
 
 fn get_state(app_handle: &tauri::AppHandle) -> AppState {
-    let db_path = app_handle
-        .path()
-        .app_data_dir()
-        .map(|p: std::path::PathBuf| p.join("analytics.db").to_string_lossy().to_string())
-        .unwrap_or_else(|_| {
-            dirs::home_dir()
-                .map(|h| {
-                    h.join(".claudy")
-                        .join("analytics")
-                        .join("analytics.db")
-                        .to_string_lossy()
-                        .to_string()
+    // Always use the same DB as CLI commands (~/.claudy/analytics/analytics.db)
+    // so the dashboard sees ingested data and synced pricing.
+    let db_path = dirs::home_dir()
+        .map(|h| {
+            h.join(".claudy")
+                .join("analytics")
+                .join("analytics.db")
+                .to_string_lossy()
+                .to_string()
+        })
+        .unwrap_or_else(|| {
+            app_handle
+                .path()
+                .app_data_dir()
+                .map(|p: std::path::PathBuf| {
+                    p.join("analytics.db").to_string_lossy().to_string()
                 })
                 .unwrap_or_default()
         });
@@ -193,6 +197,16 @@ pub fn trigger_ingestion(
     full: Option<bool>,
 ) -> Result<IngestionResult, String> {
     let state = get_state(&app_handle);
+
+    // Sync pricing before ingestion so cost estimates use current rates.
+    if let Ok(store) = state.open_store() {
+        let cache_path = dirs::home_dir()
+            .map(|h| h.join(".claudy").join("cache").join("models_dev.json"))
+            .unwrap_or_default();
+        let _ =
+            crate::adapters::analytics::pricing::sync::run_pricing_sync(&store, &cache_path);
+    }
+
     let result = crate::adapters::analytics::ingestion::run_ingestion(
         &state.db_path,
         full.unwrap_or(false),
