@@ -277,6 +277,12 @@ pub struct CommandDefinition {
     pub options: Vec<CommandOption>,
 }
 
+/// Discord Application Command option type constants.
+pub mod option_kind {
+    /// STRING option type (value 3).
+    pub const STRING: u8 = 3;
+}
+
 /// A single option for a slash command.
 pub struct CommandOption {
     pub name: &'static str,

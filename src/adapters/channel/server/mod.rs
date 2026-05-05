@@ -58,6 +58,52 @@ impl Drop for TypingGuard {
 
 pub type ChannelRegistry = HashMap<Platform, Arc<dyn ChannelPort>>;
 
+/// Bot command definitions shared across platforms.
+pub(super) struct BotCommand {
+    pub name: &'static str,
+    pub description: &'static str,
+}
+
+/// All bot commands registered for both Telegram and Discord.
+const BOT_COMMANDS: &[BotCommand] = &[
+    BotCommand {
+        name: "help",
+        description: "Show available commands",
+    },
+    BotCommand {
+        name: "cancel",
+        description: "Cancel current task",
+    },
+    BotCommand {
+        name: "model",
+        description: "Change Claude model",
+    },
+    BotCommand {
+        name: "yolo",
+        description: "Toggle auto-allow permissions",
+    },
+    BotCommand {
+        name: "status",
+        description: "Show session status",
+    },
+    BotCommand {
+        name: "sessions",
+        description: "List recent sessions",
+    },
+    BotCommand {
+        name: "projects",
+        description: "List projects",
+    },
+    BotCommand {
+        name: "new",
+        description: "Start new session",
+    },
+    BotCommand {
+        name: "history",
+        description: "Show session history",
+    },
+];
+
 pub(super) const THINKING_MESSAGES: &[&str] = &[
     "Thinking...",
     "Let me work on that...",
@@ -172,20 +218,11 @@ pub async fn run(ctx: &Context, listen_addr: &str) -> anyhow::Result<i32> {
     {
         {
             let api = super::telegram::api::TelegramApi::new(token.clone());
-            if let Err(e) = api
-                .set_my_commands(&[
-                    ("help", "Show available commands"),
-                    ("cancel", "Cancel current task"),
-                    ("model", "Change Claude model"),
-                    ("yolo", "Toggle auto-allow permissions"),
-                    ("status", "Show session status"),
-                    ("sessions", "List recent sessions"),
-                    ("projects", "List projects"),
-                    ("new", "Start new session"),
-                    ("history", "Show session history"),
-                ])
-                .await
-            {
+            let cmd_list: Vec<(&str, &str)> = BOT_COMMANDS
+                .iter()
+                .map(|c| (c.name, c.description))
+                .collect();
+            if let Err(e) = api.set_my_commands(&cmd_list).await {
                 tracing::warn!(error = %e, "Failed to register bot commands");
             }
         }
@@ -201,63 +238,28 @@ pub async fn run(ctx: &Context, listen_addr: &str) -> anyhow::Result<i32> {
         && !token.is_empty()
     {
         {
-            use super::discord::api::{CommandDefinition, CommandOption, DiscordApi};
+            use super::discord::api::{CommandDefinition, CommandOption, DiscordApi, option_kind};
             let api = DiscordApi::new(token.clone());
             match api.get_application_id().await {
                 Ok(app_id) => {
-                    let commands = &[
-                        CommandDefinition {
-                            name: "help",
-                            description: "Show available commands",
-                            options: vec![],
-                        },
-                        CommandDefinition {
-                            name: "cancel",
-                            description: "Cancel current task",
-                            options: vec![],
-                        },
-                        CommandDefinition {
-                            name: "model",
-                            description: "Change Claude model",
-                            options: vec![CommandOption {
-                                name: "name",
-                                description: "Model name",
-                                kind: 3,
-                                required: false,
-                            }],
-                        },
-                        CommandDefinition {
-                            name: "yolo",
-                            description: "Toggle auto-allow permissions",
-                            options: vec![],
-                        },
-                        CommandDefinition {
-                            name: "status",
-                            description: "Show session status",
-                            options: vec![],
-                        },
-                        CommandDefinition {
-                            name: "sessions",
-                            description: "List recent sessions",
-                            options: vec![],
-                        },
-                        CommandDefinition {
-                            name: "projects",
-                            description: "List projects",
-                            options: vec![],
-                        },
-                        CommandDefinition {
-                            name: "new",
-                            description: "Start new session",
-                            options: vec![],
-                        },
-                        CommandDefinition {
-                            name: "history",
-                            description: "Show session history",
-                            options: vec![],
-                        },
-                    ];
-                    if let Err(e) = api.register_application_commands(&app_id, commands).await {
+                    let commands: Vec<CommandDefinition> = BOT_COMMANDS
+                        .iter()
+                        .map(|c| CommandDefinition {
+                            name: c.name,
+                            description: c.description,
+                            options: if c.name == "model" {
+                                vec![CommandOption {
+                                    name: "name",
+                                    description: "Model name",
+                                    kind: option_kind::STRING,
+                                    required: false,
+                                }]
+                            } else {
+                                vec![]
+                            },
+                        })
+                        .collect();
+                    if let Err(e) = api.register_application_commands(&app_id, &commands).await {
                         tracing::warn!(error = %e, "Failed to register Discord slash commands");
                     }
                 }
