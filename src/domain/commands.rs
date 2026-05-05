@@ -73,4 +73,5 @@ pub enum AnalyticsAction {
         to: Option<String>,
         project: Option<String>,
     },
+    Recalculate,
 }

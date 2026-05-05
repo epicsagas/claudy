@@ -152,6 +152,7 @@ pub struct CostMetrics {
     pub total_sessions: i64,
     pub total_turns: i64,
     pub cache_savings_usd: f64,
+    pub estimated_cost_portion: f64,
     pub by_model: Vec<ModelCostBreakdown>,
     pub most_expensive_session: Option<SessionCostHighlight>,
 }
@@ -166,6 +167,7 @@ pub struct ModelCostBreakdown {
     pub session_count: i64,
     pub avg_cost_per_session: f64,
     pub percentage: f64,
+    pub pricing_source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -278,6 +280,7 @@ pub struct InsightsCostAnalysis {
     pub avg_cost_per_turn: f64,
     pub weekly_avg_cost: f64,
     pub cache_savings_usd: f64,
+    pub estimated_cost_portion: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

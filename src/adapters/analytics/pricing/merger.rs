@@ -25,7 +25,13 @@ impl PricingMerger {
 
         models_dev
             .iter()
-            .filter(|e| e.id.to_lowercase().contains("claude"))
+            .filter(|e| {
+                let id = e.id.to_lowercase();
+                id.contains("claude")
+                    || e.cost
+                        .as_ref()
+                        .is_some_and(|c| c.input.is_some_and(|v| v > 0.0))
+            })
             .filter_map(|entry| {
                 let anthropic_name = models_dev_id_to_anthropic_name(&entry.id);
                 let lookup_key = anthropic_name.to_lowercase();
@@ -51,13 +57,33 @@ impl PricingMerger {
                         Some(v) if v.is_finite() && v > 0.0 => v,
                         _ => input * 5.0,
                     };
+                    let is_claude = entry.id.to_lowercase().contains("claude");
+                    let (cache_write, cache_read) = if is_claude {
+                        // Claude models: derive cache rates from input ratio
+                        (input * 1.25, input * 0.1)
+                    } else {
+                        // Non-Claude models: use actual cache prices from models.dev
+                        let cw = cost
+                            .cache_write
+                            .filter(|v| v.is_finite() && *v >= 0.0)
+                            .unwrap_or(0.0);
+                        let cr = cost
+                            .cache_read
+                            .filter(|v| v.is_finite() && *v >= 0.0)
+                            .unwrap_or(0.0);
+                        (cw, cr)
+                    };
                     Some(ModelPricing {
                         model_id: entry.id.clone(),
                         input,
                         output,
-                        cache_write: input * 1.25,
-                        cache_read: input * 0.1,
-                        source: "models_dev+ratio".to_string(),
+                        cache_write,
+                        cache_read,
+                        source: if is_claude {
+                            "models_dev+ratio".to_string()
+                        } else {
+                            "models_dev".to_string()
+                        },
                         synced_at: synced_at.clone(),
                     })
                 } else {
@@ -243,12 +269,15 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_skips_non_claude_models() {
+    fn test_merge_includes_non_claude_models_with_pricing() {
         let models_dev = vec![make_entry("gpt-4o", Some(5.0), Some(15.0))];
         let anthropic: Vec<AnthropicModelPrice> = vec![];
 
         let result = PricingMerger::merge(&models_dev, &anthropic);
-        assert!(result.is_empty());
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].model_id, "gpt-4o");
+        assert!((result[0].input - 5.0).abs() < 1e-9);
+        assert_eq!(result[0].source, "models_dev");
     }
 
     #[test]
@@ -305,6 +334,53 @@ mod tests {
         assert_eq!(result.len(), 1);
         // output defaults to input * 5.0 = 10.0
         assert!((result[0].output - 10.0).abs() < 1e-9);
+        assert_eq!(result[0].source, "models_dev+ratio");
+    }
+
+    #[test]
+    fn test_merge_non_claude_uses_actual_cache_prices() {
+        let models_dev = vec![ModelsDevEntry {
+            id: "glm-5.1".to_string(),
+            name: None,
+            cost: Some(ModelsDevCost {
+                input: Some(1.4),
+                output: Some(4.4),
+                cache_read: Some(0.26),
+                cache_write: Some(0.0),
+            }),
+        }];
+        let anthropic: Vec<AnthropicModelPrice> = vec![];
+
+        let result = PricingMerger::merge(&models_dev, &anthropic);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].model_id, "glm-5.1");
+        assert!((result[0].input - 1.4).abs() < 1e-9);
+        assert!((result[0].output - 4.4).abs() < 1e-9);
+        // Non-Claude: use actual cache prices from models.dev, not ratio-derived
+        assert!((result[0].cache_read - 0.26).abs() < 1e-9);
+        assert!((result[0].cache_write - 0.0).abs() < 1e-9);
+        assert_eq!(result[0].source, "models_dev");
+    }
+
+    #[test]
+    fn test_merge_claude_still_uses_ratio_cache() {
+        let models_dev = vec![ModelsDevEntry {
+            id: "claude-test-3".to_string(),
+            name: None,
+            cost: Some(ModelsDevCost {
+                input: Some(2.0),
+                output: Some(10.0),
+                cache_read: None,
+                cache_write: None,
+            }),
+        }];
+        let anthropic: Vec<AnthropicModelPrice> = vec![];
+
+        let result = PricingMerger::merge(&models_dev, &anthropic);
+        assert_eq!(result.len(), 1);
+        // Claude models: ratio-derived cache rates
+        assert!((result[0].cache_write - 2.5).abs() < 1e-9); // input * 1.25
+        assert!((result[0].cache_read - 0.2).abs() < 1e-9); // input * 0.1
         assert_eq!(result[0].source, "models_dev+ratio");
     }
 }

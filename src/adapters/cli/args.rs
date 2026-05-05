@@ -173,4 +173,6 @@ pub enum AnalyticsCommands {
         #[arg(long)]
         project: Option<String>,
     },
+    /// Recalculate all costs using the latest pricing data
+    Recalculate,
 }

@@ -131,6 +131,9 @@ pub fn map_cli_to_domain(command: Commands) -> DomainCommand {
                 to,
                 project,
             }),
+            crate::adapters::cli::args::AnalyticsCommands::Recalculate => {
+                DomainCommand::Analytics(AnalyticsAction::Recalculate)
+            }
         },
     }
 }

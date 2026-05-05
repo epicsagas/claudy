@@ -23,6 +23,7 @@ pub fn run_analytics(ctx: &mut Context, action: AnalyticsAction) -> anyhow::Resu
             to,
             project,
         } => run_insights(ctx, days, from.as_deref(), to.as_deref(), project.as_deref()),
+        AnalyticsAction::Recalculate => run_recalculate(ctx),
     }
 }
 
@@ -57,6 +58,25 @@ fn run_ingest(ctx: &mut Context, full: bool, project: Option<&str>) -> anyhow::R
         result.turns_created,
         result.token_records_created,
         result.tool_calls_created,
+    ));
+    Ok(0)
+}
+
+fn run_recalculate(ctx: &mut Context) -> anyhow::Result<i32> {
+    let db_path = &ctx.paths.analytics_db;
+    ctx.output.info("Syncing pricing data...");
+    let store = crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore::open(db_path)?;
+    store.initialize_schema()?;
+
+    let cache_path = std::path::Path::new(&ctx.paths.cache_dir).join("models_dev.json");
+    crate::adapters::analytics::pricing::sync::run_pricing_sync(&store, &cache_path)?;
+
+    ctx.output.info("Recalculating costs with updated pricing...");
+    let updated = store.recalculate_costs()?;
+
+    ctx.output.info(&format!(
+        "Recalculated {} token usage records and updated session totals.",
+        updated
     ));
     Ok(0)
 }
@@ -289,6 +309,7 @@ fn run_insights(
             avg_cost_per_turn: cost_metrics.avg_cost_per_turn,
             weekly_avg_cost: cost_metrics.weekly_avg_cost,
             cache_savings_usd: cost_metrics.cache_savings_usd,
+            estimated_cost_portion: cost_metrics.estimated_cost_portion,
         },
         cache_efficiency: InsightsCacheEfficiency {
             hit_ratio: dashboard.cache_hit_ratio,

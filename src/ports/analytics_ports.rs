@@ -38,6 +38,12 @@ pub trait AnalyticsStore: Send + Sync {
     fn insert_token_usage(&self, usage: &NewTokenUsage) -> anyhow::Result<()>;
 
     fn insert_tool_call(&self, call: &NewToolCall) -> anyhow::Result<()>;
+    fn update_tool_call_result(
+        &self,
+        tool_use_id: &str,
+        is_error: bool,
+        result_summary: Option<&str>,
+    ) -> anyhow::Result<()>;
     fn get_tool_calls_by_turn(&self, turn_id: i64) -> anyhow::Result<Vec<ToolCallRecord>>;
 
     fn insert_channel_metric(&self, record: &ChannelMetricRecord) -> anyhow::Result<()>;
@@ -71,6 +77,8 @@ pub trait AnalyticsStore: Send + Sync {
         days: u32,
         project_id: Option<i64>,
     ) -> anyhow::Result<CostMetrics>;
+
+    fn recalculate_costs(&self) -> anyhow::Result<u64>;
 }
 
 pub trait PricingStore: Send + Sync {

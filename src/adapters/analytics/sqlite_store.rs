@@ -1,4 +1,4 @@
-use crate::adapters::analytics::analysis::cost::estimate_cache_savings;
+
 use crate::domain::analytics::*;
 use crate::ports::analytics_ports::{AnalyticsStore, PricingStore};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -288,6 +288,19 @@ impl AnalyticsStore for SqliteAnalyticsStore {
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![call.turn_id, call.tool_use_id, call.tool_name, call.input_summary,
                     call.is_error as i32, call.result_summary, call.duration_ms],
+        )?;
+        Ok(())
+    }
+
+    fn update_tool_call_result(
+        &self,
+        tool_use_id: &str,
+        is_error: bool,
+        result_summary: Option<&str>,
+    ) -> anyhow::Result<()> {
+        self.lock()?.execute(
+            "UPDATE tool_calls SET is_error = ?1, result_summary = ?2 WHERE tool_use_id = ?3",
+            params![is_error as i32, result_summary, tool_use_id],
         )?;
         Ok(())
     }
@@ -720,12 +733,17 @@ impl AnalyticsStore for SqliteAnalyticsStore {
             let session_count: i64 = row.get(5)?;
 
             // Use DB pricing when available; fall back to hardcoded estimates.
+            let has_db_pricing = pricing_map.contains_key(&model);
             cache_savings_usd += if let Some(&(inp_rate, cr_rate)) = pricing_map.get(&model) {
-                #[allow(clippy::cast_precision_loss)]
-                let tokens_m = cache_read as f64 / 1_000_000.0;
-                tokens_m * (inp_rate - cr_rate)
+                if inp_rate > cr_rate {
+                    #[allow(clippy::cast_precision_loss)]
+                    let tokens_m = cache_read as f64 / 1_000_000.0;
+                    tokens_m * (inp_rate - cr_rate)
+                } else {
+                    0.0
+                }
             } else {
-                estimate_cache_savings(&model, cache_read)
+                0.0
             };
 
             let percentage = if total_cost > 0.0 {
@@ -748,6 +766,7 @@ impl AnalyticsStore for SqliteAnalyticsStore {
                 session_count,
                 avg_cost_per_session,
                 percentage,
+                pricing_source: Some(if has_db_pricing { "db" } else { "hardcoded" }.to_string()),
             });
         }
 
@@ -797,6 +816,17 @@ impl AnalyticsStore for SqliteAnalyticsStore {
         };
         let weekly_avg_cost = weekly_total / 7.0;
 
+        let estimated_cost: f64 = by_model
+            .iter()
+            .filter(|m| m.pricing_source.as_deref() == Some("hardcoded"))
+            .map(|m| m.total_cost_usd)
+            .sum();
+        let estimated_cost_portion = if total_cost > 0.0 {
+            estimated_cost / total_cost
+        } else {
+            0.0
+        };
+
         Ok(CostMetrics {
             total_cost_usd: total_cost,
             avg_cost_per_session,
@@ -805,9 +835,71 @@ impl AnalyticsStore for SqliteAnalyticsStore {
             total_sessions,
             total_turns,
             cache_savings_usd,
+            estimated_cost_portion,
             by_model,
             most_expensive_session,
         })
+    }
+
+    fn recalculate_costs(&self) -> anyhow::Result<u64> {
+        let pricing_rows = self.list_model_pricing()?;
+        let pricing_map: std::collections::HashMap<String, (f64, f64, f64, f64)> = pricing_rows
+            .into_iter()
+            .map(|p| (p.model_id, (p.input, p.output, p.cache_write, p.cache_read)))
+            .collect();
+
+        let conn = self.lock()?;
+
+        let mut stmt = conn.prepare(
+            "SELECT tu.id, tu.model, tu.input_tokens, tu.output_tokens,
+                    tu.cache_creation_input_tokens, tu.cache_read_input_tokens
+             FROM token_usage tu",
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut updated: u64 = 0;
+
+        while let Some(row) = rows.next()? {
+            let id: i64 = row.get(0)?;
+            let model: String = row.get(1)?;
+            let input: i64 = row.get(2)?;
+            let output: i64 = row.get(3)?;
+            let cache_creation: i64 = row.get(4)?;
+            let cache_read: i64 = row.get(5)?;
+
+            let new_cost = if let Some(&(inp, out, cw, cr)) = pricing_map.get(&model) {
+                #[allow(clippy::cast_precision_loss)]
+                let cost = (input as f64 / 1_000_000.0) * inp
+                    + (output as f64 / 1_000_000.0) * out
+                    + (cache_creation as f64 / 1_000_000.0) * cw
+                    + (cache_read as f64 / 1_000_000.0) * cr;
+                cost
+            } else {
+                crate::adapters::analytics::analysis::cost::estimate_cost(
+                    &model, input, output, cache_creation, cache_read,
+                )
+            };
+
+            conn.execute(
+                "UPDATE token_usage SET estimated_cost_usd = ?1 WHERE id = ?2",
+                params![new_cost, id],
+            )?;
+            updated += 1;
+        }
+        drop(rows);
+        drop(stmt);
+
+        // Recompute session totals from token_usage
+        conn.execute(
+            "UPDATE sessions SET total_cost_usd = (
+                SELECT COALESCE(SUM(tu.estimated_cost_usd), 0)
+                FROM token_usage tu
+                JOIN turns t ON tu.turn_id = t.id
+                WHERE t.session_id = sessions.id
+            )",
+            [],
+        )?;
+
+        Ok(updated)
     }
 }
 
@@ -981,6 +1073,7 @@ CREATE TABLE IF NOT EXISTS tool_calls (
 );
 CREATE INDEX IF NOT EXISTS idx_tool_calls_turn ON tool_calls(turn_id);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_name ON tool_calls(tool_name);
+CREATE INDEX IF NOT EXISTS idx_tool_calls_use_id ON tool_calls(tool_use_id);
 
 CREATE TABLE IF NOT EXISTS channel_metrics (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,

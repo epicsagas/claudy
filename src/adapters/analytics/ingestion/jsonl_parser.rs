@@ -268,7 +268,23 @@ pub fn parse_and_ingest(
                             })
                         })
                     });
-                    let _ = (is_error, result_summary);
+                    let tool_use_id = msg
+                        .get("tool_use_id")
+                        .and_then(|v| v.as_str())
+                        .or_else(|| {
+                            msg.get("content")
+                                .and_then(|c| c.as_array())
+                                .and_then(|arr| {
+                                    arr.iter().find_map(|b| b.get("tool_use_id").and_then(|v| v.as_str()))
+                                })
+                        });
+                    if let Some(tuid) = tool_use_id
+                        && !tuid.is_empty()
+                        && let Err(e) =
+                            store.update_tool_call_result(tuid, is_error, result_summary.as_deref())
+                    {
+                        tracing::warn!(error = %e, tool_use_id = %tuid, "failed to update tool call result");
+                    }
                 }
             }
             "result" => {
