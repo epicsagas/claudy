@@ -40,6 +40,8 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
 
 <img src="docs/assets/features-2048.png" alt="Why Claudy" width="100%" />
 
+> **Automated setup?** See [Configuration](#configuration) for non-interactive setup via `secrets.env` and `config.yaml` — no TTY required.
+
 ## Why Claudy
 
 - **Multi-provider launch**: switch across built-in, Z.AI, OpenRouter alias, Ollama and custom Anthropic-compatible endpoints.
@@ -214,6 +216,32 @@ model_settings:
   glm-5:
     max_context_tokens: 128000
 
+# Channel bridge (optional) — non-interactive alternative to `claudy channel add`
+channel:
+  enabled_platforms: ["telegram"]
+  listen_addr: "127.0.0.1:3456"        # default: 127.0.0.1:3456
+  default_profile: "zai"               # profile for all platforms
+  platform_profiles:                    # per-platform profile override
+    telegram: "zai"
+    discord: "deepseek"
+  channel_profiles:                     # per-channel profile override
+    "telegram:12345": "kimi"
+    "discord:guild1:ch1": "alibaba"
+  default_mode: ""                      # mode for all platforms
+  platform_modes:                       # per-platform mode override
+    telegram: "concise"
+  channel_modes:                        # per-channel mode override
+    "telegram:12345": "concise"
+  default_project: ""                   # project directory for all platforms
+  channel_projects:                     # per-channel project override
+    "slack:T123:C456": "/home/user/proj"
+  allowed_users: []                     # global allowed users
+  platform_allowed_users:               # per-platform allowed users
+    telegram: ["user_id_1", "user_id_2"]
+    discord: ["discord_user_1"]
+  max_concurrent_sessions: 0            # 0 = unlimited
+  stream_timeout_secs: 1800             # default: 1800 (30 min)
+
 # Agent overrides — override built-in agent binary, args, or timeout
 agents:
   aider:
@@ -357,7 +385,7 @@ sends the response back to Claude and processing continues automatically.
 
 #### Secrets
 
-Store credentials in `~/.claudy/secrets.env`:
+Store channel credentials in `~/.claudy/secrets.env` (see [Provider credentials](#provider-credentials-secretsenv) for full format):
 
 ```env
 TELEGRAM_BOT_TOKEN=...
