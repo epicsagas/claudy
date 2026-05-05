@@ -4,8 +4,8 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::domain::channel_events::{IncomingEvent, Platform};
-use crate::adapters::channel::server::{AppState, is_authorized, spawn_process_event};
+use crate::adapters::channel::server::{AppState, authorize_and_spawn};
+use crate::domain::channel_events::Platform;
 
 const GATEWAY_URL: &str = "wss://gateway.discord.gg/?v=10&encoding=json";
 
@@ -52,17 +52,9 @@ pub async fn start_discord_gateway(state: Arc<AppState>, token: String) {
     let mut last_seq: Option<u64> = None;
 
     loop {
-        let url = resume_url
-            .as_deref()
-            .unwrap_or(GATEWAY_URL);
-        let result = run_gateway_session(
-            &state,
-            &token,
-            url,
-            session_id.as_deref(),
-            &mut last_seq,
-        )
-            .await;
+        let url = resume_url.as_deref().unwrap_or(GATEWAY_URL);
+        let result =
+            run_gateway_session(&state, &token, url, session_id.as_deref(), &mut last_seq).await;
 
         match result {
             Ok(Some(ready)) => {
@@ -97,14 +89,17 @@ async fn run_gateway_session(
     session_id: Option<&str>,
     last_seq: &mut Option<u64>,
 ) -> anyhow::Result<Option<ReadyData>> {
-    let (mut ws, _) = tokio_tungstenite::connect_async(url).await
+    let (mut ws, _) = tokio_tungstenite::connect_async(url)
+        .await
         .map_err(|e| anyhow::anyhow!("WebSocket connect failed: {}", e))?;
 
     tracing::info!("Discord gateway WebSocket connected");
 
     // Wait for Hello (op 10)
     let heartbeat_interval = {
-        let msg = ws.next().await
+        let msg = ws
+            .next()
+            .await
             .ok_or_else(|| anyhow::anyhow!("Connection closed before Hello"))?
             .map_err(|e| anyhow::anyhow!("WebSocket error: {}", e))?;
         let event: GatewayEvent = parse_message(&msg)?;
@@ -152,9 +147,7 @@ async fn run_gateway_session(
     // Main event loop with heartbeat
     let mut heartbeat_ack = true;
     let mut ready_data: Option<ReadyData> = None;
-    let mut interval = tokio::time::interval(
-        std::time::Duration::from_millis(heartbeat_interval)
-    );
+    let mut interval = tokio::time::interval(std::time::Duration::from_millis(heartbeat_interval));
     // First heartbeat after jitter (random 0-1 * interval)
     let jitter = (rand::random::<f64>() * heartbeat_interval as f64) as u64;
     tokio::time::sleep(std::time::Duration::from_millis(jitter)).await;
@@ -272,16 +265,7 @@ async fn handle_message_create(state: &Arc<AppState>, data: &serde_json::Value) 
     }
 
     if let Some(event) = super::normalize::normalize_gateway_message(data) {
-        let user_id = match &event {
-            IncomingEvent::TextMessage(msg) => &msg.channel.user_id,
-            IncomingEvent::BotCommand { channel, .. } => &channel.user_id,
-            _ => return,
-        };
-        if !is_authorized(state, Platform::Discord, user_id) {
-            tracing::warn!(user_id, "Unauthorized Discord user");
-            return;
-        }
-        spawn_process_event(state.clone(), event);
+        authorize_and_spawn(state, Platform::Discord, event);
     }
 }
 
@@ -295,24 +279,11 @@ async fn handle_interaction_create(state: &Arc<AppState>, data: &serde_json::Val
     {
         let id = &interaction.id;
         let token = &interaction.token;
-        let _ = super::api::DiscordApi::defer_interaction(
-            &state.secrets,
-            id,
-            token,
-        ).await;
+        let _ = super::api::DiscordApi::defer_interaction(&state.secrets, id, token).await;
     }
 
     if let Some(event) = super::normalize::normalize_interaction(&interaction) {
-        let user_id = match &event {
-            IncomingEvent::TextMessage(msg) => &msg.channel.user_id,
-            IncomingEvent::Interaction(inter) => &inter.channel.user_id,
-            _ => return,
-        };
-        if !is_authorized(state, Platform::Discord, user_id) {
-            tracing::warn!(user_id, "Unauthorized Discord user");
-            return;
-        }
-        spawn_process_event(state.clone(), event);
+        authorize_and_spawn(state, Platform::Discord, event);
     }
 }
 
@@ -322,7 +293,14 @@ fn parse_message(msg: &Message) -> anyhow::Result<GatewayEvent> {
         Message::Close(c) => {
             anyhow::bail!("WebSocket closed: {:?}", c);
         }
-        _ => return Ok(GatewayEvent { op: 255, d: serde_json::Value::Null, s: None, t: None }),
+        _ => {
+            return Ok(GatewayEvent {
+                op: 255,
+                d: serde_json::Value::Null,
+                s: None,
+                t: None,
+            });
+        }
     };
     serde_json::from_str(text).map_err(|e| anyhow::anyhow!("JSON parse error: {}", e))
 }
@@ -334,6 +312,7 @@ async fn send_payload(
     payload: &GatewayPayload,
 ) -> anyhow::Result<()> {
     let json = serde_json::to_string(payload)?;
-    ws.send(Message::Text(json.into())).await
+    ws.send(Message::Text(json.into()))
+        .await
         .map_err(|e| anyhow::anyhow!("WebSocket send error: {}", e))
 }

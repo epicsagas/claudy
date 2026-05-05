@@ -5,9 +5,9 @@ use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 
-use crate::domain::channel_events::{IncomingEvent, Platform};
+use crate::domain::channel_events::Platform;
 
-use super::{AppState, constant_time_eq, is_authorized, process_event};
+use super::{AppState, authorize_and_spawn, constant_time_eq};
 
 pub(super) async fn telegram_webhook(
     State(state): State<Arc<AppState>>,
@@ -56,22 +56,7 @@ pub(super) async fn telegram_webhook(
         None => return StatusCode::OK,
     };
 
-    let user_id = match &event {
-        IncomingEvent::TextMessage(msg) => &msg.channel.user_id,
-        IncomingEvent::Interaction(inter) => &inter.channel.user_id,
-        _ => return StatusCode::OK,
-    };
-    if !is_authorized(&state, Platform::Telegram, user_id) {
-        tracing::warn!(user_id, "Unauthorized user");
-        return StatusCode::OK;
-    }
-
-    let s = state.clone();
-    tokio::spawn(async move {
-        if let Err(e) = process_event(&s, event).await {
-            tracing::error!(error = %e, "Failed to process event");
-        }
-    });
+    authorize_and_spawn(&state, Platform::Telegram, event);
 
     StatusCode::OK
 }
@@ -147,20 +132,7 @@ pub(super) async fn slack_webhook(
                     if let Some(event) =
                         crate::adapters::channel::slack::normalize_interaction(&interaction_payload)
                     {
-                        let user_id = match &event {
-                            IncomingEvent::Interaction(inter) => inter.channel.user_id.as_str(),
-                            _ => "",
-                        };
-                        if !is_authorized(&state, Platform::Slack, user_id) {
-                            tracing::warn!(user_id, "Unauthorized Slack user");
-                            return StatusCode::OK.into_response();
-                        }
-                        let s = state.clone();
-                        tokio::spawn(async move {
-                            if let Err(e) = process_event(&s, event).await {
-                                tracing::error!(error = %e, "Failed to process Slack interaction");
-                            }
-                        });
+                        authorize_and_spawn(&state, Platform::Slack, event);
                     }
                 }
                 Err(e) => {
@@ -193,20 +165,7 @@ pub(super) async fn slack_webhook(
         {
             Ok(callback) => {
                 if let Some(event) = crate::adapters::channel::slack::normalize_event(&callback) {
-                    let user_id = match &event {
-                        IncomingEvent::TextMessage(msg) => msg.channel.user_id.as_str(),
-                        _ => "",
-                    };
-                    if !is_authorized(&state, Platform::Slack, user_id) {
-                        tracing::warn!(user_id, "Unauthorized Slack user");
-                        return StatusCode::OK.into_response();
-                    }
-                    let s = state.clone();
-                    tokio::spawn(async move {
-                        if let Err(e) = process_event(&s, event).await {
-                            tracing::error!(error = %e, "Failed to process Slack event");
-                        }
-                    });
+                    authorize_and_spawn(&state, Platform::Slack, event);
                 }
             }
             Err(e) => {
@@ -280,21 +239,7 @@ pub(super) async fn discord_webhook(
     if let Some(event) =
         crate::adapters::channel::discord::normalize::normalize_interaction(&interaction)
     {
-        let user_id = match &event {
-            IncomingEvent::TextMessage(msg) => msg.channel.user_id.as_str(),
-            IncomingEvent::Interaction(inter) => inter.channel.user_id.as_str(),
-            _ => "",
-        };
-        if !is_authorized(&state, Platform::Discord, user_id) {
-            tracing::warn!(user_id, "Unauthorized Discord user");
-            return StatusCode::OK.into_response();
-        }
-        let s = state.clone();
-        tokio::spawn(async move {
-            if let Err(e) = process_event(&s, event).await {
-                tracing::error!(error = %e, "Failed to process Discord interaction");
-            }
-        });
+        authorize_and_spawn(&state, Platform::Discord, event);
     }
 
     StatusCode::OK.into_response()

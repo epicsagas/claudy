@@ -1,4 +1,3 @@
-
 use crate::domain::analytics::*;
 use crate::ports::analytics_ports::{AnalyticsStore, PricingStore};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -205,9 +204,8 @@ impl AnalyticsStore for SqliteAnalyticsStore {
                 }
             }
             (None, Some(pid)) => {
-                let sql = format!(
-                    "{base_cols} WHERE project_id = ?1 ORDER BY started_at DESC LIMIT ?2"
-                );
+                let sql =
+                    format!("{base_cols} WHERE project_id = ?1 ORDER BY started_at DESC LIMIT ?2");
                 let mut stmt = conn.prepare(&sql)?;
                 let mut rows = stmt.query(params![pid, limit])?;
                 while let Some(row) = rows.next()? {
@@ -215,9 +213,7 @@ impl AnalyticsStore for SqliteAnalyticsStore {
                 }
             }
             (None, None) => {
-                let sql = format!(
-                    "{base_cols} ORDER BY started_at DESC LIMIT ?1"
-                );
+                let sql = format!("{base_cols} ORDER BY started_at DESC LIMIT ?1");
                 let mut stmt = conn.prepare(&sql)?;
                 let mut rows = stmt.query(params![limit])?;
                 while let Some(row) = rows.next()? {
@@ -422,42 +418,37 @@ impl AnalyticsStore for SqliteAnalyticsStore {
         Ok(result)
     }
 
-    fn aggregate_token_trends(&self, days: u32, project_id: Option<i64>) -> anyhow::Result<Vec<TokenTrendPoint>> {
+    fn aggregate_token_trends(
+        &self,
+        days: u32,
+        project_id: Option<i64>,
+    ) -> anyhow::Result<Vec<TokenTrendPoint>> {
         let conn = self.lock()?;
-        let query = match project_id {
-            Some(_) =>
-                "SELECT date(sessions.started_at) as d, token_usage.model, SUM(input_tokens), SUM(output_tokens), SUM(estimated_cost_usd), COUNT(DISTINCT sessions.id)
-                 FROM token_usage
-                 JOIN turns ON token_usage.turn_id = turns.id
-                 JOIN sessions ON turns.session_id = sessions.id
-                 WHERE sessions.started_at > date('now', '-' || ?1 || ' days') AND sessions.project_id = ?2
-                 GROUP BY d, token_usage.model ORDER BY d ASC",
-            None =>
-                "SELECT date(sessions.started_at) as d, token_usage.model, SUM(input_tokens), SUM(output_tokens), SUM(estimated_cost_usd), COUNT(DISTINCT sessions.id)
-                 FROM token_usage
-                 JOIN turns ON token_usage.turn_id = turns.id
-                 JOIN sessions ON turns.session_id = sessions.id
-                 WHERE sessions.started_at > date('now', '-' || ?1 || ' days')
-                 GROUP BY d, token_usage.model ORDER BY d ASC",
-        };
-        let mut stmt = conn.prepare(query)?;
-        let mut rows = if let Some(pid) = project_id {
-            stmt.query(params![days, pid])?
-        } else {
-            stmt.query(params![days])?
-        };
-        let mut result = Vec::new();
-        while let Some(row) = rows.next()? {
-            result.push(TokenTrendPoint {
+        collect_rows_project(
+            &conn,
+            "SELECT date(sessions.started_at) as d, token_usage.model, SUM(input_tokens), SUM(output_tokens), SUM(estimated_cost_usd), COUNT(DISTINCT sessions.id)
+             FROM token_usage
+             JOIN turns ON token_usage.turn_id = turns.id
+             JOIN sessions ON turns.session_id = sessions.id
+             WHERE sessions.started_at > date('now', '-' || ?1 || ' days') AND sessions.project_id = ?2
+             GROUP BY d, token_usage.model ORDER BY d ASC",
+            "SELECT date(sessions.started_at) as d, token_usage.model, SUM(input_tokens), SUM(output_tokens), SUM(estimated_cost_usd), COUNT(DISTINCT sessions.id)
+             FROM token_usage
+             JOIN turns ON token_usage.turn_id = turns.id
+             JOIN sessions ON turns.session_id = sessions.id
+             WHERE sessions.started_at > date('now', '-' || ?1 || ' days')
+             GROUP BY d, token_usage.model ORDER BY d ASC",
+            days,
+            project_id,
+            |row| Ok(TokenTrendPoint {
                 date: row.get(0)?,
                 model: row.get(1)?,
                 input_tokens: row.get(2)?,
                 output_tokens: row.get(3)?,
                 total_cost_usd: row.get(4)?,
                 session_count: row.get(5)?,
-            });
-        }
-        Ok(result)
+            }),
+        )
     }
 
     fn aggregate_tool_distribution(
@@ -537,76 +528,46 @@ impl AnalyticsStore for SqliteAnalyticsStore {
     ) -> anyhow::Result<DashboardStats> {
         let conn = self.lock()?;
 
-        // Query 1: session aggregates
-        let session_sql = match project_id {
-            Some(_) =>
+        let (total_sessions, total_cost_usd, total_turns, total_duration_ms): (i64, f64, i64, i64) =
+            query_row_project(
+                &conn,
                 "SELECT COUNT(*), COALESCE(SUM(total_cost_usd), 0), COALESCE(SUM(total_turns), 0), COALESCE(SUM(total_duration_ms), 0)
                  FROM sessions WHERE started_at > date('now', '-' || ?1 || ' days') AND project_id = ?2",
-            None =>
                 "SELECT COUNT(*), COALESCE(SUM(total_cost_usd), 0), COALESCE(SUM(total_turns), 0), COALESCE(SUM(total_duration_ms), 0)
                  FROM sessions WHERE started_at > date('now', '-' || ?1 || ' days')",
-        };
-        let (total_sessions, total_cost_usd, total_turns, total_duration_ms): (i64, f64, i64, i64) =
-            if let Some(pid) = project_id {
-                conn.query_row(session_sql, params![days, pid], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-                })?
-            } else {
-                conn.query_row(session_sql, params![days], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-                })?
-            };
+                days, project_id, |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )?;
 
-        // Query 2: token / cache stats
-        let token_sql = match project_id {
-            Some(_) =>
+        let (total_input, total_output, cache_read, cache_creation): (i64, i64, i64, i64) =
+            query_row_project(
+                &conn,
                 "SELECT COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0), COALESCE(SUM(cache_read_input_tokens), 0), COALESCE(SUM(cache_creation_input_tokens), 0)
                  FROM token_usage
                  JOIN turns ON token_usage.turn_id = turns.id
                  JOIN sessions ON turns.session_id = sessions.id
                  WHERE sessions.started_at > date('now', '-' || ?1 || ' days') AND sessions.project_id = ?2",
-            None =>
                 "SELECT COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0), COALESCE(SUM(cache_read_input_tokens), 0), COALESCE(SUM(cache_creation_input_tokens), 0)
                  FROM token_usage
                  JOIN turns ON token_usage.turn_id = turns.id
                  JOIN sessions ON turns.session_id = sessions.id
                  WHERE sessions.started_at > date('now', '-' || ?1 || ' days')",
-        };
-        let (total_input, total_output, cache_read, cache_creation): (i64, i64, i64, i64) =
-            if let Some(pid) = project_id {
-                conn.query_row(token_sql, params![days, pid], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-                })?
-            } else {
-                conn.query_row(token_sql, params![days], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-                })?
-            };
+                days, project_id, |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )?;
 
-        // Query 3: most used model (from turns, since sessions.model is often NULL)
-        let model_sql = match project_id {
-            Some(_) =>
-                "SELECT turns.model FROM turns
-                 JOIN sessions ON turns.session_id = sessions.id
-                 WHERE sessions.started_at > date('now', '-' || ?1 || ' days')
-                   AND sessions.project_id = ?2 AND turns.model IS NOT NULL
-                 GROUP BY turns.model ORDER BY COUNT(*) DESC LIMIT 1",
-            None =>
-                "SELECT turns.model FROM turns
-                 JOIN sessions ON turns.session_id = sessions.id
-                 WHERE sessions.started_at > date('now', '-' || ?1 || ' days')
-                   AND turns.model IS NOT NULL
-                 GROUP BY turns.model ORDER BY COUNT(*) DESC LIMIT 1",
-        };
-        let most_used_model: Option<String> = if let Some(pid) = project_id {
-            conn.query_row(model_sql, params![days, pid], |row| row.get(0))
-                .optional()?
-                .flatten()
-        } else {
-            conn.query_row(model_sql, params![days], |row| row.get(0))
-                .optional()?
-                .flatten()
-        };
+        let most_used_model: Option<String> = query_optional_project(
+            &conn,
+            "SELECT turns.model FROM turns
+             JOIN sessions ON turns.session_id = sessions.id
+             WHERE sessions.started_at > date('now', '-' || ?1 || ' days')
+               AND sessions.project_id = ?2 AND turns.model IS NOT NULL
+             GROUP BY turns.model ORDER BY COUNT(*) DESC LIMIT 1",
+            "SELECT turns.model FROM turns
+             JOIN sessions ON turns.session_id = sessions.id
+             WHERE sessions.started_at > date('now', '-' || ?1 || ' days')
+               AND turns.model IS NOT NULL
+             GROUP BY turns.model ORDER BY COUNT(*) DESC LIMIT 1",
+            days, project_id, |row| row.get(0),
+        )?.flatten();
 
         let avg_tokens_per_session = if total_sessions > 0 {
             (total_input + total_output) as f64 / total_sessions as f64
@@ -638,42 +599,25 @@ impl AnalyticsStore for SqliteAnalyticsStore {
     ) -> anyhow::Result<CostMetrics> {
         let conn = self.lock()?;
 
-        // Query a: session aggregates
-        let agg_sql = match project_id {
-            Some(_) =>
-                "SELECT COALESCE(SUM(total_cost_usd), 0), COUNT(*), COALESCE(SUM(total_turns), 0)
-                 FROM sessions WHERE started_at > date('now', '-' || ?1 || ' days') AND project_id = ?2",
-            None =>
-                "SELECT COALESCE(SUM(total_cost_usd), 0), COUNT(*), COALESCE(SUM(total_turns), 0)
-                 FROM sessions WHERE started_at > date('now', '-' || ?1 || ' days')",
-        };
-        let (total_cost, total_sessions, total_turns): (f64, i64, i64) =
-            if let Some(pid) = project_id {
-                conn.query_row(agg_sql, params![days, pid], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-                })?
-            } else {
-                conn.query_row(agg_sql, params![days], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-                })?
-            };
+        let (total_cost, total_sessions, total_turns): (f64, i64, i64) = query_row_project(
+            &conn,
+            "SELECT COALESCE(SUM(total_cost_usd), 0), COUNT(*), COALESCE(SUM(total_turns), 0)
+             FROM sessions WHERE started_at > date('now', '-' || ?1 || ' days') AND project_id = ?2",
+            "SELECT COALESCE(SUM(total_cost_usd), 0), COUNT(*), COALESCE(SUM(total_turns), 0)
+             FROM sessions WHERE started_at > date('now', '-' || ?1 || ' days')",
+            days, project_id, |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
 
-        // Query b: weekly actual (last 7 days)
-        let weekly_sql = match project_id {
-            Some(_) =>
-                "SELECT COALESCE(SUM(total_cost_usd), 0) FROM sessions WHERE started_at > date('now', '-7 days') AND project_id = ?1",
-            None =>
-                "SELECT COALESCE(SUM(total_cost_usd), 0) FROM sessions WHERE started_at > date('now', '-7 days')",
-        };
-        let weekly_total: f64 = if let Some(pid) = project_id {
-            conn.query_row(weekly_sql, params![pid], |row| row.get(0))?
-        } else {
-            conn.query_row(weekly_sql, params![], |row| row.get(0))?
-        };
+        let weekly_total: f64 = query_row_project_only(
+            &conn,
+            "SELECT COALESCE(SUM(total_cost_usd), 0) FROM sessions WHERE started_at > date('now', '-7 days') AND project_id = ?1",
+            "SELECT COALESCE(SUM(total_cost_usd), 0) FROM sessions WHERE started_at > date('now', '-7 days')",
+            project_id, |row| row.get(0),
+        )?;
 
         // Query c: model breakdown with cache
         let breakdown_sql = match project_id {
-            Some(_) =>
+            Some(_) => {
                 "SELECT tu.model,
                         COALESCE(SUM(tu.estimated_cost_usd), 0),
                         COALESCE(SUM(tu.input_tokens), 0),
@@ -684,8 +628,9 @@ impl AnalyticsStore for SqliteAnalyticsStore {
                  JOIN turns ON tu.turn_id = turns.id
                  JOIN sessions s ON turns.session_id = s.id
                  WHERE s.started_at > date('now', '-' || ?1 || ' days') AND s.project_id = ?2
-                 GROUP BY tu.model",
-            None =>
+                 GROUP BY tu.model"
+            }
+            None => {
                 "SELECT tu.model,
                         COALESCE(SUM(tu.estimated_cost_usd), 0),
                         COALESCE(SUM(tu.input_tokens), 0),
@@ -696,16 +641,19 @@ impl AnalyticsStore for SqliteAnalyticsStore {
                  JOIN turns ON tu.turn_id = turns.id
                  JOIN sessions s ON turns.session_id = s.id
                  WHERE s.started_at > date('now', '-' || ?1 || ' days')
-                 GROUP BY tu.model",
+                 GROUP BY tu.model"
+            }
         };
         // Fetch all model_pricing rows into a map so we can look them up inside
         // the loop below without re-acquiring the mutex (which would deadlock).
         let pricing_map: std::collections::HashMap<String, (f64, f64)> = {
-            let mut ps = conn.prepare(
-                "SELECT model_id, input, cache_read FROM model_pricing",
-            )?;
+            let mut ps = conn.prepare("SELECT model_id, input, cache_read FROM model_pricing")?;
             let iter = ps.query_map([], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?, row.get::<_, f64>(2)?))
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, f64>(1)?,
+                    row.get::<_, f64>(2)?,
+                ))
             })?;
             let mut map = std::collections::HashMap::new();
             for r in iter {
@@ -771,38 +719,25 @@ impl AnalyticsStore for SqliteAnalyticsStore {
         }
 
         // Query d: most expensive session
-        let expensive_sql = match project_id {
-            Some(_) =>
-                "SELECT s.session_uuid, p.display_name, s.total_cost_usd, s.total_turns, s.model, s.started_at
-                 FROM sessions s JOIN projects p ON s.project_id = p.id
-                 WHERE s.started_at > date('now', '-' || ?1 || ' days') AND s.project_id = ?2
-                 ORDER BY s.total_cost_usd DESC LIMIT 1",
-            None =>
-                "SELECT s.session_uuid, p.display_name, s.total_cost_usd, s.total_turns, s.model, s.started_at
-                 FROM sessions s JOIN projects p ON s.project_id = p.id
-                 WHERE s.started_at > date('now', '-' || ?1 || ' days')
-                 ORDER BY s.total_cost_usd DESC LIMIT 1",
-        };
-        let mut exp_stmt = conn.prepare(expensive_sql)?;
-        let most_expensive_session: Option<SessionCostHighlight> = {
-            let mut exp_rows = if let Some(pid) = project_id {
-                exp_stmt.query(params![days, pid])?
-            } else {
-                exp_stmt.query(params![days])?
-            };
-            if let Some(row) = exp_rows.next()? {
-                Some(SessionCostHighlight {
-                    session_uuid: row.get(0)?,
-                    project_name: row.get(1)?,
-                    cost_usd: row.get(2)?,
-                    turns: row.get(3)?,
-                    model: row.get(4)?,
-                    started_at: row.get(5)?,
-                })
-            } else {
-                None
-            }
-        };
+        let most_expensive_session: Option<SessionCostHighlight> = query_optional_project(
+            &conn,
+            "SELECT s.session_uuid, p.display_name, s.total_cost_usd, s.total_turns, s.model, s.started_at
+             FROM sessions s JOIN projects p ON s.project_id = p.id
+             WHERE s.started_at > date('now', '-' || ?1 || ' days') AND s.project_id = ?2
+             ORDER BY s.total_cost_usd DESC LIMIT 1",
+            "SELECT s.session_uuid, p.display_name, s.total_cost_usd, s.total_turns, s.model, s.started_at
+             FROM sessions s JOIN projects p ON s.project_id = p.id
+             WHERE s.started_at > date('now', '-' || ?1 || ' days')
+             ORDER BY s.total_cost_usd DESC LIMIT 1",
+            days, project_id, |row| Ok(SessionCostHighlight {
+                session_uuid: row.get(0)?,
+                project_name: row.get(1)?,
+                cost_usd: row.get(2)?,
+                turns: row.get(3)?,
+                model: row.get(4)?,
+                started_at: row.get(5)?,
+            }),
+        )?;
 
         let avg_cost_per_session = if total_sessions > 0 {
             total_cost / total_sessions as f64
@@ -875,7 +810,11 @@ impl AnalyticsStore for SqliteAnalyticsStore {
                 cost
             } else {
                 crate::adapters::analytics::analysis::cost::estimate_cost(
-                    &model, input, output, cache_creation, cache_read,
+                    &model,
+                    input,
+                    output,
+                    cache_creation,
+                    cache_read,
                 )
             };
 
@@ -901,6 +840,80 @@ impl AnalyticsStore for SqliteAnalyticsStore {
 
         Ok(updated)
     }
+}
+
+fn query_row_project<T>(
+    conn: &Connection,
+    sql_with: &str,
+    sql_without: &str,
+    days: u32,
+    project_id: Option<i64>,
+    f: impl FnOnce(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
+) -> anyhow::Result<T> {
+    let sql = if project_id.is_some() { sql_with } else { sql_without };
+    Ok(if let Some(pid) = project_id {
+        conn.query_row(sql, params![days, pid], f)?
+    } else {
+        conn.query_row(sql, params![days], f)?
+    })
+}
+
+fn query_row_project_only<T>(
+    conn: &Connection,
+    sql_with: &str,
+    sql_without: &str,
+    project_id: Option<i64>,
+    f: impl FnOnce(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
+) -> anyhow::Result<T> {
+    let sql = if project_id.is_some() { sql_with } else { sql_without };
+    Ok(if let Some(pid) = project_id {
+        conn.query_row(sql, params![pid], f)?
+    } else {
+        conn.query_row(sql, [], f)?
+    })
+}
+
+fn collect_rows_project<T>(
+    conn: &Connection,
+    sql_with: &str,
+    sql_without: &str,
+    days: u32,
+    project_id: Option<i64>,
+    map_row: impl Fn(&rusqlite::Row<'_>) -> anyhow::Result<T>,
+) -> anyhow::Result<Vec<T>> {
+    let sql = if project_id.is_some() { sql_with } else { sql_without };
+    let mut stmt = conn.prepare(sql)?;
+    let mut rows = if let Some(pid) = project_id {
+        stmt.query(params![days, pid])?
+    } else {
+        stmt.query(params![days])?
+    };
+    let mut result = Vec::new();
+    while let Some(row) = rows.next()? {
+        result.push(map_row(row)?);
+    }
+    Ok(result)
+}
+
+fn query_optional_project<T>(
+    conn: &Connection,
+    sql_with: &str,
+    sql_without: &str,
+    days: u32,
+    project_id: Option<i64>,
+    map_row: impl Fn(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
+) -> anyhow::Result<Option<T>> {
+    let sql = if project_id.is_some() { sql_with } else { sql_without };
+    let mut stmt = conn.prepare(sql)?;
+    let mut rows = if let Some(pid) = project_id {
+        stmt.query(params![days, pid])?
+    } else {
+        stmt.query(params![days])?
+    };
+    Ok(match rows.next()? {
+        Some(row) => Some(map_row(row)?),
+        None => None,
+    })
 }
 
 fn map_session_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRecord> {
@@ -1350,7 +1363,9 @@ mod tests {
             })
             .unwrap();
 
-        let pid = store.upsert_project("-test-cost", "cost-proj", None).unwrap();
+        let pid = store
+            .upsert_project("-test-cost", "cost-proj", None)
+            .unwrap();
         let sid = store
             .upsert_session(&NewSession {
                 session_uuid: "uuid-cost-db".into(),

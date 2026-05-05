@@ -261,6 +261,25 @@ pub fn spawn_process_event(state: Arc<AppState>, event: IncomingEvent) {
     });
 }
 
+/// Authorize the event's user for the given platform, then spawn async processing.
+///
+/// Extracts the `user_id` from known event variants (`TextMessage`, `Interaction`,
+/// `BotCommand`). Silently ignores variants that carry no user identity (e.g.
+/// `Attachment`). Logs a warning and skips processing for unauthorized users.
+pub(super) fn authorize_and_spawn(state: &Arc<AppState>, platform: Platform, event: IncomingEvent) {
+    let user_id = match &event {
+        IncomingEvent::TextMessage(msg) => msg.channel.user_id.as_str(),
+        IncomingEvent::Interaction(inter) => inter.channel.user_id.as_str(),
+        IncomingEvent::BotCommand { channel, .. } => channel.user_id.as_str(),
+        _ => return,
+    };
+    if !is_authorized(state, platform, user_id) {
+        tracing::warn!(user_id, platform = platform.as_str(), "Unauthorized user");
+        return;
+    }
+    spawn_process_event(state.clone(), event);
+}
+
 pub async fn process_event(state: &Arc<AppState>, event: IncomingEvent) -> anyhow::Result<()> {
     match event {
         IncomingEvent::TextMessage(msg) => event_dispatch::handle_text_message(state, msg).await,

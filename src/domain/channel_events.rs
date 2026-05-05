@@ -35,6 +35,24 @@ pub struct ChannelIdentity {
     pub guild_id: Option<String>,
 }
 
+impl ChannelIdentity {
+    pub fn new(
+        platform: Platform,
+        channel_id: impl Into<String>,
+        user_id: impl Into<String>,
+        thread_id: Option<String>,
+        guild_id: Option<String>,
+    ) -> Self {
+        Self {
+            platform,
+            channel_id: channel_id.into(),
+            user_id: user_id.into(),
+            thread_id,
+            guild_id,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ConversationId(pub String);
 

@@ -79,13 +79,7 @@ fn normalize_text_message(message: TelegramMessage) -> Option<IncomingEvent> {
 
     let conversation_id = ConversationId::from_platform(Platform::Telegram, &chat_id);
 
-    let channel = ChannelIdentity {
-        platform: Platform::Telegram,
-        channel_id: chat_id,
-        user_id,
-        thread_id: None,
-        guild_id: None,
-    };
+    let channel = ChannelIdentity::new(Platform::Telegram, chat_id, user_id, None, None);
 
     if let Some((command, args)) = extract_command(&message) {
         return Some(IncomingEvent::BotCommand {
@@ -141,13 +135,7 @@ fn normalize_callback(callback: TelegramCallbackQuery) -> Option<IncomingEvent> 
 
     Some(IncomingEvent::Interaction(InteractionEvent {
         conversation_id,
-        channel: ChannelIdentity {
-            platform: Platform::Telegram,
-            channel_id: chat_id,
-            user_id,
-            thread_id: None,
-            guild_id: None,
-        },
+        channel: ChannelIdentity::new(Platform::Telegram, chat_id, user_id, None, None),
         action_id,
         message_ref,
         callback_message_id: Some(message._message_id),

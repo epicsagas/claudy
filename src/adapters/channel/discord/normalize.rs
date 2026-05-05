@@ -12,13 +12,13 @@ pub fn normalize_interaction(interaction: &DiscordInteraction) -> Option<Incomin
     let user_id = interaction.user_id.as_deref().unwrap_or_default();
     let conversation_id = ConversationId::from_platform(Platform::Discord, channel_id);
 
-    let channel = ChannelIdentity {
-        platform: Platform::Discord,
-        channel_id: channel_id.to_string(),
-        user_id: user_id.to_string(),
-        thread_id: None,
-        guild_id: None,
-    };
+    let channel = ChannelIdentity::new(
+        Platform::Discord,
+        channel_id.to_string(),
+        user_id.to_string(),
+        None,
+        None,
+    );
 
     match interaction.interaction_type {
         DiscordInteractionType::Ping => None,
@@ -56,7 +56,10 @@ pub fn normalize_gateway_message(data: &serde_json::Value) -> Option<IncomingEve
         return None;
     }
 
-    let channel_id = data.get("channel_id").and_then(|c| c.as_str()).unwrap_or("");
+    let channel_id = data
+        .get("channel_id")
+        .and_then(|c| c.as_str())
+        .unwrap_or("");
     let user_id = data
         .get("author")
         .and_then(|a| a.get("id"))
@@ -68,13 +71,13 @@ pub fn normalize_gateway_message(data: &serde_json::Value) -> Option<IncomingEve
         .get("guild_id")
         .and_then(|g| g.as_str())
         .map(String::from);
-    let channel = ChannelIdentity {
-        platform: Platform::Discord,
-        channel_id: channel_id.to_string(),
-        user_id: user_id.to_string(),
-        thread_id: None,
+    let channel = ChannelIdentity::new(
+        Platform::Discord,
+        channel_id.to_string(),
+        user_id.to_string(),
+        None,
         guild_id,
-    };
+    );
 
     Some(IncomingEvent::TextMessage(TextMessage {
         conversation_id,

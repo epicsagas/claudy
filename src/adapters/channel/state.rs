@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Per-context key-value state, namespaced by (platform, channel_id, user_id).
 ///
@@ -227,6 +228,23 @@ impl ChannelState {
         }
         scopes
     }
+}
+
+/// Acquire write lock on a shared [`ChannelState`], apply a mutation, and persist.
+/// Save errors are logged but not propagated.
+///
+/// This encapsulates the repeated pattern of `state.write().await`, mutate,
+/// `cs.save()`, and error-log.
+pub async fn with_write<F, R>(state: &Arc<tokio::sync::RwLock<ChannelState>>, f: F) -> R
+where
+    F: FnOnce(&mut ChannelState) -> R,
+{
+    let mut guard = state.write().await;
+    let result = f(&mut guard);
+    if let Err(e) = guard.save() {
+        tracing::error!(error = %e, "Failed to save channel state");
+    }
+    result
 }
 
 #[cfg(test)]

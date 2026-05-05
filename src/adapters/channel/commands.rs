@@ -8,6 +8,8 @@ use crate::domain::channel_events::{
 };
 use crate::ports::channel_ports::ChannelPort;
 
+use super::state::with_write;
+
 async fn reply(
     channel: &dyn ChannelPort,
     channel_id: &ChannelIdentity,
@@ -20,6 +22,28 @@ async fn reply(
             text: text.to_string(),
             message_ref: None,
             interaction: None,
+        })
+        .await?;
+    Ok(())
+}
+
+async fn reply_with_buttons(
+    channel: &dyn ChannelPort,
+    channel_id: &ChannelIdentity,
+    text: String,
+    prompt_text: &str,
+    buttons: Vec<Button>,
+) -> anyhow::Result<()> {
+    channel
+        .send_message(&OutboundMessage {
+            conversation_id: ConversationId::new(),
+            channel: channel_id.clone(),
+            text,
+            message_ref: None,
+            interaction: Some(InteractionButtons {
+                prompt_text: prompt_text.to_string(),
+                buttons,
+            }),
         })
         .await?;
     Ok(())
@@ -124,18 +148,15 @@ pub async fn handle_yolo(
     scope: &str,
     state: &Arc<tokio::sync::RwLock<super::state::ChannelState>>,
 ) -> anyhow::Result<()> {
-    let label = {
-        let mut cs = state.write().await;
+    let label = with_write(state, |cs| {
         let next = cs.toggle_yolo(scope);
-        if let Err(e) = cs.save() {
-            tracing::error!(error = %e, "Failed to persist yolo state");
-        }
         if next {
             "Yolo: ON (auto-allow all permissions)"
         } else {
             "Yolo: OFF (ask permission per tool)"
         }
-    };
+    })
+    .await;
     reply(channel, channel_id, label).await
 }
 
@@ -147,31 +168,18 @@ pub async fn handle_model(
     state: &Arc<tokio::sync::RwLock<super::state::ChannelState>>,
 ) -> anyhow::Result<()> {
     if args.is_empty() {
-        channel
-            .send_message(&OutboundMessage {
-                conversation_id: ConversationId::new(),
-                channel: channel_id.clone(),
-                text: "Choose a model:".to_string(),
-                message_ref: None,
-                interaction: Some(InteractionButtons {
-                    prompt_text: "Model selection".to_string(),
-                    buttons: vec![
-                        Button {
-                            id: "model:sonnet".to_string(),
-                            label: "Sonnet".to_string(),
-                        },
-                        Button {
-                            id: "model:opus".to_string(),
-                            label: "Opus".to_string(),
-                        },
-                        Button {
-                            id: "model:haiku".to_string(),
-                            label: "Haiku".to_string(),
-                        },
-                    ],
-                }),
-            })
-            .await?;
+        reply_with_buttons(
+            channel,
+            channel_id,
+            "Choose a model:".to_string(),
+            "Model selection",
+            vec![
+                Button { id: "model:sonnet".to_string(), label: "Sonnet".to_string() },
+                Button { id: "model:opus".to_string(), label: "Opus".to_string() },
+                Button { id: "model:haiku".to_string(), label: "Haiku".to_string() },
+            ],
+        )
+        .await?;
     } else {
         if !["sonnet", "opus", "haiku"].contains(&args) {
             return reply(
@@ -182,11 +190,7 @@ pub async fn handle_model(
             .await;
         }
         {
-            let mut cs = state.write().await;
-            cs.set_model(scope, args);
-            if let Err(e) = cs.save() {
-                tracing::error!(error = %e, "Failed to persist model state");
-            }
+            with_write(state, |cs| cs.set_model(scope, args)).await;
         }
         reply(channel, channel_id, &format!("Model set to: {}", args)).await?;
     }
@@ -322,19 +326,7 @@ pub async fn handle_sessions(
     }
 
     let buttons = session_buttons(&sessions);
-    channel
-        .send_message(&OutboundMessage {
-            conversation_id: ConversationId::new(),
-            channel: channel_id.clone(),
-            text,
-            message_ref: None,
-            interaction: Some(InteractionButtons {
-                prompt_text: "Select a session".to_string(),
-                buttons,
-            }),
-        })
-        .await?;
-    Ok(())
+    reply_with_buttons(channel, channel_id, text, "Select a session", buttons).await
 }
 
 pub async fn handle_projects(
@@ -360,19 +352,7 @@ pub async fn handle_projects(
     }
 
     let buttons = project_buttons(&projects[..10.min(projects.len())]);
-    channel
-        .send_message(&OutboundMessage {
-            conversation_id: ConversationId::new(),
-            channel: channel_id.clone(),
-            text,
-            message_ref: None,
-            interaction: Some(InteractionButtons {
-                prompt_text: "Select a project".to_string(),
-                buttons,
-            }),
-        })
-        .await?;
-    Ok(())
+    reply_with_buttons(channel, channel_id, text, "Select a project", buttons).await
 }
 
 pub async fn handle_project_sessions(
@@ -407,19 +387,7 @@ pub async fn handle_project_sessions(
     }
 
     let buttons = session_buttons(&sessions);
-    channel
-        .send_message(&OutboundMessage {
-            conversation_id: ConversationId::new(),
-            channel: channel_id.clone(),
-            text,
-            message_ref: None,
-            interaction: Some(InteractionButtons {
-                prompt_text: "Select a session".to_string(),
-                buttons,
-            }),
-        })
-        .await?;
-    Ok(())
+    reply_with_buttons(channel, channel_id, text, "Select a session", buttons).await
 }
 
 pub async fn handle_new(
@@ -428,16 +396,13 @@ pub async fn handle_new(
     scope: &str,
     state: &Arc<tokio::sync::RwLock<super::state::ChannelState>>,
 ) -> anyhow::Result<()> {
-    let cwd_info = {
-        let mut cs = state.write().await;
+    let cwd_info = with_write(state, |cs| {
         cs.clear_session(scope);
-        if let Err(e) = cs.save() {
-            tracing::error!(error = %e, "Failed to persist new session state");
-        }
         cs.working_dir(scope)
             .map(|s| s.to_string())
             .unwrap_or_else(|| "default workspace".to_string())
-    };
+    })
+    .await;
 
     reply(
         channel,
@@ -628,20 +593,19 @@ async fn handle_session_callback(
 
     // Switch to this session
     {
-        let mut cs = state.write().await;
-        cs.set_session_id(scope, &session.session_id);
-        // Use the session's actual cwd from JSONL, fall back to project_path
-        let cwd = session
-            .cwd
-            .as_deref()
-            .or(session.project_path.as_deref())
-            .unwrap_or("");
-        if !cwd.is_empty() {
-            cs.set_working_dir(scope, cwd);
-        }
-        if let Err(e) = cs.save() {
-            tracing::error!(error = %e, "Failed to persist session callback state");
-        }
+        with_write(state, |cs| {
+            cs.set_session_id(scope, &session.session_id);
+            // Use the session's actual cwd from JSONL, fall back to project_path
+            let cwd = session
+                .cwd
+                .as_deref()
+                .or(session.project_path.as_deref())
+                .unwrap_or("");
+            if !cwd.is_empty() {
+                cs.set_working_dir(scope, cwd);
+            }
+        })
+        .await;
     }
 
     let preview = session.first_message.as_deref().unwrap_or("(no message)");
@@ -679,11 +643,7 @@ async fn handle_model_callback(
         return dismiss_keyboard(channel, channel_id, callback_message_id, "Unknown model.").await;
     }
     {
-        let mut cs = state.write().await;
-        cs.set_model(scope, model);
-        if let Err(e) = cs.save() {
-            tracing::error!(error = %e, "Failed to persist model callback state");
-        }
+        with_write(state, |cs| cs.set_model(scope, model)).await;
     }
     dismiss_keyboard(
         channel,

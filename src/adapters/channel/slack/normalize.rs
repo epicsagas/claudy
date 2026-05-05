@@ -101,13 +101,13 @@ pub fn normalize_event(callback: &SlackEventCallback) -> Option<IncomingEvent> {
     let user_id = msg.user.as_deref()?.to_string();
     let _ts = msg.ts.as_deref()?.to_string();
 
-    let channel = ChannelIdentity {
-        platform: Platform::Slack,
-        channel_id: channel_id.clone(),
-        user_id: user_id.clone(),
-        thread_id: msg.thread_ts.clone(),
-        guild_id: None,
-    };
+    let channel = ChannelIdentity::new(
+        Platform::Slack,
+        channel_id.clone(),
+        user_id.clone(),
+        msg.thread_ts.clone(),
+        None,
+    );
 
     let conversation_id = ConversationId::from_platform(Platform::Slack, &channel_id);
     let reply_to_id = msg.thread_ts.clone();
@@ -134,13 +134,13 @@ pub fn normalize_interaction(payload: &SlackInteractionPayload) -> Option<Incomi
     let slack_message = payload.message.as_ref()?;
     let ts = slack_message.ts.as_deref()?;
 
-    let channel = ChannelIdentity {
-        platform: Platform::Slack,
-        channel_id: slack_channel.id.clone(),
-        user_id: slack_user.id.clone(),
-        thread_id: None,
-        guild_id: None,
-    };
+    let channel = ChannelIdentity::new(
+        Platform::Slack,
+        slack_channel.id.clone(),
+        slack_user.id.clone(),
+        None,
+        None,
+    );
 
     let conversation_id = ConversationId::from_platform(Platform::Slack, &slack_channel.id);
     let message_ref = format!("{}:{}", slack_channel.id, ts);
