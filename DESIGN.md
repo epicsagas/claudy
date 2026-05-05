@@ -75,7 +75,8 @@
   - Warning: `#f2b94b`
   - Error: `#ffb4ab` on `#93000a` container
 - **Borders:**
-  - Structural: `#2a2a2e` — grid-line borders, 1px solid
+  - Structural: `#2a2a2e` — grid-line borders, 1px solid. This is the canonical value.
+  - Tailwind approximation: `zinc-800` (`#27272a`) — some Stitch files use this utility class. Acceptable in implementation but `#2a2a2e` is preferred for custom CSS.
   - Hover: `#3a3a3e`
 - **Chart palette:** `#e85d04` (primary), `#6b6459` (secondary), `#3d3a35` (tertiary), `#8a8477` (quaternary)
 
@@ -98,9 +99,11 @@
   - `outline`: `#7a776f` — muted text
   - `outline-variant`: `#cbc6bd` — borders, dividers
 - **Accent:**
-  - Primary accent: `#e85d04` — same burnt orange as dark theme
-  - `secondary`: `#e85d04` (doubles as accent in light theme)
+  - `primary`: `#000000` — Material You primary (used for strong text, not accent)
+  - `secondary`: `#e85d04` — carries the burnt orange accent role (same color as dark theme)
+  - `secondary-container`: `#e85d04` — used for side nav active state, button backgrounds
   - `on-secondary`: `#ffffff`
+  - Note: The light theme inverts the Material You primary/secondary roles — `secondary` is the accent color, not `primary`.
 - **Semantic:**
   - Error: `#ba1a1a`
   - Positive: `#2e7d32` / `bg-green-50` with `border-green-200`
@@ -122,6 +125,7 @@ All screens share a common shell:
 - **Top app bar:** 48px tall, fixed top (offset `left: 64px`). Contains: app title (`CLAUDY_ANALYTICS`, JetBrains Mono 11px uppercase), tab navigation (LIVE_FEED / METRICS / ALERTS), search input, utility icons. Active tab: orange underline + orange text.
 - **Status bar:** 24px tall, fixed bottom (offset `left: 64px`). Contains: system status (API: NOMINAL), throughput, latency, region (left), live sync indicator (right).
 - **Main content:** `margin-left: 64px; margin-top: 48px; height: calc(100vh - 48px - 24px)`.
+- **Note:** The Token & Cost Analysis screens (Screens 2-3) use `h-[calc(100vh-3rem)]` for the main area with a `fixed` status bar instead of the offset height. Other screens use the standard offset. Both approaches are valid; the implementation should pick one.
 
 ### Content Layout
 - **Approach:** Hybrid — sparkline ribbon + asymmetric editorial paneling
@@ -205,9 +209,21 @@ All screens share a common shell:
 
 ### Screen 3: Token & Cost Analysis (Light)
 - **Same layout as Screen 2** but with light theme tokens and Space Grotesk typography.
-- **Grid lines:** CSS background-image pattern at 20px intervals using `#ebe1d3`.
+- **Font tokens (differ from dark theme):** The light theme uses different token names:
+  - `h1` (48px, wght 700) instead of `display-xl`
+  - `h2` (32px, wght 600) instead of `display-lg`
+  - `body-lg` (18px) and `body-md` (16px) instead of `ui-medium`
+  - `label-caps` (12px, wght 700, uppercase) instead of `data-label`
+  - `label-mono` (14px, letter-spacing 0.05em, wght 500) for navigation
+  - `data-mono` and `data-label` are shared with the dark theme (JetBrains Mono)
+- **Grid lines:** CSS `background-image` pattern at 20px intervals using `#ebe1d3` (not the grid-line-container technique):
+  ```css
+  background-size: 20px 20px;
+  background-image: linear-gradient(to right, #ebe1d3 1px, transparent 1px),
+                    linear-gradient(to bottom, #ebe1d3 1px, transparent 1px);
+  ```
 - **Background:** `#fbfaf8`, panels use `#ffffff` with `border-outline-variant`.
-- **Recommendation cards:** White background with subtle shadow (`shadow-sm`).
+- **Recommendation cards:** White background with subtle shadow (`shadow-sm`) — the only exception to the "no shadows" rule (see Anti-Patterns).
 
 ### Screen 4: Session History
 - **Layout:** Filter header → ledger table → pagination bar
@@ -242,7 +258,7 @@ All screens share a common shell:
 - No gradient buttons as primary CTA
 - No glassmorphism or frosted glass effects
 - No system-ui / -apple-system as primary display or body font
-- No floating stat cards with rounded corners and shadows
+- No floating stat cards with rounded corners and shadows (exception: light theme recommendation cards may use `shadow-sm` for subtle depth on white backgrounds)
 - No decorative background shapes or blobs
 - No smooth Bezier curves on data charts — stepped or sharp angles only
 - No backdrop blurs or ambient shadows — flat, physical, mechanically assembled
