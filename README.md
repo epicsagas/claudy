@@ -357,6 +357,10 @@ claudy analytics ingest --project my-project  # Ingest specific project
 claudy analytics recommend         # Show usage recommendations in CLI
 claudy analytics export            # Export analytics data (JSON, default 30 days)
 claudy analytics export --format csv --days 7  # Export as CSV for last 7 days
+claudy analytics insights          # Generate compact JSON insights summary (default: 7 days)
+claudy analytics insights --days 14  # Analyze last 14 days
+claudy analytics insights --from 2026-04-01 --to 2026-04-30  # Specific date range
+claudy analytics insights --project my-project  # Filter by project
 ```
 
 Analytics tracks:
@@ -365,6 +369,7 @@ Analytics tracks:
 - **Tools**: Distribution analysis showing which tools Claude uses most frequently, including call counts, error rates, and average execution time.
 - **Cost**: Real-time estimation of usage costs based on actual token pricing, including daily/weekly/monthly forecasts and trend detection (increasing/stable/decreasing).
 - **Tips (Recommendations)**: Data-driven optimization advice, such as detecting high-cost sessions, suggesting Haiku for simple tasks, and identifying long conversations that could benefit from context summarization.
+- **Insights (LLM-powered)**: Aggregated usage summary in compact JSON format designed for LLM analysis. Combines cost trends, model distribution, tool patterns, cache efficiency, and notable sessions into a single payload (~2-3K tokens). Can be used directly in Claude Code via the `analytics-insights` skill — ask naturally ("analyze my usage patterns", "사용 패턴 분석해줘") and Claude will generate personalized recommendations.
 - **Projects**: Automatically maps cryptic session UUIDs to human-readable project folder names for better context.
 
 Data is stored in a local SQLite database under `~/.claudy/analytics/`. The dashboard runs as a high-performance local Tauri 2 + Svelte app. Use the **[Sync]** button in the dashboard to instantly refresh data from your Claude CLI history.

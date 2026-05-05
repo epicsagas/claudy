@@ -352,6 +352,10 @@ claudy analytics ingest --project my-project  # Serap proyek tertentu
 claudy analytics recommend         # Tampilkan rekomendasi penggunaan di CLI
 claudy analytics export            # Ekspor data analytics (JSON, default 30 hari)
 claudy analytics export --format csv --days 7  # Ekspor sebagai CSV untuk 7 hari terakhir
+claudy analytics insights          # Buat ringkasan JSON kompak untuk analisis LLM (default: 7 hari)
+claudy analytics insights --days 14  # Analisis 14 hari terakhir
+claudy analytics insights --from 2026-04-01 --to 2026-04-30  # Rentang tanggal spesifik
+claudy analytics insights --project my-project  # Filter berdasarkan proyek
 ```
 
 Analytics melacak:
@@ -360,6 +364,7 @@ Analytics melacak:
 - **Tools**: Analisis distribusi yang menunjukkan alat mana yang paling sering digunakan Claude, termasuk jumlah panggilan, tingkat kesalahan, dan waktu eksekusi rata-rata.
 - **Cost**: Estimasi real-time biaya penggunaan berdasarkan harga token aktual, termasuk perkiraan harian/mingguan/bulanan dan deteksi tren (increasing/stable/decreasing).
 - **Tips (Recommendations)**: Saran optimasi berbasis data, seperti mendeteksi sesi berbiaya tinggi, menyarankan Haiku untuk tugas sederhana, dan mengidentifikasi percakapan panjang yang bisa mendapat manfaat dari ringkasan konteks.
+- **Wawasan (LLM)**: Ringkasan penggunaan kompak dalam format JSON yang dioptimalkan untuk analisis LLM. Menggabungkan tren biaya, distribusi model, pola alat, efisiensi cache, dan sesi penting dalam satu payload (~2-3K token). Dapat digunakan melalui skill `analytics-insights` di Claude Code dengan bahasa alami — Claude menghasilkan rekomendasi yang dipersonalisasi.
 - **Projects**: Secara otomatis memetakan UUID sesi yang tidak mudah dibaca ke nama folder proyek yang dapat dibaca manusia untuk konteks yang lebih baik.
 
 Data disimpan dalam database SQLite lokal di `~/.claudy/analytics/`. Dashboard berjalan sebagai aplikasi Tauri 2 + Svelte lokal berkinerja tinggi. Gunakan tombol **[Sync]** di dashboard untuk langsung menyegarkan data dari riwayat Claude CLI Anda.

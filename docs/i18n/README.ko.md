@@ -352,6 +352,10 @@ claudy analytics ingest --project my-project  # 특정 프로젝트 수집
 claudy analytics recommend         # CLI에서 사용량 권장 사항 표시
 claudy analytics export            # 분석 데이터 내보내기 (JSON, 기본 30일)
 claudy analytics export --format csv --days 7  # 지난 7일간 CSV로 내보내기
+claudy analytics insights          # LLM 분석용 요약 JSON 생성 (기본 7일)
+claudy analytics insights --days 14  # 최근 14일 분석
+claudy analytics insights --from 2026-04-01 --to 2026-04-30  # 특정 기간 분석
+claudy analytics insights --project my-project  # 프로젝트별 필터
 ```
 
 분석이 추적하는 항목:
@@ -360,6 +364,7 @@ claudy analytics export --format csv --days 7  # 지난 7일간 CSV로 내보내
 - **도구**: Claude가 가장 자주 사용하는 도구를 보여주는 분포 분석(호출 횟수, 오류율, 평균 실행 시간 포함).
 - **비용**: 실제 토큰 가격 기반의 실시간 사용 비용 추정(일별/주별/월별 예측 및 추세 감지 포함).
 - **팁(권장 사항)**: 고비용 세션 감지, 간단한 작업에 Haiku 제안, 컨텍스트 요약이 도움될 긴 대화 식별 등 데이터 기반 최적화 조언.
+- **인사이트 (LLM 기반)**: LLM 분석에 최적화된 compact JSON 형식의 통합 사용량 요약. 비용 추세, 모델 분포, 도구 패턴, 캐시 효율, 주요 세션을 단일 페이로드(~2-3K 토큰)로 결합합니다. Claude Code의 `analytics-insights` 스킬을 통해 자연어로 질문("사용 패턴 분석해줘", "analyze my usage patterns")하면 Claude가 개인화된 추천을 생성합니다.
 - **프로젝트**: 암호화된 세션 UUID를 사람이 읽을 수 있는 프로젝트 폴더 이름으로 자동 매핑.
 
 데이터는 `~/.claudy/analytics/` 아래 로컬 SQLite 데이터베이스에 저장됩니다. 대시보드는 고성능 로컬 Tauri 2 + Svelte 앱으로 실행됩니다. 대시보드의 **[Sync]** 버튼을 사용하여 Claude CLI 기록에서 데이터를 즉시 새로고침하세요.

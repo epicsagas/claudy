@@ -233,6 +233,59 @@ pub struct SessionComparison {
     pub model: Option<String>,
 }
 
+// ── Insights summary types (LLM-consumed) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InsightsSummary {
+    pub period: InsightsPeriod,
+    pub overview: InsightsOverview,
+    pub daily_costs: Vec<InsightsDailyCost>,
+    pub model_distribution: Vec<ModelCostBreakdown>,
+    pub tool_usage: Vec<ToolDistribution>,
+    pub notable_sessions: Vec<SessionCostHighlight>,
+    pub cost_analysis: InsightsCostAnalysis,
+    pub cache_efficiency: InsightsCacheEfficiency,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InsightsPeriod {
+    pub from: String,
+    pub to: String,
+    pub days: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InsightsOverview {
+    pub total_sessions: i64,
+    pub total_cost_usd: f64,
+    pub total_turns: i64,
+    pub avg_tokens_per_session: f64,
+    pub most_used_model: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InsightsDailyCost {
+    pub date: String,
+    pub cost_usd: f64,
+    pub sessions: i64,
+    pub model: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InsightsCostAnalysis {
+    pub total_cost_usd: f64,
+    pub avg_cost_per_session: f64,
+    pub avg_cost_per_turn: f64,
+    pub weekly_avg_cost: f64,
+    pub cache_savings_usd: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InsightsCacheEfficiency {
+    pub hit_ratio: f64,
+    pub savings_usd: f64,
+}
+
 // ── Recommendation types ──
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

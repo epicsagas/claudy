@@ -158,4 +158,19 @@ pub enum AnalyticsCommands {
     },
     /// Sync model pricing from models.dev and Anthropic pricing page
     SyncPricing,
+    /// Generate a compact JSON insights summary for LLM analysis
+    Insights {
+        /// Number of days to analyze (default: 7)
+        #[arg(long, default_value = "7")]
+        days: u32,
+        /// Start date (YYYY-MM-DD), overrides --days
+        #[arg(long)]
+        from: Option<String>,
+        /// End date (YYYY-MM-DD), overrides --days
+        #[arg(long)]
+        to: Option<String>,
+        /// Filter by project name
+        #[arg(long)]
+        project: Option<String>,
+    },
 }

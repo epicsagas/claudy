@@ -1,5 +1,9 @@
 use crate::domain::commands::AnalyticsAction;
 use crate::domain::context::Context;
+use crate::domain::analytics::{
+    InsightsCacheEfficiency, InsightsCostAnalysis, InsightsDailyCost, InsightsOverview,
+    InsightsPeriod, InsightsSummary, SessionCostHighlight,
+};
 use crate::ports::analytics_ports::AnalyticsStore;
 
 pub fn run_analytics(ctx: &mut Context, action: AnalyticsAction) -> anyhow::Result<i32> {
@@ -13,6 +17,12 @@ pub fn run_analytics(ctx: &mut Context, action: AnalyticsAction) -> anyhow::Resu
             days,
         } => run_export(ctx, &format, project.as_deref(), days),
         AnalyticsAction::SyncPricing => run_sync_pricing(ctx),
+        AnalyticsAction::Insights {
+            days,
+            from,
+            to,
+            project,
+        } => run_insights(ctx, days, from.as_deref(), to.as_deref(), project.as_deref()),
     }
 }
 
@@ -160,5 +170,133 @@ fn run_sync_pricing(ctx: &mut Context) -> anyhow::Result<i32> {
         result.source.label(),
     );
 
+    Ok(0)
+}
+
+fn run_insights(
+    ctx: &mut Context,
+    days: u32,
+    from: Option<&str>,
+    to: Option<&str>,
+    project: Option<&str>,
+) -> anyhow::Result<i32> {
+    use chrono::{Local, NaiveDate, TimeDelta};
+
+    let (effective_days, from_str, to_str) = match (from, to) {
+        (Some(f), Some(t)) => {
+            let from_date = NaiveDate::parse_from_str(f, "%Y-%m-%d")
+                .map_err(|e| anyhow::anyhow!("Invalid --from date: {e}. Use YYYY-MM-DD."))?;
+            let to_date = NaiveDate::parse_from_str(t, "%Y-%m-%d")
+                .map_err(|e| anyhow::anyhow!("Invalid --to date: {e}. Use YYYY-MM-DD."))?;
+            let diff = (to_date - from_date).num_days();
+            if diff <= 0 {
+                anyhow::bail!("--from must be before --to");
+            }
+            (diff as u32, f.to_string(), t.to_string())
+        }
+        (Some(_), None) | (None, Some(_)) => {
+            anyhow::bail!("Both --from and --to must be provided together, or use --days");
+        }
+        (None, None) => {
+            let today = Local::now().date_naive();
+            let from_date = today - TimeDelta::days(days as i64);
+            (
+                days,
+                from_date.format("%Y-%m-%d").to_string(),
+                today.format("%Y-%m-%d").to_string(),
+            )
+        }
+    };
+
+    let db_path = &ctx.paths.analytics_db;
+    let store = crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore::open(db_path)?;
+    store.initialize_schema()?;
+
+    let project_id = project
+        .map(|p| store.get_project_by_encoded_dir(p))
+        .transpose()?
+        .flatten()
+        .map(|p| p.id);
+
+    let dashboard = store.aggregate_dashboard_stats(effective_days, project_id)?;
+    let cost_metrics = store.aggregate_cost_metrics(effective_days, project_id)?;
+    let token_trends = store.aggregate_token_trends(effective_days, project_id)?;
+    let tool_dist = store.aggregate_tool_distribution(Some(effective_days), project_id)?;
+
+    let daily_costs: Vec<InsightsDailyCost> = token_trends
+        .into_iter()
+        .map(|p| InsightsDailyCost {
+            date: p.date,
+            cost_usd: p.total_cost_usd,
+            sessions: p.session_count,
+            model: p.model,
+        })
+        .collect();
+
+    let mut top_tools = tool_dist;
+    top_tools.sort_by(|a, b| b.call_count.cmp(&a.call_count));
+    top_tools.truncate(10);
+
+    let notable_sessions: Vec<SessionCostHighlight> = {
+        let all_sessions = store.get_sessions(100, Some(effective_days), project_id)?;
+        let mut sorted: Vec<_> = all_sessions.into_iter().collect();
+        sorted.sort_by(|a, b| {
+            b.total_cost_usd
+                .partial_cmp(&a.total_cost_usd)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let projects = store.list_projects()?;
+        let proj_map: std::collections::HashMap<i64, String> = projects
+            .into_iter()
+            .map(|p| (p.id, p.display_name))
+            .collect();
+
+        sorted
+            .into_iter()
+            .take(5)
+            .map(|s| SessionCostHighlight {
+                session_uuid: s.session_uuid,
+                project_name: proj_map.get(&s.project_id).cloned().unwrap_or_default(),
+                cost_usd: s.total_cost_usd,
+                turns: s.total_turns,
+                model: s.model,
+                started_at: s.started_at,
+            })
+            .collect()
+    };
+
+    let summary = InsightsSummary {
+        period: InsightsPeriod {
+            from: from_str,
+            to: to_str,
+            days: effective_days,
+        },
+        overview: InsightsOverview {
+            total_sessions: dashboard.total_sessions,
+            total_cost_usd: dashboard.total_cost_usd,
+            total_turns: dashboard.total_turns,
+            avg_tokens_per_session: dashboard.avg_tokens_per_session,
+            most_used_model: dashboard.most_used_model,
+        },
+        daily_costs,
+        model_distribution: cost_metrics.by_model,
+        tool_usage: top_tools,
+        notable_sessions,
+        cost_analysis: InsightsCostAnalysis {
+            total_cost_usd: cost_metrics.total_cost_usd,
+            avg_cost_per_session: cost_metrics.avg_cost_per_session,
+            avg_cost_per_turn: cost_metrics.avg_cost_per_turn,
+            weekly_avg_cost: cost_metrics.weekly_avg_cost,
+            cache_savings_usd: cost_metrics.cache_savings_usd,
+        },
+        cache_efficiency: InsightsCacheEfficiency {
+            hit_ratio: dashboard.cache_hit_ratio,
+            savings_usd: cost_metrics.cache_savings_usd,
+        },
+    };
+
+    let json = serde_json::to_string(&summary)?;
+    println!("{json}");
     Ok(0)
 }

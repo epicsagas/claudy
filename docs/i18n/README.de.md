@@ -352,6 +352,10 @@ claudy analytics ingest --project my-project  # Bestimmtes Projekt einlesen
 claudy analytics recommend         # Nutzungsempfehlungen im CLI anzeigen
 claudy analytics export            # Analytics-Daten exportieren (JSON, Standard 30 Tage)
 claudy analytics export --format csv --days 7  # Als CSV für die letzten 7 Tage exportieren
+claudy analytics insights          # Kompakte JSON-Einblickszusammenfassung für LLM-Analyse (Standard: 7 Tage)
+claudy analytics insights --days 14  # Letzte 14 Tage analysieren
+claudy analytics insights --from 2026-04-01 --to 2026-04-30  # Spezifischer Zeitraum
+claudy analytics insights --project my-project  # Nach Projekt filtern
 ```
 
 Analytics verfolgt:
@@ -360,6 +364,7 @@ Analytics verfolgt:
 - **Tools**: Verteilungsanalyse, die zeigt, welche Tools Claude am häufigsten verwendet, einschließlich Aufrufzählungen, Fehlerquoten und durchschnittlicher Ausführungszeit.
 - **Kosten**: Echtzeit-Schätzung der Nutzungskosten basierend auf tatsächlichen Token-Preisen, einschließlich täglicher/wöchentlicher/monatlicher Prognosen und Trendeerkennung (steigend/stabil/fallend).
 - **Tipps (Empfehlungen)**: Datengestützte Optimierungshinweise, wie die Erkennung von kostenintensiven Sitzungen, Empfehlung von Haiku für einfache Aufgaben und Identifizierung langer Gespräche, die von einer Kontextzusammenfassung profitieren könnten.
+- **Einblicke (LLM-gestützt)**: Kompakte JSON-Nutzungszusammenfassung, optimiert für LLM-Analyse. Kombiniert Kostentrends, Modellverteilung, Werkzeugmuster, Cache-Effizienz und beachtliche Sitzungen in einer einzigen Nutzlast (~2-3K Token). Über die `analytics-insights`-Fähigkeit in Claude Code mit natürlicher Sprache nutzbar — Claude generiert personalisierte Empfehlungen.
 - **Projekte**: Ordnet kryptische Sitzungs-UUIDs automatisch lesbaren Projektordnernamen zu für besseren Kontext.
 
 Daten werden in einer lokalen SQLite-Datenbank unter `~/.claudy/analytics/` gespeichert. Das Dashboard läuft als hochperformante lokale Tauri 2 + Svelte-App. Verwenden Sie die **[Sync]**-Schaltfläche im Dashboard, um Daten aus Ihrem Claude CLI-Verlauf sofort zu aktualisieren.

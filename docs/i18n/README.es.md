@@ -352,6 +352,10 @@ claudy analytics ingest --project my-project  # Ingerir un proyecto específico
 claudy analytics recommend         # Mostrar recomendaciones de uso en CLI
 claudy analytics export            # Exportar datos de analytics (JSON, últimos 30 días por defecto)
 claudy analytics export --format csv --days 7  # Exportar como CSV para los últimos 7 días
+claudy analytics insights          # Generar resumen JSON compacto para análisis LLM (por defecto: 7 días)
+claudy analytics insights --days 14  # Analizar los últimos 14 días
+claudy analytics insights --from 2026-04-01 --to 2026-04-30  # Rango de fechas específico
+claudy analytics insights --project my-project  # Filtrar por proyecto
 ```
 
 Analytics rastrea:
@@ -360,6 +364,7 @@ Analytics rastrea:
 - **Tools**: Análisis de distribución que muestra qué herramientas usa Claude con más frecuencia, incluyendo conteos de llamadas, tasas de error y tiempo de ejecución promedio.
 - **Costo**: Estimación en tiempo real de los costos de uso basada en los precios reales de tokens, incluyendo previsiones diarias/semanales/mensuales y detección de tendencias (creciente/estable/decreciente).
 - **Consejos (Recomendaciones)**: Consejos de optimización basados en datos, como la detección de sesiones de alto costo, la sugerencia de Haiku para tareas simples e identificación de conversaciones largas que podrían beneficiarse de la resumización del contexto.
+- **Perspectivas (LLM)**: Resumen de uso compacto en formato JSON optimizado para análisis LLM. Combina tendencias de costos, distribución de modelos, patrones de herramientas, eficiencia de caché y sesiones notables en una sola carga (~2-3K tokens). Utilizable a través de la habilidad `analytics-insights` de Claude Code con lenguaje natural — Claude genera recomendaciones personalizadas.
 - **Proyectos**: Mapea automáticamente los UUIDs crípticos de sesión a nombres de carpetas de proyectos legibles por humanos para un mejor contexto.
 
 Los datos se almacenan en una base de datos SQLite local bajo `~/.claudy/analytics/`. El dashboard se ejecuta como una aplicación local de alto rendimiento con Tauri 2 + Svelte. Usa el botón **[Sync]** en el dashboard para actualizar instantáneamente los datos desde tu historial de Claude CLI.
