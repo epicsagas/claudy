@@ -74,6 +74,15 @@ pub struct DiscordInteraction {
     pub channel_id: Option<String>,
     pub user_id: Option<String>,
     pub data: Option<DiscordInteractionData>,
+    /// The message object for component interactions (contains the original message ID).
+    #[serde(default)]
+    pub message: Option<DiscordMessageRef>,
+}
+
+/// Minimal message reference from a Discord interaction (just the ID).
+#[derive(Debug, Deserialize)]
+pub struct DiscordMessageRef {
+    pub id: String,
 }
 
 /// The `data` field of an interaction (varies by type).
@@ -125,6 +134,12 @@ impl DiscordInteraction {
                 .map(|v| v as u8),
         });
 
+        let message = data
+            .get("message")
+            .and_then(|m| m.get("id"))
+            .and_then(|v| v.as_str())
+            .map(|id| DiscordMessageRef { id: id.to_string() });
+
         Some(DiscordInteraction {
             interaction_type,
             id,
@@ -132,6 +147,7 @@ impl DiscordInteraction {
             channel_id,
             user_id,
             data: discord_data,
+            message,
         })
     }
 }

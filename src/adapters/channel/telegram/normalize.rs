@@ -140,7 +140,7 @@ fn normalize_callback(callback: TelegramCallbackQuery) -> Option<IncomingEvent> 
         channel: ChannelIdentity::new(Platform::Telegram, chat_id, user_id, None, None),
         action_id,
         message_ref,
-        callback_message_id: Some(message._message_id),
+        callback_message_id: Some(message._message_id.to_string()),
         callback_query_id: Some(callback.id),
     }))
 }

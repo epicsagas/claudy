@@ -16,7 +16,7 @@ pub struct CallbackContext {
     pub channel_id: ChannelIdentity,
     pub action: String,
     pub data: String,
-    pub callback_message_id: Option<i64>,
+    pub callback_message_id: Option<String>,
     pub scope: String,
     pub channel_state: Arc<tokio::sync::RwLock<ChannelState>>,
     pub app_state: Arc<AppState>,
@@ -81,12 +81,25 @@ pub async fn handle_callback(ctx: CallbackContext) -> anyhow::Result<()> {
 async fn handle_session_callback(
     channel: &dyn ChannelPort,
     channel_id: &ChannelIdentity,
-    session_prefix: &str,
-    callback_message_id: Option<i64>,
+    data: &str,
+    callback_message_id: Option<String>,
     scope: &str,
     state: &Arc<tokio::sync::RwLock<ChannelState>>,
 ) -> anyhow::Result<()> {
-    // Find full session ID by prefix
+    // Parse "project_dir:session_prefix" from callback data.
+    let (project_dir, session_prefix) = match data.split_once(':') {
+        Some((dir, prefix)) => (dir, prefix),
+        None => {
+            return dismiss_keyboard(
+                channel,
+                channel_id,
+                callback_message_id,
+                "Invalid session reference.",
+            )
+            .await;
+        }
+    };
+
     let Some(projects_dir) = super::super::sessions::claude_projects_dir() else {
         return dismiss_keyboard(
             channel,
@@ -97,7 +110,9 @@ async fn handle_session_callback(
         .await;
     };
 
-    let sessions = super::super::sessions::discover_sessions(&projects_dir, 50);
+    // Scope search to the originating project
+    let sessions =
+        super::super::sessions::discover_project_sessions(&projects_dir, project_dir, 50);
     let matched = sessions
         .iter()
         .find(|s| s.session_id.starts_with(session_prefix));
@@ -143,7 +158,7 @@ async fn handle_project_callback(
     channel: &dyn ChannelPort,
     channel_id: &ChannelIdentity,
     encoded_dir: &str,
-    callback_message_id: Option<i64>,
+    callback_message_id: Option<String>,
 ) -> anyhow::Result<()> {
     // Dismiss the project list keyboard
     dismiss_keyboard(channel, channel_id, callback_message_id, "Loading...").await?;
@@ -156,7 +171,7 @@ async fn handle_model_callback(
     channel: &dyn ChannelPort,
     channel_id: &ChannelIdentity,
     model: &str,
-    callback_message_id: Option<i64>,
+    callback_message_id: Option<String>,
     scope: &str,
     state: &Arc<tokio::sync::RwLock<ChannelState>>,
 ) -> anyhow::Result<()> {
@@ -179,7 +194,7 @@ async fn handle_model_callback(
 async fn dismiss_keyboard(
     channel: &dyn ChannelPort,
     channel_id: &ChannelIdentity,
-    callback_message_id: Option<i64>,
+    callback_message_id: Option<String>,
     text: &str,
 ) -> anyhow::Result<()> {
     let Some(msg_id) = callback_message_id else {
@@ -191,7 +206,7 @@ async fn dismiss_keyboard(
             conversation_id: ConversationId::new(),
             channel: channel_id.clone(),
             text: text.to_string(),
-            message_ref: Some(msg_id.to_string()),
+            message_ref: Some(msg_id),
             interaction: None,
         })
         .await
@@ -200,7 +215,7 @@ async fn dismiss_keyboard(
 async fn handle_reply_callback(
     channel: &dyn ChannelPort,
     channel_id: &ChannelIdentity,
-    callback_message_id: Option<i64>,
+    callback_message_id: Option<String>,
 ) -> anyhow::Result<()> {
     dismiss_keyboard(
         channel,
@@ -215,7 +230,7 @@ async fn handle_choice_callback(
     channel: &dyn ChannelPort,
     channel_id: &ChannelIdentity,
     data: &str,
-    callback_message_id: Option<i64>,
+    callback_message_id: Option<String>,
     app_state: Arc<AppState>,
 ) -> anyhow::Result<()> {
     // Reject if Claude is already running for this scope

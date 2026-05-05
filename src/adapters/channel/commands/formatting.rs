@@ -57,7 +57,7 @@ pub(crate) fn session_buttons(sessions: &[super::super::sessions::SessionInfo]) 
             let short = truncate_chars(preview, 40);
             let label = format!("{} - {}", s.project_name, short);
             Button {
-                id: format!("sess:{}", &s.session_id[..8]),
+                id: format!("sess:{}:{}", s.project, &s.session_id[..8]),
                 label,
             }
         })

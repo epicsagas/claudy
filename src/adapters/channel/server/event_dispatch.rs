@@ -5,7 +5,7 @@ use crate::domain::channel_events::{
     OutboundMessage, TextMessage,
 };
 
-use super::{AppState, THINKING_MESSAGES, TypingGuard, spawn_process_event};
+use super::{AppState, THINKING_MESSAGES, TypingGuard, is_authorized, spawn_process_event};
 use crate::adapters::channel::state::scope_key;
 
 /// Validate a stored session ID by checking if the session file still exists on disk.
@@ -364,6 +364,17 @@ pub(super) async fn handle_interaction(
     inter: InteractionEvent,
 ) -> anyhow::Result<()> {
     let platform = inter.channel.platform;
+
+    // Defense-in-depth: authorize_and_spawn checks at the entry point,
+    // but reject here if somehow bypassed.
+    if !is_authorized(state, platform, &inter.channel.user_id) {
+        tracing::warn!(
+            user_id = %inter.channel.user_id,
+            "Interaction reached handler without authorization"
+        );
+        return Ok(());
+    }
+
     let channel = state
         .channels
         .get(&platform)
