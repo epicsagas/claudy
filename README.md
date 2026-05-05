@@ -363,13 +363,46 @@ claudy analytics insights --from 2026-04-01 --to 2026-04-30  # Specific date ran
 claudy analytics insights --project my-project  # Filter by project
 ```
 
-Analytics tracks:
+### Inside Claude Code: `/analytics-insights`
+
+The fastest way to analyze your usage is directly inside Claude Code. The `analytics-insights` skill is automatically available — just ask naturally:
+
+```
+> /analytics-insights
+> /analytics-insights last 2 weeks
+> analyze my usage patterns
+> 사용 패턴 분석해줘
+```
+
+Claude runs `claudy analytics insights`, analyzes the JSON, and returns a structured report with:
+
+- **Cost trends** — daily/weekly spend with spike detection
+- **Model distribution** — which models you use and what they cost per session
+- **Tool patterns** — most-used tools, error rates, efficiency observations
+- **Cache performance** — hit ratio and estimated savings
+- **Actionable recommendations** — specific suggestions like "route simple tasks to turbo" with estimated dollar savings
+
+Example output (see [`docs/examples/analytics-insights-sample.json`](docs/examples/analytics-insights-sample.json) for raw data):
+
+```
+#### Summary
+81 sessions, $481 total spend at an average of $68.7/day. Costs trending
+sharply upward — last 3 weekdays averaged $97/day.
+
+#### Recommendations
+1. Route simple tasks to glm-5-turbo — est. savings: ~$90/month
+2. Investigate $1.91/turn outlier session (6x average cost-per-turn)
+3. Reduce harness overhead — TaskCreate/Update accounted for ~1,000 calls
+```
+
+No manual commands, no context switching. Ask Claude about your usage and get answers instantly.
+
+### What analytics tracks
 
 - **Tokens**: Detailed trends of input, output, and cache tokens over the last 30 days, grouped by model and date.
 - **Tools**: Distribution analysis showing which tools Claude uses most frequently, including call counts, error rates, and average execution time.
 - **Cost**: Real-time estimation of usage costs based on actual token pricing, including daily/weekly/monthly forecasts and trend detection (increasing/stable/decreasing).
 - **Tips (Recommendations)**: Data-driven optimization advice, such as detecting high-cost sessions, suggesting Haiku for simple tasks, and identifying long conversations that could benefit from context summarization.
-- **Insights (LLM-powered)**: Aggregated usage summary in compact JSON format designed for LLM analysis. Combines cost trends, model distribution, tool patterns, cache efficiency, and notable sessions into a single payload (~2-3K tokens). Can be used directly in Claude Code via the `analytics-insights` skill — ask naturally ("analyze my usage patterns", "사용 패턴 분석해줘") and Claude will generate personalized recommendations.
 - **Projects**: Automatically maps cryptic session UUIDs to human-readable project folder names for better context.
 
 Data is stored in a local SQLite database under `~/.claudy/analytics/`. The dashboard runs as a high-performance local Tauri 2 + Svelte app. Use the **[Sync]** button in the dashboard to instantly refresh data from your Claude CLI history.

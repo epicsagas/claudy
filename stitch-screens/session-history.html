@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            font-size: 18px;
+        }
+        .tracking-mono { letter-spacing: -0.02em; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #0f0e0a; }
+        ::-webkit-scrollbar-thumb { background: #363530; }
+        ::-webkit-scrollbar-thumb:hover { background: #474745; }
+        body { background-color: #14130f; }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#ffb596",
+                        "surface-container-lowest": "#0f0e0a",
+                        "inverse-surface": "#e6e2db",
+                        "secondary-fixed-dim": "#c8c6c3",
+                        "surface-variant": "#363530",
+                        "tertiary-container": "#929094",
+                        "tertiary-fixed-dim": "#c8c6c9",
+                        "on-secondary": "#30302f",
+                        "on-secondary-container": "#b9b8b5",
+                        "on-primary-fixed-variant": "#7c2e00",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary-container": "#2a292c",
+                        "surface-container-highest": "#363530",
+                        "error-container": "#93000a",
+                        "surface-container": "#20201b",
+                        "primary": "#ffb596",
+                        "on-primary-container": "#4d1900",
+                        "error": "#ffb4ab",
+                        "on-primary-fixed": "#360f00",
+                        "on-surface": "#e6e2db",
+                        "surface-dim": "#14130f",
+                        "on-tertiary-fixed": "#1b1b1e",
+                        "secondary-container": "#494947",
+                        "primary-fixed": "#ffdbcd",
+                        "surface-container-high": "#2b2a25",
+                        "on-primary": "#581e00",
+                        "on-error": "#690005",
+                        "on-secondary-fixed": "#1b1c1a",
+                        "on-background": "#e6e2db",
+                        "surface": "#14130f",
+                        "surface-bright": "#3a3934",
+                        "primary-container": "#f26411",
+                        "tertiary": "#c8c6c9",
+                        "secondary-fixed": "#e4e2df",
+                        "surface-container-low": "#1c1c17",
+                        "on-secondary-fixed-variant": "#474745",
+                        "inverse-primary": "#a33e00",
+                        "outline-variant": "#594137",
+                        "outline": "#a98a7e",
+                        "background": "#14130f",
+                        "on-tertiary-fixed-variant": "#47464a",
+                        "tertiary-fixed": "#e4e1e5",
+                        "on-surface-variant": "#e1bfb2",
+                        "on-tertiary": "#303033",
+                        "secondary": "#c8c6c3",
+                        "surface-tint": "#ffb596",
+                        "inverse-on-surface": "#31302c"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "md": "16px",
+                        "sm": "8px",
+                        "lg": "24px",
+                        "gutter": "1px",
+                        "unit": "4px",
+                        "xs": "4px",
+                        "xl": "40px"
+                    },
+                    "fontFamily": {
+                        "ui-medium": ["Bricolage Grotesque"],
+                        "ui-small": ["Bricolage Grotesque"],
+                        "data-lg": ["JetBrains Mono"],
+                        "display-lg": ["Bricolage Grotesque"],
+                        "data-mono": ["JetBrains Mono"],
+                        "data-label": ["JetBrains Mono"],
+                        "heading-md": ["Bricolage Grotesque"],
+                        "display-xl": ["Bricolage Grotesque"]
+                    },
+                    "fontSize": {
+                        "ui-medium": ["14px", {"lineHeight": "1.2", "fontWeight": "500"}],
+                        "ui-small": ["12px", {"lineHeight": "1", "fontWeight": "500"}],
+                        "data-lg": ["24px", {"lineHeight": "1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "display-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "data-mono": ["13px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "data-label": ["11px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                        "heading-md": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                        "display-xl": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "800"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="text-on-background antialiased font-ui-medium selection:bg-primary-container selection:text-on-primary-container">
+<!-- Sidebar Navigation -->
+<aside class="fixed left-0 top-0 h-full z-50 w-16 h-full border-r border-zinc-800 flex flex-col items-center py-4 bg-zinc-950">
+<div class="mb-8">
+<span class="font-black text-orange-600 dark:text-orange-500 tracking-widest text-xs">C</span>
+</div>
+<nav class="flex-1 flex flex-col gap-4">
+<button class="w-12 h-12 flex items-center justify-center transition-colors duration-75 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 cursor-crosshair active:opacity-80">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+</button>
+<button class="w-12 h-12 flex items-center justify-center transition-colors duration-75 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 cursor-crosshair active:opacity-80">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+</button>
+<button class="w-12 h-12 flex items-center justify-center transition-colors duration-75 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 cursor-crosshair active:opacity-80">
+<span class="material-symbols-outlined" data-icon="construction">construction</span>
+</button>
+<button class="w-12 h-12 flex items-center justify-center transition-colors duration-75 text-orange-500 border-l-2 border-orange-500 bg-orange-500/5 cursor-crosshair active:opacity-80">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+</button>
+</nav>
+<div class="mt-auto">
+<button class="w-12 h-12 flex items-center justify-center transition-colors duration-75 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 cursor-crosshair active:opacity-80">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+</aside>
+<!-- Top App Bar -->
+<header class="fixed top-0 left-16 right-0 z-40 flex justify-between items-center h-12 border-b border-zinc-800 px-4 bg-zinc-950">
+<div class="flex items-center gap-4">
+<span class="font-bold text-zinc-100 font-data-mono text-[11px] uppercase tracking-mono">CLAUDY_ANALYTICS</span>
+<div class="h-4 w-px bg-zinc-800"></div>
+<nav class="flex gap-4">
+<span class="font-data-mono text-[11px] uppercase tracking-mono text-zinc-400 hover:text-zinc-100 transition-none cursor-pointer">LIVE_FEED</span>
+<span class="font-data-mono text-[11px] uppercase tracking-mono text-zinc-400 hover:text-zinc-100 transition-none cursor-pointer">METRICS</span>
+<span class="font-data-mono text-[11px] uppercase tracking-mono text-orange-500 border-b border-orange-500 cursor-pointer">ALERTS</span>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex gap-2">
+<span class="material-symbols-outlined text-zinc-400 hover:text-zinc-100 cursor-pointer" data-icon="terminal">terminal</span>
+<span class="material-symbols-outlined text-zinc-400 hover:text-zinc-100 cursor-pointer" data-icon="refresh">refresh</span>
+<span class="material-symbols-outlined text-zinc-400 hover:text-zinc-100 cursor-pointer" data-icon="more_vert">more_vert</span>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="ml-16 pt-12 min-h-screen bg-surface flex flex-col">
+<!-- Audit Log Header Controls -->
+<section class="p-md border-b border-zinc-800 flex flex-wrap gap-4 items-center justify-between bg-surface-container-low">
+<div class="flex items-center gap-sm flex-1 max-w-xl">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm" data-icon="search">search</span>
+<input class="w-full bg-surface-container-lowest border border-zinc-800 px-10 py-2 font-data-mono text-data-label text-zinc-300 focus:border-orange-500 focus:ring-0 outline-none transition-colors" placeholder="FILTER SESSION_ID OR MODEL..." type="text"/>
+</div>
+<div class="flex border border-zinc-800 divide-x divide-zinc-800">
+<button class="px-3 py-2 bg-surface-container-lowest hover:bg-zinc-900 text-zinc-400 transition-colors">
+<span class="material-symbols-outlined" data-icon="filter_list">filter_list</span>
+</button>
+<button class="px-3 py-2 bg-surface-container-lowest hover:bg-zinc-900 text-zinc-400 transition-colors">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+</button>
+</div>
+</div>
+<div class="flex items-center gap-sm">
+<button class="px-4 py-2 bg-primary-container text-on-primary-container font-data-label uppercase border border-primary-container hover:bg-orange-600 transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="download">download</span>
+                    EXPORT CSV
+                </button>
+</div>
+</section>
+<!-- Ledger Table Area -->
+<section class="flex-1 overflow-x-auto">
+<table class="w-full border-collapse text-left">
+<thead>
+<tr class="bg-zinc-900/50 border-b border-zinc-800">
+<th class="p-3 font-data-label text-zinc-500 uppercase border-r border-zinc-800 w-12 text-center">
+<input class="bg-transparent border-zinc-700 text-orange-500 focus:ring-0 rounded-none" type="checkbox"/>
+</th>
+<th class="p-3 font-data-label text-zinc-500 uppercase border-r border-zinc-800">Session ID</th>
+<th class="p-3 font-data-label text-zinc-500 uppercase border-r border-zinc-800">Start Time</th>
+<th class="p-3 font-data-label text-zinc-500 uppercase border-r border-zinc-800">Duration</th>
+<th class="p-3 font-data-label text-zinc-500 uppercase border-r border-zinc-800">Total Tokens</th>
+<th class="p-3 font-data-label text-zinc-500 uppercase border-r border-zinc-800">Total Cost</th>
+<th class="p-3 font-data-label text-zinc-500 uppercase border-r border-zinc-800">Primary Model</th>
+<th class="p-3 font-data-label text-zinc-500 uppercase">Tool Count</th>
+</tr>
+</thead>
+<tbody class="font-data-mono text-data-label divide-y divide-zinc-800/50">
+<!-- Row 1 -->
+<tr class="hover:bg-orange-500/5 group transition-colors">
+<td class="p-3 border-r border-zinc-800 text-center">
+<input class="bg-transparent border-zinc-700 text-orange-500 focus:ring-0 rounded-none" type="checkbox"/>
+</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">CLD-8829-QX</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-400">2023-11-24 14:22:01</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-400">00:12:44</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">4,209</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">$0.1263</td>
+<td class="p-3 border-r border-zinc-800">
+<span class="px-1.5 py-0.5 border border-zinc-700 bg-zinc-800 text-zinc-300 text-[9px]">CLAUDE-3-OPUS</span>
+</td>
+<td class="p-3 text-zinc-400">12</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-orange-500/5 group transition-colors bg-surface-container-lowest/30">
+<td class="p-3 border-r border-zinc-800 text-center">
+<input class="bg-transparent border-zinc-700 text-orange-500 focus:ring-0 rounded-none" type="checkbox"/>
+</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">CLD-8828-RA</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-400">2023-11-24 13:05:55</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-400">00:02:11</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">842</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">$0.0025</td>
+<td class="p-3 border-r border-zinc-800">
+<span class="px-1.5 py-0.5 border border-zinc-700 bg-zinc-800 text-zinc-300 text-[9px]">CLAUDE-3-HAIKU</span>
+</td>
+<td class="p-3 text-zinc-400">03</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-orange-500/5 group transition-colors">
+<td class="p-3 border-r border-zinc-800 text-center">
+<input class="bg-transparent border-zinc-700 text-orange-500 focus:ring-0 rounded-none" type="checkbox"/>
+</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">CLD-8827-ZT</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-400">2023-11-24 12:44:10</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-400">00:45:02</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">18,550</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">$0.5565</td>
+<td class="p-3 border-r border-zinc-800">
+<span class="px-1.5 py-0.5 border border-zinc-700 bg-zinc-800 text-zinc-300 text-[9px]">CLAUDE-3-SONNET</span>
+</td>
+<td class="p-3 text-zinc-400">28</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-orange-500/5 group transition-colors bg-surface-container-lowest/30">
+<td class="p-3 border-r border-zinc-800 text-center">
+<input class="bg-transparent border-zinc-700 text-orange-500 focus:ring-0 rounded-none" type="checkbox"/>
+</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">CLD-8826-LP</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-400">2023-11-24 11:12:33</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-400">00:00:15</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">120</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">$0.0004</td>
+<td class="p-3 border-r border-zinc-800">
+<span class="px-1.5 py-0.5 border border-zinc-700 bg-zinc-800 text-zinc-300 text-[9px]">CLAUDE-3-HAIKU</span>
+</td>
+<td class="p-3 text-zinc-400">01</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-orange-500/5 group transition-colors">
+<td class="p-3 border-r border-zinc-800 text-center">
+<input class="bg-transparent border-zinc-700 text-orange-500 focus:ring-0 rounded-none" type="checkbox"/>
+</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">CLD-8825-MM</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-400">2023-11-24 10:55:00</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-400">01:10:44</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">32,100</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">$0.9630</td>
+<td class="p-3 border-r border-zinc-800">
+<span class="px-1.5 py-0.5 border border-zinc-700 bg-zinc-800 text-zinc-300 text-[9px]">CLAUDE-3-OPUS</span>
+</td>
+<td class="p-3 text-zinc-400">45</td>
+</tr>
+<!-- Row 6 -->
+<tr class="hover:bg-orange-500/5 group transition-colors bg-surface-container-lowest/30">
+<td class="p-3 border-r border-zinc-800 text-center">
+<input class="bg-transparent border-zinc-700 text-orange-500 focus:ring-0 rounded-none" type="checkbox"/>
+</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">CLD-8824-OP</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-400">2023-11-24 09:30:12</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-400">00:05:55</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">1,440</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">$0.0432</td>
+<td class="p-3 border-r border-zinc-800">
+<span class="px-1.5 py-0.5 border border-zinc-700 bg-zinc-800 text-zinc-300 text-[9px]">CLAUDE-3-SONNET</span>
+</td>
+<td class="p-3 text-zinc-400">08</td>
+</tr>
+<!-- Row 7 -->
+<tr class="hover:bg-orange-500/5 group transition-colors">
+<td class="p-3 border-r border-zinc-800 text-center">
+<input class="bg-transparent border-zinc-700 text-orange-500 focus:ring-0 rounded-none" type="checkbox"/>
+</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">CLD-8823-KK</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-400">2023-11-24 08:15:22</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-400">00:15:00</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">5,000</td>
+<td class="p-3 border-r border-zinc-800 text-zinc-100">$0.1500</td>
+<td class="p-3 border-r border-zinc-800">
+<span class="px-1.5 py-0.5 border border-zinc-700 bg-zinc-800 text-zinc-300 text-[9px]">CLAUDE-3-OPUS</span>
+</td>
+<td class="p-3 text-zinc-400">15</td>
+</tr>
+</tbody>
+</table>
+</section>
+<!-- Dense Pagination Bar -->
+<footer class="h-10 border-t border-zinc-800 bg-surface-container-lowest flex items-center px-4 justify-between font-data-mono text-data-label">
+<div class="flex items-center gap-4 text-zinc-500">
+<span>SHOWING 1-7 OF 142 ENTRIES</span>
+<div class="h-3 w-px bg-zinc-800"></div>
+<div class="flex items-center gap-1">
+<span>PAGE_SIZE:</span>
+<select class="bg-transparent border-none focus:ring-0 py-0 text-zinc-300 cursor-pointer">
+<option>25</option>
+<option>50</option>
+<option>100</option>
+</select>
+</div>
+</div>
+<div class="flex border border-zinc-800 divide-x divide-zinc-800">
+<button class="px-3 h-10 flex items-center text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300">
+<span class="material-symbols-outlined text-sm" data-icon="first_page">first_page</span>
+</button>
+<button class="px-3 h-10 flex items-center text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="px-4 h-10 flex items-center bg-orange-500/10 text-orange-500 font-bold">1</button>
+<button class="px-4 h-10 flex items-center text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300">2</button>
+<button class="px-4 h-10 flex items-center text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300">3</button>
+<button class="px-4 h-10 flex items-center text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300">4</button>
+<button class="px-3 h-10 flex items-center text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_right">chevron_right</span>
+</button>
+<button class="px-3 h-10 flex items-center text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300">
+<span class="material-symbols-outlined text-sm" data-icon="last_page">last_page</span>
+</button>
+</div>
+</footer>
+</main>
+<!-- Side Decoration (CLI Aura) -->
+<div class="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+<div class="bg-zinc-950 border border-zinc-800 p-3 w-64">
+<div class="flex items-center justify-between mb-2 border-b border-zinc-800 pb-1">
+<span class="font-data-label text-zinc-500 text-[9px]">SESSION_INSIGHTS.SH</span>
+<span class="material-symbols-outlined text-[10px] text-zinc-700" data-icon="close">close</span>
+</div>
+<div class="space-y-1 font-data-mono text-[10px]">
+<div class="flex justify-between">
+<span class="text-zinc-500">AVG_LATENCY:</span>
+<span class="text-emerald-500">244ms</span>
+</div>
+<div class="flex justify-between">
+<span class="text-zinc-500">TOTAL_BURN:</span>
+<span class="text-orange-500">$12.44</span>
+</div>
+<div class="flex justify-between">
+<span class="text-zinc-500">PEAK_CONCURRENCY:</span>
+<span class="text-zinc-300">08_CLI</span>
+</div>
+</div>
+</div>
+</div>
+</body></html>

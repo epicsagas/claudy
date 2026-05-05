@@ -231,3 +231,63 @@ pub fn get_projects(app_handle: tauri::AppHandle) -> Result<Vec<ProjectRecord>, 
     let store = state.open_store().map_err(|e| e.to_string())?;
     store.list_projects().map_err(|e| e.to_string())
 }
+
+fn config_path() -> std::path::PathBuf {
+    dirs::home_dir()
+        .map(|h| h.join(".claudy").join("config.yaml"))
+        .unwrap_or_else(|| std::path::PathBuf::from("config.yaml"))
+}
+
+#[tauri::command]
+pub fn get_config() -> Result<serde_json::Value, String> {
+    let path = config_path();
+    let cfg = crate::config::registry::AppRegistry::open(&path).map_err(|e| e.to_string())?;
+    serde_json::to_value(&cfg).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_config(partial: serde_json::Value) -> Result<serde_json::Value, String> {
+    let path = config_path();
+    let mut cfg = crate::config::registry::AppRegistry::open(&path).map_err(|e| e.to_string())?;
+
+    if let Some(obj) = partial.as_object() {
+        if let Some(v) = obj.get("compaction") {
+            let policy: crate::config::registry::ContextWindowPolicy =
+                serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+            cfg.compaction = policy;
+        }
+        if let Some(v) = obj.get("channel") {
+            let settings: crate::config::registry::BridgeSettings =
+                serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+            cfg.channel = settings;
+        }
+        if let Some(v) = obj.get("provider_overrides") {
+            let overrides: std::collections::HashMap<String, crate::config::registry::ModelPreset> =
+                serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+            cfg.provider_overrides = overrides;
+        }
+        if let Some(v) = obj.get("openrouter_aliases") {
+            let aliases: std::collections::HashMap<String, String> =
+                serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+            cfg.openrouter_aliases = aliases;
+        }
+        if let Some(v) = obj.get("custom_providers") {
+            let providers: std::collections::HashMap<String, crate::config::registry::UserEndpoint> =
+                serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+            cfg.custom_providers = providers;
+        }
+        if let Some(v) = obj.get("model_settings") {
+            let settings: std::collections::HashMap<String, crate::config::registry::PerModelOverrides> =
+                serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+            cfg.model_settings = settings;
+        }
+        if let Some(v) = obj.get("agents") {
+            let agents: std::collections::HashMap<String, crate::domain::agent::AgentConfig> =
+                serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+            cfg.agents = agents;
+        }
+    }
+
+    cfg.write_to(&path).map_err(|e| e.to_string())?;
+    serde_json::to_value(&cfg).map_err(|e| e.to_string())
+}

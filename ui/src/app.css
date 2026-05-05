@@ -1,4 +1,120 @@
 /* Reset */
-*, *::before, *::after { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; }
-#app { width: 100%; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Dark theme — Material You Fidelity variant */
+  --bg: #14130f;
+  --surface: #14130f;
+  --surface-dim: #14130f;
+  --surface-lowest: #0f0e0a;
+  --surface-low: #1c1c17;
+  --surface-mid: #20201b;
+  --surface-high: #2b2a25;
+  --surface-highest: #363530;
+  --surface-bright: #3a3934;
+  --surface-variant: #363530;
+
+  --on-surface: #e6e2db;
+  --on-surface-variant: #e1bfb2;
+  --outline: #a98a7e;
+  --outline-variant: #594137;
+
+  --accent: #e85d04;
+  --accent-hover: #f48c06;
+  --accent-glow: rgba(232, 93, 4, 0.12);
+  --accent-dim: rgba(232, 93, 4, 0.06);
+  --primary: #ffb596;
+  --primary-container: #f26411;
+
+  --secondary: #c8c6c3;
+  --secondary-container: #494947;
+
+  --critical: #dc2f02;
+  --positive: #60a840;
+  --warning: #f2b94b;
+  --error: #ffb4ab;
+
+  --border: #2a2a2e;
+  --border-hover: #3a3a3e;
+
+  --chart-1: #e85d04;
+  --chart-2: #6b6459;
+  --chart-3: #3d3a35;
+  --chart-4: #8a8477;
+  --chart-5: #ffb596;
+  --chart-6: #c8c6c3;
+
+  --font-display: 'Bricolage Grotesque', sans-serif;
+  --font-data: 'JetBrains Mono', ui-monospace, monospace;
+
+  --nav-width: 160px;
+  --top-bar-height: 48px;
+  --status-bar-height: 24px;
+}
+
+body.light {
+  --bg: #fbfaf8;
+  --surface: #fff8f2;
+  --surface-dim: #e3d9cb;
+  --surface-lowest: #ffffff;
+  --surface-low: #fdf2e4;
+  --surface-mid: #f7ecde;
+  --surface-high: #f1e7d9;
+  --surface-highest: #ebe1d3;
+  --surface-bright: #fff8f2;
+  --surface-variant: #ebe1d3;
+
+  --on-surface: #14130f;
+  --on-surface-variant: #6b6459;
+  --outline: #7a776f;
+  --outline-variant: #cbc6bd;
+
+  --accent: #e85d04;
+  --accent-hover: #f48c06;
+  --accent-glow: rgba(232, 93, 4, 0.08);
+  --accent-dim: rgba(232, 93, 4, 0.04);
+  --primary: #000000;
+  --primary-container: #e85d04;
+
+  --secondary: #6b6459;
+  --secondary-container: #e85d04;
+
+  --critical: #ba1a1a;
+  --positive: #2e7d32;
+  --warning: #e65100;
+  --error: #ba1a1a;
+
+  --border: #cbc6bd;
+  --border-hover: #b5b0a5;
+
+  --chart-1: #e85d04;
+  --chart-2: #8a8477;
+  --chart-3: #b5b0a5;
+  --chart-4: #6b6459;
+  --chart-5: #f48c06;
+  --chart-6: #a09a8f;
+
+  --font-display: 'Space Grotesk', 'Bricolage Grotesque', sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--on-surface);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-size: 18px;
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
