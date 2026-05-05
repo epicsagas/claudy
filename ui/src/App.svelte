@@ -37,6 +37,86 @@
     Chart.defaults.borderColor = style.getPropertyValue('--border').trim();
   }
 
+  // Settings state
+  let configData = $state(null);
+  let configLoading = $state(false);
+  let configSaving = $state(false);
+  let configMsg = $state('');
+
+  async function loadConfig() {
+    configLoading = true;
+    try {
+      configData = await invoke('get_config');
+    } catch (e) {
+      console.error('Failed to load config:', e);
+    }
+    configLoading = false;
+  }
+
+  async function saveConfig(section) {
+    if (!configData) return;
+    configSaving = true;
+    configMsg = '';
+    try {
+      const partial = { [section]: configData[section] };
+      configData = await invoke('update_config', { partial });
+      configMsg = `${section.replace(/_/g, ' ').toUpperCase()} saved`;
+      setTimeout(() => { configMsg = ''; }, 3000);
+    } catch (e) {
+      configMsg = `Error: ${e}`;
+    }
+    configSaving = false;
+  }
+
+  // HashMap helpers for settings
+  let newMapKey = $state({});
+  let newMapValue = $state({});
+
+  function addMapEntry(obj, sectionId, value = '') {
+    const key = newMapKey[sectionId]?.trim();
+    if (!key) return;
+    obj[key] = value;
+    newMapKey[sectionId] = '';
+    configData = { ...configData };
+  }
+
+  function removeMapEntry(obj, key) {
+    delete obj[key];
+    configData = { ...configData };
+  }
+
+  function addModelSetting() {
+    const key = newMapKey['model_settings']?.trim();
+    if (!key) return;
+    if (!configData.model_settings) configData.model_settings = {};
+    configData.model_settings[key] = { max_context_tokens: null, compaction_threshold: null };
+    newMapKey['model_settings'] = '';
+    configData = { ...configData };
+  }
+
+  function removeModelSetting(key) {
+    delete configData.model_settings[key];
+    configData = { ...configData };
+  }
+
+  function addCustomProvider() {
+    const key = newMapKey['custom_providers']?.trim();
+    if (!key) return;
+    if (!configData.custom_providers) configData.custom_providers = {};
+    configData.custom_providers[key] = { name: key, display_name: '', base_url: '', api_key_env: '', default_model: '' };
+    newMapKey['custom_providers'] = '';
+    configData = { ...configData };
+  }
+
+  function addTier(providerKey) {
+    const tierKey = newMapKey[`tier_${providerKey}`]?.trim();
+    if (!tierKey) return;
+    if (!configData.provider_overrides[providerKey].model_tiers) configData.provider_overrides[providerKey].model_tiers = {};
+    configData.provider_overrides[providerKey].model_tiers[tierKey] = '';
+    newMapKey[`tier_${providerKey}`] = '';
+    configData = { ...configData };
+  }
+
   let tokenTrendCanvas = $state();
   let costByModelCanvas = $state();
   let tokenAreaCanvas = $state();
@@ -56,6 +136,7 @@
     { id: 'cost', label: 'Cost', icon: 'attach_money' },
     { id: 'sessions', label: 'Sessions', icon: 'history' },
     { id: 'recommendations', label: 'Tips', icon: 'lightbulb' },
+    { id: 'settings', label: 'Settings', icon: 'settings' },
   ];
 
   const dayOptions = [7, 14, 30, 90];
@@ -96,6 +177,7 @@
       else if (tab === 'tokens') renderTokenCharts();
       else if (tab === 'tools') renderToolCharts();
       else if (tab === 'cost') renderCostCharts();
+      else if (tab === 'settings') loadConfig();
     });
   });
 
@@ -804,6 +886,423 @@
               {/if}
             </div>
           {/each}
+        {/if}
+      </section>
+
+    {:else if activeTab === 'settings'}
+      <section class="page">
+        <div class="page-header">
+          <span class="panel-label">SETTINGS</span>
+          {#if configMsg}
+            <span class="config-msg">{configMsg}</span>
+          {/if}
+        </div>
+        {#if configLoading}
+          <div class="empty">LOADING_CONFIG...</div>
+        {:else if configData}
+          <!-- Compaction -->
+          <div class="settings-section">
+            <div class="settings-header">
+              <span class="panel-label">CONTEXT_COMPACTION</span>
+              <button class="save-btn" onclick={() => saveConfig('compaction')} disabled={configSaving}>
+                {configSaving ? 'SAVING...' : 'SAVE'}
+              </button>
+            </div>
+            <div class="settings-fields">
+              <label class="field">
+                <span class="field-label">Auto Compact</span>
+                <input type="checkbox" bind:checked={configData.compaction.auto_compact} />
+              </label>
+              <label class="field">
+                <span class="field-label">Threshold</span>
+                <input type="number" class="field-input" bind:value={configData.compaction.threshold} min="0" max="1" step="0.05" />
+              </label>
+            </div>
+          </div>
+
+          <!-- Model Settings (per-model) -->
+          <div class="settings-section">
+            <div class="settings-header">
+              <span class="panel-label">MODEL_SETTINGS</span>
+              <button class="save-btn" onclick={() => saveConfig('model_settings')} disabled={configSaving}>
+                {configSaving ? 'SAVING...' : 'SAVE'}
+              </button>
+            </div>
+            {#if configData.model_settings && Object.keys(configData.model_settings).length > 0}
+              <table class="settings-table">
+                <thead>
+                  <tr>
+                    <th>MODEL</th>
+                    <th>MAX_CONTEXT_TOKENS</th>
+                    <th>COMPACTION_THRESHOLD</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each Object.entries(configData.model_settings) as [model, opts]}
+                    <tr>
+                      <td class="mono">{model}</td>
+                      <td><input type="number" class="field-input small" bind:value={opts.max_context_tokens} placeholder="null" /></td>
+                      <td><input type="number" class="field-input small" bind:value={opts.compaction_threshold} min="0" max="1" step="0.05" placeholder="null" /></td>
+                      <td><button class="remove-btn" onclick={() => removeModelSetting(model)}>×</button></td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            {:else}
+              <div class="settings-note">No per-model overrides configured.</div>
+            {/if}
+            <div class="add-row">
+              <input type="text" class="field-input" bind:value={newMapKey['model_settings']} placeholder="model identifier (e.g. claude-sonnet-4-20250514)" />
+              <button class="add-btn" onclick={addModelSetting}>+ ADD MODEL</button>
+            </div>
+          </div>
+
+          <!-- Provider Overrides -->
+          <div class="settings-section">
+            <div class="settings-header">
+              <span class="panel-label">PROVIDER_OVERRIDES</span>
+              <button class="save-btn" onclick={() => saveConfig('provider_overrides')} disabled={configSaving}>
+                {configSaving ? 'SAVING...' : 'SAVE'}
+              </button>
+            </div>
+            {#if configData.provider_overrides && Object.keys(configData.provider_overrides).length > 0}
+              {#each Object.entries(configData.provider_overrides) as [provKey, preset]}
+                <div class="field-group">
+                  <div class="field-group-header">
+                    <span class="field-label accent">{provKey}</span>
+                    <button class="remove-btn" onclick={() => { delete configData.provider_overrides[provKey]; configData = { ...configData }; }}>×</button>
+                  </div>
+                  <div class="settings-fields compact">
+                    <label class="field">
+                      <span class="field-label">Default Model</span>
+                      <input type="text" class="field-input" bind:value={preset.model} placeholder="model id" />
+                    </label>
+                  </div>
+                  {#if preset.model_tiers && Object.keys(preset.model_tiers).length > 0}
+                    <div class="tier-list">
+                      <span class="field-label sub">Model Tiers</span>
+                      {#each Object.entries(preset.model_tiers) as [tier, tierModel]}
+                        <div class="field sub-field">
+                          <input type="text" class="field-input tiny" bind:value={preset.model_tiers[tier]} />
+                          <span class="tier-name mono">{tier}</span>
+                          <button class="remove-btn" onclick={() => { delete preset.model_tiers[tier]; configData = { ...configData }; }}>×</button>
+                        </div>
+                      {/each}
+                    </div>
+                  {/if}
+                  <div class="add-row compact">
+                    <input type="text" class="field-input tiny" bind:value={newMapKey[`tier_${provKey}`]} placeholder="tier name (e.g. opus, sonnet, haiku)" />
+                    <button class="add-btn" onclick={() => addTier(provKey)}>+ TIER</button>
+                  </div>
+                </div>
+              {/each}
+            {:else}
+              <div class="settings-note">No provider overrides configured.</div>
+            {/if}
+            <div class="add-row">
+              <input type="text" class="field-input" bind:value={newMapKey['provider_overrides']} placeholder="provider name (e.g. anthropic, zai)" />
+              <button class="add-btn" onclick={() => addMapEntry(configData.provider_overrides || (configData.provider_overrides = {}), 'provider_overrides', { model: '', model_tiers: {} })}>+ ADD PROVIDER</button>
+            </div>
+          </div>
+
+          <!-- OpenRouter Aliases -->
+          <div class="settings-section">
+            <div class="settings-header">
+              <span class="panel-label">OPENROUTER_ALIASES</span>
+              <button class="save-btn" onclick={() => saveConfig('openrouter_aliases')} disabled={configSaving}>
+                {configSaving ? 'SAVING...' : 'SAVE'}
+              </button>
+            </div>
+            {#if configData.openrouter_aliases && Object.keys(configData.openrouter_aliases).length > 0}
+              <table class="settings-table">
+                <thead>
+                  <tr><th>ALIAS</th><th>MODEL_ID</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {#each Object.entries(configData.openrouter_aliases) as [alias, modelId]}
+                    <tr>
+                      <td class="mono">{alias}</td>
+                      <td><input type="text" class="field-input" bind:value={configData.openrouter_aliases[alias]} /></td>
+                      <td><button class="remove-btn" onclick={() => { delete configData.openrouter_aliases[alias]; configData = { ...configData }; }}>×</button></td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            {:else}
+              <div class="settings-note">No OpenRouter aliases configured.</div>
+            {/if}
+            <div class="add-row">
+              <input type="text" class="field-input" bind:value={newMapKey['openrouter_aliases']} placeholder="alias name" />
+              <button class="add-btn" onclick={() => addMapEntry(configData.openrouter_aliases || (configData.openrouter_aliases = {}), 'openrouter_aliases')}>+ ADD ALIAS</button>
+            </div>
+          </div>
+
+          <!-- Custom Providers -->
+          <div class="settings-section">
+            <div class="settings-header">
+              <span class="panel-label">CUSTOM_PROVIDERS</span>
+              <button class="save-btn" onclick={() => saveConfig('custom_providers')} disabled={configSaving}>
+                {configSaving ? 'SAVING...' : 'SAVE'}
+              </button>
+            </div>
+            {#if configData.custom_providers && Object.keys(configData.custom_providers).length > 0}
+              {#each Object.entries(configData.custom_providers) as [provKey, prov]}
+                <div class="field-group">
+                  <div class="field-group-header">
+                    <span class="field-label accent">{provKey}</span>
+                    <button class="remove-btn" onclick={() => { delete configData.custom_providers[provKey]; configData = { ...configData }; }}>×</button>
+                  </div>
+                  <div class="settings-fields compact">
+                    <label class="field"><span class="field-label">Display Name</span><input type="text" class="field-input" bind:value={prov.display_name} /></label>
+                    <label class="field"><span class="field-label">Base URL</span><input type="text" class="field-input" bind:value={prov.base_url} placeholder="https://api.example.com/v1" /></label>
+                    <label class="field"><span class="field-label">API Key Env</span><input type="text" class="field-input" bind:value={prov.api_key_env} placeholder="MY_API_KEY" /></label>
+                    <label class="field"><span class="field-label">Default Model</span><input type="text" class="field-input" bind:value={prov.default_model} /></label>
+                  </div>
+                </div>
+              {/each}
+            {:else}
+              <div class="settings-note">No custom providers configured.</div>
+            {/if}
+            <div class="add-row">
+              <input type="text" class="field-input" bind:value={newMapKey['custom_providers']} placeholder="provider name" />
+              <button class="add-btn" onclick={addCustomProvider}>+ ADD PROVIDER</button>
+            </div>
+          </div>
+
+          <!-- Channel: General -->
+          <div class="settings-section">
+            <div class="settings-header">
+              <span class="panel-label">CHANNEL_GENERAL</span>
+              <button class="save-btn" onclick={() => saveConfig('channel')} disabled={configSaving}>
+                {configSaving ? 'SAVING...' : 'SAVE'}
+              </button>
+            </div>
+            <div class="settings-fields">
+              <label class="field">
+                <span class="field-label">Enabled Platforms</span>
+                <input type="text" class="field-input" value={configData.channel.enabled_platforms?.join(', ') ?? ''} oninput={e => { configData.channel.enabled_platforms = e.target.value.split(',').map(s => s.trim()).filter(Boolean); }} placeholder="telegram, slack, discord" />
+              </label>
+              <label class="field">
+                <span class="field-label">Listen Address</span>
+                <input type="text" class="field-input" bind:value={configData.channel.listen_addr} placeholder="127.0.0.1:3456" />
+              </label>
+              <label class="field">
+                <span class="field-label">Max Concurrent Sessions</span>
+                <input type="number" class="field-input" bind:value={configData.channel.max_concurrent_sessions} min="0" />
+              </label>
+              <label class="field">
+                <span class="field-label">Stream Timeout (secs)</span>
+                <input type="number" class="field-input" bind:value={configData.channel.stream_timeout_secs} min="60" />
+              </label>
+            </div>
+          </div>
+
+          <!-- Channel: Profiles -->
+          <div class="settings-section">
+            <div class="settings-header">
+              <span class="panel-label">CHANNEL_PROFILES</span>
+              <button class="save-btn" onclick={() => saveConfig('channel')} disabled={configSaving}>
+                {configSaving ? 'SAVING...' : 'SAVE'}
+              </button>
+            </div>
+            <div class="settings-fields">
+              <label class="field">
+                <span class="field-label">Default Profile</span>
+                <input type="text" class="field-input" bind:value={configData.channel.default_profile} placeholder="Provider profile name" />
+              </label>
+            </div>
+            {#if configData.channel.platform_profiles && Object.keys(configData.channel.platform_profiles).length > 0}
+              <div class="settings-fields compact">
+                <span class="field-label sub">Platform Profiles</span>
+                {#each Object.entries(configData.channel.platform_profiles) as [platform, profile]}
+                  <div class="field sub-field">
+                    <span class="mono key-col">{platform}</span>
+                    <input type="text" class="field-input" bind:value={configData.channel.platform_profiles[platform]} />
+                    <button class="remove-btn" onclick={() => { delete configData.channel.platform_profiles[platform]; configData = { ...configData }; }}>×</button>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+            <div class="add-row compact">
+              <input type="text" class="field-input tiny" bind:value={newMapKey['platform_profiles']} placeholder="platform (telegram/slack/discord)" />
+              <button class="add-btn" onclick={() => addMapEntry(configData.channel.platform_profiles || (configData.channel.platform_profiles = {}), 'platform_profiles')}>+ PLATFORM</button>
+            </div>
+            {#if configData.channel.channel_profiles && Object.keys(configData.channel.channel_profiles).length > 0}
+              <div class="settings-fields compact">
+                <span class="field-label sub">Channel Profiles (platform:channel_id → profile)</span>
+                {#each Object.entries(configData.channel.channel_profiles) as [ch, profile]}
+                  <div class="field sub-field">
+                    <span class="mono key-col">{ch}</span>
+                    <input type="text" class="field-input" bind:value={configData.channel.channel_profiles[ch]} />
+                    <button class="remove-btn" onclick={() => { delete configData.channel.channel_profiles[ch]; configData = { ...configData }; }}>×</button>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+            <div class="add-row compact">
+              <input type="text" class="field-input tiny" bind:value={newMapKey['channel_profiles']} placeholder="platform:channel_id" />
+              <button class="add-btn" onclick={() => addMapEntry(configData.channel.channel_profiles || (configData.channel.channel_profiles = {}), 'channel_profiles')}>+ CHANNEL</button>
+            </div>
+          </div>
+
+          <!-- Channel: Modes -->
+          <div class="settings-section">
+            <div class="settings-header">
+              <span class="panel-label">CHANNEL_MODES</span>
+              <button class="save-btn" onclick={() => saveConfig('channel')} disabled={configSaving}>
+                {configSaving ? 'SAVING...' : 'SAVE'}
+              </button>
+            </div>
+            <div class="settings-fields">
+              <label class="field">
+                <span class="field-label">Default Mode</span>
+                <input type="text" class="field-input" bind:value={configData.channel.default_mode} placeholder="Mode name (from ~/.claudy/modes/)" />
+              </label>
+            </div>
+            {#if configData.channel.platform_modes && Object.keys(configData.channel.platform_modes).length > 0}
+              <div class="settings-fields compact">
+                <span class="field-label sub">Platform Mode Overrides</span>
+                {#each Object.entries(configData.channel.platform_modes) as [platform, mode]}
+                  <div class="field sub-field">
+                    <span class="mono key-col">{platform}</span>
+                    <input type="text" class="field-input" bind:value={configData.channel.platform_modes[platform]} />
+                    <button class="remove-btn" onclick={() => { delete configData.channel.platform_modes[platform]; configData = { ...configData }; }}>×</button>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+            <div class="add-row compact">
+              <input type="text" class="field-input tiny" bind:value={newMapKey['platform_modes']} placeholder="platform" />
+              <button class="add-btn" onclick={() => addMapEntry(configData.channel.platform_modes || (configData.channel.platform_modes = {}), 'platform_modes')}>+ PLATFORM</button>
+            </div>
+            {#if configData.channel.channel_modes && Object.keys(configData.channel.channel_modes).length > 0}
+              <div class="settings-fields compact">
+                <span class="field-label sub">Channel Mode Overrides (platform:channel_id → mode)</span>
+                {#each Object.entries(configData.channel.channel_modes) as [ch, mode]}
+                  <div class="field sub-field">
+                    <span class="mono key-col">{ch}</span>
+                    <input type="text" class="field-input" bind:value={configData.channel.channel_modes[ch]} />
+                    <button class="remove-btn" onclick={() => { delete configData.channel.channel_modes[ch]; configData = { ...configData }; }}>×</button>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+            <div class="add-row compact">
+              <input type="text" class="field-input tiny" bind:value={newMapKey['channel_modes']} placeholder="platform:channel_id" />
+              <button class="add-btn" onclick={() => addMapEntry(configData.channel.channel_modes || (configData.channel.channel_modes = {}), 'channel_modes')}>+ CHANNEL</button>
+            </div>
+          </div>
+
+          <!-- Channel: Projects -->
+          <div class="settings-section">
+            <div class="settings-header">
+              <span class="panel-label">CHANNEL_PROJECTS</span>
+              <button class="save-btn" onclick={() => saveConfig('channel')} disabled={configSaving}>
+                {configSaving ? 'SAVING...' : 'SAVE'}
+              </button>
+            </div>
+            <div class="settings-fields">
+              <label class="field">
+                <span class="field-label">Default Project</span>
+                <input type="text" class="field-input" bind:value={configData.channel.default_project} placeholder="Project directory path" />
+              </label>
+            </div>
+            {#if configData.channel.channel_projects && Object.keys(configData.channel.channel_projects).length > 0}
+              <div class="settings-fields compact">
+                <span class="field-label sub">Channel Project Overrides (platform:channel_id → path)</span>
+                {#each Object.entries(configData.channel.channel_projects) as [ch, proj]}
+                  <div class="field sub-field">
+                    <span class="mono key-col">{ch}</span>
+                    <input type="text" class="field-input" bind:value={configData.channel.channel_projects[ch]} />
+                    <button class="remove-btn" onclick={() => { delete configData.channel.channel_projects[ch]; configData = { ...configData }; }}>×</button>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+            <div class="add-row compact">
+              <input type="text" class="field-input tiny" bind:value={newMapKey['channel_projects']} placeholder="platform:channel_id" />
+              <button class="add-btn" onclick={() => addMapEntry(configData.channel.channel_projects || (configData.channel.channel_projects = {}), 'channel_projects')}>+ CHANNEL</button>
+            </div>
+          </div>
+
+          <!-- Channel: Access Control -->
+          <div class="settings-section">
+            <div class="settings-header">
+              <span class="panel-label">CHANNEL_ACCESS_CONTROL</span>
+              <button class="save-btn" onclick={() => saveConfig('channel')} disabled={configSaving}>
+                {configSaving ? 'SAVING...' : 'SAVE'}
+              </button>
+            </div>
+            <div class="settings-fields">
+              <label class="field">
+                <span class="field-label">Allowed Users (global)</span>
+                <input type="text" class="field-input" value={configData.channel.allowed_users?.join(', ') ?? ''} oninput={e => { configData.channel.allowed_users = e.target.value.split(',').map(s => s.trim()).filter(Boolean); }} placeholder="Comma-separated user IDs" />
+              </label>
+            </div>
+            {#if configData.channel.platform_allowed_users && Object.keys(configData.channel.platform_allowed_users).length > 0}
+              <div class="settings-fields compact">
+                <span class="field-label sub">Per-Platform Allowed Users</span>
+                {#each Object.entries(configData.channel.platform_allowed_users) as [platform, users]}
+                  <div class="field sub-field">
+                    <span class="mono key-col">{platform}</span>
+                    <input type="text" class="field-input" value={users?.join(', ') ?? ''} oninput={e => { configData.channel.platform_allowed_users[platform] = e.target.value.split(',').map(s => s.trim()).filter(Boolean); }} />
+                    <button class="remove-btn" onclick={() => { delete configData.channel.platform_allowed_users[platform]; configData = { ...configData }; }}>×</button>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+            <div class="add-row compact">
+              <input type="text" class="field-input tiny" bind:value={newMapKey['platform_allowed_users']} placeholder="platform" />
+              <button class="add-btn" onclick={() => { const key = newMapKey['platform_allowed_users']?.trim(); if (!key) return; if (!configData.channel.platform_allowed_users) configData.channel.platform_allowed_users = {}; configData.channel.platform_allowed_users[key] = []; newMapKey['platform_allowed_users'] = ''; configData = { ...configData }; }}>+ PLATFORM</button>
+            </div>
+          </div>
+
+          <!-- Agents -->
+          <div class="settings-section">
+            <div class="settings-header">
+              <span class="panel-label">AGENTS</span>
+              <button class="save-btn" onclick={() => saveConfig('agents')} disabled={configSaving}>
+                {configSaving ? 'SAVING...' : 'SAVE'}
+              </button>
+            </div>
+            {#if configData.agents && Object.keys(configData.agents).length > 0}
+              {#each Object.entries(configData.agents) as [name, agent]}
+                <div class="field-group">
+                  <div class="field-group-header">
+                    <span class="field-label accent">{name}</span>
+                    <button class="remove-btn" onclick={() => { delete configData.agents[name]; configData = { ...configData }; }}>×</button>
+                  </div>
+                  <div class="settings-fields compact">
+                    <label class="field">
+                      <span class="field-label">Binary</span>
+                      <input type="text" class="field-input" bind:value={agent.binary} />
+                    </label>
+                    <label class="field">
+                      <span class="field-label">Args</span>
+                      <input type="text" class="field-input" value={agent.args?.join(' ') ?? ''} oninput={e => { agent.args = e.target.value.split(' ').filter(Boolean); }} />
+                    </label>
+                    <label class="field">
+                      <span class="field-label">Description</span>
+                      <input type="text" class="field-input" bind:value={agent.description} placeholder="Optional description" />
+                    </label>
+                    <label class="field">
+                      <span class="field-label">Timeout (secs)</span>
+                      <input type="number" class="field-input" bind:value={agent.timeout} min="0" />
+                    </label>
+                  </div>
+                </div>
+              {/each}
+            {:else}
+              <div class="settings-note">No custom agents configured.</div>
+            {/if}
+            <div class="add-row">
+              <input type="text" class="field-input" bind:value={newMapKey['agents']} placeholder="agent name" />
+              <button class="add-btn" onclick={() => { const key = newMapKey['agents']?.trim(); if (!key) return; if (!configData.agents) configData.agents = {}; configData.agents[key] = { binary: '', args: [], description: '', timeout: null }; newMapKey['agents'] = ''; configData = { ...configData }; }}>+ ADD AGENT</button>
+            </div>
+          </div>
+        {:else}
+          <div class="empty">FAILED_TO_LOAD_CONFIG</div>
         {/if}
       </section>
     {/if}
@@ -1547,5 +2046,257 @@
     letter-spacing: 0.05em;
     text-align: center;
     padding: 80px 0;
+  }
+
+  /* Settings */
+  .settings-section {
+    border: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+
+  .settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-lowest);
+  }
+
+  .settings-fields {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .field {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .field-label {
+    font-family: var(--font-data);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--outline);
+    min-width: 180px;
+    flex-shrink: 0;
+  }
+
+  .field-label.accent {
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .field-input {
+    flex: 1;
+    background: var(--surface-lowest);
+    border: 1px solid var(--border);
+    color: var(--on-surface);
+    font-family: var(--font-data);
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 0;
+    outline: none;
+    transition: border-color 75ms ease-out;
+  }
+
+  .field-input:focus {
+    border-color: var(--accent);
+  }
+
+  input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .field-group {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .field-group:last-child {
+    border-bottom: none;
+  }
+
+  .field-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-data);
+    font-size: 12px;
+    color: var(--on-surface-variant);
+  }
+
+  .field-sep {
+    color: var(--outline-variant);
+  }
+
+  .settings-note {
+    padding: 12px 16px;
+    font-family: var(--font-data);
+    font-size: 11px;
+    color: var(--outline-variant);
+    letter-spacing: 0.03em;
+  }
+
+  .save-btn {
+    font-family: var(--font-data);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 4px 16px;
+    cursor: pointer;
+    border-radius: 0;
+    transition: opacity 75ms ease-out;
+  }
+
+  .save-btn:hover { opacity: 0.85; }
+  .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .config-msg {
+    font-family: var(--font-data);
+    font-size: 11px;
+    color: var(--positive);
+    letter-spacing: 0.03em;
+  }
+
+  .settings-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .settings-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-family: var(--font-data);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--outline-variant);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .settings-table td {
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+
+  .settings-table tr:hover td {
+    background: var(--accent-dim);
+  }
+
+  .field-input.small { max-width: 160px; }
+  .field-input.tiny { max-width: 200px; }
+
+  .remove-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--outline-variant);
+    font-size: 14px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 0;
+    transition: all 75ms ease-out;
+    flex-shrink: 0;
+    padding: 0;
+  }
+
+  .remove-btn:hover {
+    border-color: var(--critical);
+    color: var(--critical);
+    background: rgba(220, 47, 2, 0.06);
+  }
+
+  .add-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .add-row.compact {
+    border-top: none;
+    padding: 4px 16px 12px;
+  }
+
+  .add-btn {
+    font-family: var(--font-data);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 4px 12px;
+    cursor: pointer;
+    border-radius: 0;
+    white-space: nowrap;
+    transition: all 75ms ease-out;
+  }
+
+  .add-btn:hover {
+    background: var(--accent);
+    color: white;
+  }
+
+  .field-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px 4px;
+  }
+
+  .settings-fields.compact {
+    padding: 8px 16px;
+    gap: 8px;
+  }
+
+  .field-label.sub {
+    font-size: 10px;
+    color: var(--outline);
+    padding: 4px 16px 0;
+    display: block;
+  }
+
+  .field.sub-field {
+    gap: 8px;
+    padding: 0 16px;
+  }
+
+  .key-col {
+    min-width: 140px;
+    font-size: 11px;
+    color: var(--accent);
+  }
+
+  .tier-list {
+    padding: 0 16px;
+  }
+
+  .tier-name {
+    font-size: 10px;
+    color: var(--outline);
+    min-width: 60px;
   }
 </style>

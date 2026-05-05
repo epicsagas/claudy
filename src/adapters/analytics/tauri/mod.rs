@@ -16,6 +16,8 @@ pub fn launch_dashboard(_paths: &AppPaths) -> anyhow::Result<i32> {
                 commands::trigger_ingestion,
                 commands::get_model_comparison,
                 commands::get_projects,
+                commands::get_config,
+                commands::update_config,
             ])
             .run(tauri::generate_context!("tauri.conf.json"))
             .map_err(|e| anyhow::anyhow!("dashboard error: {}", e))?;
