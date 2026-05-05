@@ -40,124 +40,34 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
 
 <img src="docs/assets/features-2048.png" alt="Why Claudy" width="100%" />
 
-> **Automated setup?** See [Configuration](#configuration) for non-interactive setup via `secrets.env` and `config.yaml` — no TTY required.
-
-## Why Claudy
-
-- **Multi-provider launch**: switch across built-in, Z.AI, OpenRouter alias, Ollama and custom Anthropic-compatible endpoints.
-- **Config modes**: isolate Claude configuration (`CLAUDE.md`, `settings.json`, skills/plugins/agents) per mode.
-- **Provider profile resolution**: unify built-in providers, custom providers, and OpenRouter aliases.
-- **Safe process behavior**: forwards SIGINT/SIGTERM to child Claude process.
-- **Operational UX**: install/update/uninstall commands, status checks, and connectivity tests.
-- **Optional channel bridge**: run a local bot bridge for Telegram, Slack, and Discord with interactive permission prompts.
-- **Agent MCP bridge**: delegate tasks from Claude Code to other local AI agents (Gemini, Codex, Aider, etc.) via MCP.
-- **Usage analytics**: ingest session data from `~/.claude/projects/`, track token usage and costs per session/project, view a local dashboard with recommendations.
-
-## Supported Providers
-
-> Claudy was inspired by [Clother](https://github.com/jolehuit/clother), a Go-based multi-provider launcher for Claude CLI. Z.AI has been the most thoroughly tested provider. If you run into any issues with other providers, please [open an issue](https://github.com/epicsagas/claudy/issues).
-
-| Provider | Status | Notes |
-|---|---|---|
-| Built-in (Anthropic) | ✅ Tested | Default |
-| Z.AI | ✅ Tested | |
-| OpenRouter alias | ⚠️ Experimental | Not fully tested — report issues on GitHub |
-| Ollama | ⚠️ Experimental | Not fully tested — report issues on GitHub |
-| Custom endpoint | ⚠️ Experimental | Not fully tested — report issues on GitHub |
-
-## Requirements
-
-- macOS or Linux (Windows not supported)
-- **Pre-built binary**: no additional toolchain needed
-- **Build from source**: Rust 1.92+ (`rustup update stable`), Node.js 18+ (for analytics dashboard build)
-- Claude CLI installed and available in `PATH` (`which claude` to verify)
-- **Linux build from source** only: `libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf`
-
-## Installation
-
-### Install from crates.io
-
-**Pre-built binary (fast, no compilation)**
-
-```
-cargo install cargo-binstall
-cargo binstall claudy
-```
-
-**Any platform — build from source**
-
-```
-cargo install claudy
-```
-
-**MacOS homebrew**
+## Install & Configure
 
 ```bash
-brew tap epicsagas/tap
-brew install claudy
-```
+# ── Install ──────────────────────────────────────────────
+# Binary (recommended, no compilation):
+cargo install cargo-binstall && cargo binstall claudy
 
-### Install from local source
+# Or build from source (requires Rust 1.92+, Node.js 18+):
+# cargo install claudy
 
-```bash
-git clone https://github.com/epicsagas/claudy.git
-cd claudy
-cargo install --path .
-```
+# Or Homebrew (macOS):
+# brew tap epicsagas/tap && brew install claudy
 
-### Verify
-
-```bash
-claudy --version     # Confirm installation
-claudy doctor        # Check version, paths, and profile status
-```
-
-> If `claudy` is not found after install, ensure the install directory (`~/bin` on macOS, `~/.local/bin` on Linux) is on your `PATH`. Restart your shell or run `source ~/.zshrc` (or `~/.bashrc`).
-
-## Quick Start
-
-<img src="docs/assets/demo.gif" alt="Quick Start" width="100%" />
-
-```bash
-# 1) List available/resolved profiles
-claudy ls
-
-# 2) Configure credentials interactively
-claudy setup
-
-# 3) Check one profile's details
-claudy show <profile>
-
-# 4) Run Claude with a profile
-claudy <profile> [claude-args...]
-```
-
-## Configuration
-
-### Interactive setup
-
-```bash
-claudy setup        # Guided provider and credential setup
-```
-
-### Non-interactive setup (CI/automation/agents)
-
-Write credentials directly to `~/.claudy/secrets.env`:
-
-```bash
+# ── Configure (non-interactive) ──────────────────────────
+# Pick a provider and set your API key:
 mkdir -p ~/.claudy
-echo 'ZAI_API_KEY=<your-api-key>' > ~/.claudy/secrets.env
+echo 'ZAI_API_KEY=your-key-here' > ~/.claudy/secrets.env
 chmod 600 ~/.claudy/secrets.env
+
+# ── Verify ───────────────────────────────────────────────
+claudy --version && claudy doctor
+
+# ── Launch ───────────────────────────────────────────────
+claudy zai              # or: claudy deepseek, claudy native, claudy or <alias>
 ```
 
-Or set the environment variable before running claudy:
-
-```bash
-export ZAI_API_KEY=<your-api-key>
-claudy zai
-```
-
-### Provider credentials (`secrets.env`)
+<details>
+<summary>Other provider keys</summary>
 
 | Variable | Provider |
 |---|---|
@@ -174,9 +84,10 @@ claudy zai
 | `ALIBABA_API_KEY` | Alibaba Coding Plan |
 | `OPENROUTER_API_KEY` | OpenRouter (all aliases) |
 
-Custom providers use the `api_key_env` variable defined in their `custom_providers` entry.
+</details>
 
-### `config.yaml` schema
+<details>
+<summary>Advanced config.yaml (custom providers, model tiers, channels, agents)</summary>
 
 All configuration lives in `~/.claudy/config.yaml`. Only add the sections you need — defaults are used for anything omitted.
 
@@ -219,57 +130,66 @@ model_settings:
 # Channel bridge (optional) — non-interactive alternative to `claudy channel add`
 channel:
   enabled_platforms: ["telegram"]
-  listen_addr: "127.0.0.1:3456"        # default: 127.0.0.1:3456
-  default_profile: "zai"               # profile for all platforms
-  platform_profiles:                    # per-platform profile override
+  listen_addr: "127.0.0.1:3456"
+  default_profile: "zai"
+  platform_profiles:
     telegram: "zai"
     discord: "deepseek"
-  channel_profiles:                     # per-channel profile override
+  channel_profiles:
     "telegram:12345": "kimi"
-    "discord:guild1:ch1": "alibaba"
-  default_mode: ""                      # mode for all platforms
-  platform_modes:                       # per-platform mode override
+  default_mode: ""
+  platform_modes:
     telegram: "concise"
-  channel_modes:                        # per-channel mode override
-    "telegram:12345": "concise"
-  default_project: ""                   # project directory for all platforms
-  channel_projects:                     # per-channel project override
-    "slack:T123:C456": "/home/user/proj"
-  allowed_users: []                     # global allowed users
-  platform_allowed_users:               # per-platform allowed users
-    telegram: ["user_id_1", "user_id_2"]
-    discord: ["discord_user_1"]
-  max_concurrent_sessions: 0            # 0 = unlimited
-  stream_timeout_secs: 1800             # default: 1800 (30 min)
+  allowed_users: []
+  platform_allowed_users:
+    telegram: ["user_id_1"]
+  max_concurrent_sessions: 0           # 0 = unlimited
+  stream_timeout_secs: 1800
 
 # Agent overrides — override built-in agent binary, args, or timeout
 agents:
   aider:
     binary: "aider"
-    args: ["--message", "{prompt}"]    # {prompt} replaced with task
-    timeout: 300                       # seconds
+    args: ["--message", "{prompt}"]
+    timeout: 300
 ```
 
-### Built-in providers
+Channel secrets go in `~/.claudy/secrets.env`:
+```env
+TELEGRAM_BOT_TOKEN=...
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_SIGNING_SECRET=...
+DISCORD_BOT_TOKEN=...
+DISCORD_APPLICATION_ID=...
+DISCORD_PUBLIC_KEY=...
+```
 
-| ID | Display Name | `key_var` |
+</details>
+
+---
+
+## Why Claudy
+
+- **Multi-provider launch**: switch across built-in, Z.AI, OpenRouter alias, Ollama and custom Anthropic-compatible endpoints.
+- **Config modes**: isolate Claude configuration (`CLAUDE.md`, `settings.json`, skills/plugins/agents) per mode.
+- **Provider profile resolution**: unify built-in providers, custom providers, and OpenRouter aliases.
+- **Safe process behavior**: forwards SIGINT/SIGTERM to child Claude process.
+- **Operational UX**: install/update/uninstall commands, status checks, and connectivity tests.
+- **Optional channel bridge**: run a local bot bridge for Telegram, Slack, and Discord with interactive permission prompts.
+- **Agent MCP bridge**: delegate tasks from Claude Code to other local AI agents (Gemini, Codex, Aider, etc.) via MCP.
+- **Usage analytics**: ingest session data from `~/.claude/projects/`, track token usage and costs per session/project, view a local dashboard with recommendations.
+
+## Supported Providers
+
+> Claudy was inspired by [Clother](https://github.com/jolehuit/clother), a Go-based multi-provider launcher for Claude CLI. Z.AI has been the most thoroughly tested provider. If you run into any issues with other providers, please [open an issue](https://github.com/epicsagas/claudy/issues).
+
+| Provider | Status | Notes |
 |---|---|---|
-| `native` | Anthropic | *(auto-detected)* |
-| `zai` | Z.AI | `ZAI_API_KEY` |
-| `zai-cn` | Z.AI China | `ZAI_CN_API_KEY` |
-| `minimax` | MiniMax | `MINIMAX_API_KEY` |
-| `minimax-cn` | MiniMax China | `MINIMAX_CN_API_KEY` |
-| `kimi` | Kimi K2 | `KIMI_API_KEY` |
-| `moonshot` | Moonshot AI | `MOONSHOT_API_KEY` |
-| `ve` | VolcEngine | `ARK_API_KEY` |
-| `deepseek` | DeepSeek | `DEEPSEEK_API_KEY` |
-| `mimo` | Xiaomi MiMo | `MIMO_API_KEY` |
-| `alibaba` | Alibaba (SG) | `ALIBABA_API_KEY` |
-| `alibaba-us` | Alibaba (US) | `ALIBABA_API_KEY` |
-| `alibaba-cn` | Alibaba (CN) | `ALIBABA_API_KEY` |
-| `ollama` | Ollama (local) | *(none)* |
-| `lmstudio` | LM Studio (local) | *(none)* |
-| `llamacpp` | llama.cpp (local) | *(none)* |
+| Built-in (Anthropic) | ✅ Tested | Default |
+| Z.AI | ✅ Tested | |
+| OpenRouter alias | ⚠️ Experimental | Not fully tested — report issues on GitHub |
+| Ollama | ⚠️ Experimental | Not fully tested — report issues on GitHub |
+| Custom endpoint | ⚠️ Experimental | Not fully tested — report issues on GitHub |
 
 ## Core Concepts
 
