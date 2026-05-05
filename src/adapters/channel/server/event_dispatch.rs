@@ -8,6 +8,200 @@ use crate::domain::channel_events::{
 use super::{AppState, THINKING_MESSAGES, TypingGuard, spawn_process_event};
 use crate::adapters::channel::state::scope_key;
 
+/// Validate a stored session ID by checking if the session file still exists on disk.
+/// Clears stale session state and returns `None` if the file is missing.
+async fn validate_resume_session(
+    state: &Arc<AppState>,
+    scope: &str,
+    session_id: Option<String>,
+) -> Option<String> {
+    let sid = session_id?;
+    let projects_dir = crate::adapters::channel::sessions::claude_projects_dir();
+    let found = projects_dir
+        .as_ref()
+        .is_some_and(|dir| crate::adapters::channel::sessions::session_file_exists(dir, &sid));
+    if !found {
+        tracing::info!(session_id = %sid, "Stored session not found on disk, starting fresh");
+        let mut cs = state.channel_state.write().await;
+        cs.clear_session(scope);
+        if let Err(e) = cs.save() {
+            tracing::error!(error = %e, "Failed to persist cleared session state");
+        }
+        None
+    } else {
+        Some(sid)
+    }
+}
+
+/// Start a Claude subprocess, register its PID for cancellation, and spawn a stderr monitor.
+async fn start_claude_and_track(
+    state: &Arc<AppState>,
+    scope: &str,
+    config: &crate::adapters::channel::claude_process::SessionConfig<'_>,
+) -> anyhow::Result<crate::adapters::channel::claude_process::ClaudeProcess> {
+    let mut claude = crate::adapters::channel::claude_process::start_claude_session(
+        &state.paths,
+        &state.config,
+        &state.secrets,
+        &state.catalog,
+        config,
+    )?;
+
+    // Store child PID for /cancel
+    if let Some(pid) = claude.child_id() {
+        state
+            .active_claude
+            .lock()
+            .await
+            .insert(scope.to_string(), pid);
+    }
+
+    // Spawn stderr reader to detect stale session errors
+    if let Some(stderr) = claude.take_stderr() {
+        let stderr_state = state.channel_state.clone();
+        let stderr_scope = scope.to_string();
+        tokio::spawn(async move {
+            use tokio::io::AsyncBufReadExt;
+            let mut reader = tokio::io::BufReader::new(stderr);
+            let mut line = String::new();
+            loop {
+                line.clear();
+                match reader.read_line(&mut line).await {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        let trimmed = line.trim();
+                        tracing::warn!(stderr = trimmed, "Claude stderr");
+                        if trimmed.contains("No conversation found with session ID") {
+                            tracing::info!("Clearing stale session due to Claude resume error");
+                            let mut cs = stderr_state.write().await;
+                            cs.clear_session(&stderr_scope);
+                            if let Err(e) = cs.save() {
+                                tracing::error!(error = %e, "Failed to clear stale session");
+                            }
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+    }
+
+    Ok(claude)
+}
+
+/// Process the streamed response: update message, handle interactive buttons,
+/// YOLO auto-continue, and capture session metadata.
+async fn process_stream_result(
+    state: &Arc<AppState>,
+    scope: &str,
+    channel: &dyn crate::ports::channel_ports::ChannelPort,
+    msg: &TextMessage,
+    delivery: &crate::domain::channel_events::MessageDelivery,
+    result: crate::adapters::channel::stream_handler::StreamResult,
+    yolo: bool,
+) -> anyhow::Result<()> {
+    // Clear active process for this scope
+    state.active_claude.lock().await.remove(scope);
+
+    if !result.has_content {
+        let _ = channel
+            .edit_message(&OutboundMessage {
+                conversation_id: msg.conversation_id.clone(),
+                channel: msg.channel.clone(),
+                text: "No response".to_string(),
+                message_ref: Some(delivery.platform_message_id.clone()),
+                interaction: None,
+            })
+            .await;
+    } else if !result.accumulated_text.is_empty() {
+        let analysis =
+            crate::adapters::channel::response_analyzer::analyze_response(&result.accumulated_text);
+        if analysis.needs_interaction {
+            let max_len = msg.channel.platform.max_message_length();
+            let text = crate::adapters::channel::stream_handler::truncate_message(
+                &result.accumulated_text,
+                max_len,
+            );
+            let _ = channel
+                .edit_message(&OutboundMessage {
+                    conversation_id: msg.conversation_id.clone(),
+                    channel: msg.channel.clone(),
+                    text,
+                    message_ref: Some(delivery.platform_message_id.clone()),
+                    interaction: Some(InteractionButtons {
+                        prompt_text: "Choose or type your response".into(),
+                        buttons: analysis.buttons,
+                    }),
+                })
+                .await;
+
+            if yolo
+                && crate::adapters::channel::response_analyzer::is_auto_continuable(
+                    &result.accumulated_text,
+                )
+            {
+                schedule_yolo_auto_continue(state, scope, &msg.channel, &msg.conversation_id);
+            }
+        }
+    }
+
+    if let Some(ref sid) = result.session_id {
+        let mut cs = state.channel_state.write().await;
+        cs.set_session_id(scope, sid);
+        if let Some(ref c) = result.cwd {
+            cs.set_working_dir(scope, c);
+        }
+        if let Some(ref b) = result.branch {
+            cs.set_branch(scope, b);
+        }
+        if let Some(ref m) = result.model {
+            cs.set_last_model(scope, m);
+        }
+        if result.input_tokens > 0 || result.output_tokens > 0 {
+            cs.add_tokens(scope, result.input_tokens, result.output_tokens);
+        }
+        if let Err(e) = cs.save() {
+            tracing::error!(error = %e, "Failed to persist session capture");
+        }
+        tracing::info!(session_id = %sid, cwd = ?result.cwd, "Session captured");
+    }
+
+    Ok(())
+}
+
+fn schedule_yolo_auto_continue(
+    state: &Arc<AppState>,
+    scope: &str,
+    channel_id: &ChannelIdentity,
+    conversation_id: &ConversationId,
+) {
+    let spawn_state = state.clone();
+    let ac_state = state.clone();
+    let channel_id = channel_id.clone();
+    let conversation_id = conversation_id.clone();
+    let scope = scope.to_string();
+    let handle = tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        tracing::info!("YOLO auto-continue: sending 'proceed'");
+        let synthetic = IncomingEvent::TextMessage(TextMessage {
+            conversation_id,
+            channel: channel_id,
+            text: "proceed".to_string(),
+            reply_to_id: None,
+        });
+        spawn_process_event(spawn_state, synthetic);
+    });
+    // Cancel old timer + store new one in a single lock scope
+    let ac_state_clone = ac_state.clone();
+    std::mem::drop(tokio::spawn(async move {
+        let mut ac = ac_state_clone.auto_continue.lock().await;
+        if let Some(h) = ac.remove(&scope) {
+            h.abort();
+        }
+        ac.insert(scope, handle);
+    }));
+}
+
 pub(super) async fn handle_text_message(
     state: &Arc<AppState>,
     msg: TextMessage,
@@ -25,20 +219,17 @@ pub(super) async fn handle_text_message(
     );
 
     // Reject if a Claude process is already running for this scope
-    {
-        let active = state.active_claude.lock().await;
-        if active.contains_key(&scope) {
-            let _ = channel
-                .send_message(&OutboundMessage {
-                    conversation_id: msg.conversation_id.clone(),
-                    channel: msg.channel.clone(),
-                    text: "Busy — type /cancel first, then retry.".to_string(),
-                    message_ref: None,
-                    interaction: None,
-                })
-                .await;
-            return Ok(());
-        }
+    if state.active_claude.lock().await.contains_key(&scope) {
+        let _ = channel
+            .send_message(&OutboundMessage {
+                conversation_id: msg.conversation_id.clone(),
+                channel: msg.channel.clone(),
+                text: "Busy — type /cancel first, then retry.".to_string(),
+                message_ref: None,
+                interaction: None,
+            })
+            .await;
+        return Ok(());
     }
 
     let profile = state.channel_config.profile_for_channel(
@@ -64,35 +255,11 @@ pub(super) async fn handle_text_message(
         (session, cwd, m, y)
     };
 
-    // Validate resume session exists before attempting
-    let resume_session = match resume_session {
-        Some(sid) => {
-            let projects_dir = crate::adapters::channel::sessions::claude_projects_dir();
-            let found = projects_dir.as_ref().is_some_and(|dir| {
-                crate::adapters::channel::sessions::session_file_exists(dir, &sid)
-            });
-            if !found {
-                tracing::info!(session_id = %sid, "Stored session not found on disk, starting fresh");
-                {
-                    let mut cs = state.channel_state.write().await;
-                    cs.clear_session(&scope);
-                    if let Err(e) = cs.save() {
-                        tracing::error!(error = %e, "Failed to persist cleared session state");
-                    }
-                }
-                None
-            } else {
-                Some(sid)
-            }
-        }
-        None => None,
-    };
+    let resume_session = validate_resume_session(state, &scope, resume_session).await;
 
-    let mut claude = match crate::adapters::channel::claude_process::start_claude_session(
-        &state.paths,
-        &state.config,
-        &state.secrets,
-        &state.catalog,
+    let mut claude = match start_claude_and_track(
+        state,
+        &scope,
         &crate::adapters::channel::claude_process::SessionConfig {
             profile: &profile,
             mode: mode.as_deref(),
@@ -101,7 +268,9 @@ pub(super) async fn handle_text_message(
             model: model.as_deref(),
             yolo,
         },
-    ) {
+    )
+    .await
+    {
         Ok(p) => p,
         Err(e) => {
             tracing::error!(error = %e, "Failed to start Claude session");
@@ -118,45 +287,6 @@ pub(super) async fn handle_text_message(
         }
     };
 
-    // Store child PID for /cancel
-    {
-        let mut active = state.active_claude.lock().await;
-        if let Some(pid) = claude.child_id() {
-            active.insert(scope.clone(), pid);
-        }
-    }
-
-    {
-        if let Some(stderr) = claude.take_stderr() {
-            let stderr_state = state.channel_state.clone();
-            let stderr_scope = scope.clone();
-            tokio::spawn(async move {
-                use tokio::io::AsyncBufReadExt;
-                let mut reader = tokio::io::BufReader::new(stderr);
-                let mut line = String::new();
-                loop {
-                    line.clear();
-                    match reader.read_line(&mut line).await {
-                        Ok(0) => break,
-                        Ok(_) => {
-                            let trimmed = line.trim();
-                            tracing::warn!(stderr = trimmed, "Claude stderr");
-                            if trimmed.contains("No conversation found with session ID") {
-                                tracing::info!("Clearing stale session due to Claude resume error");
-                                let mut cs = stderr_state.write().await;
-                                cs.clear_session(&stderr_scope);
-                                if let Err(e) = cs.save() {
-                                    tracing::error!(error = %e, "Failed to clear stale session");
-                                }
-                            }
-                        }
-                        Err(_) => break,
-                    }
-                }
-            });
-        }
-    }
-
     {
         use tokio::io::AsyncWriteExt;
         if let Some(mut stdin) = claude.take_stdin() {
@@ -164,8 +294,7 @@ pub(super) async fn handle_text_message(
             stdin.write_all(b"\n").await?;
             // Drop stdin to send EOF — Claude CLI --print mode waits for
             // stdin EOF before processing. Keeping it open causes an
-            // indefinite hang. Permission handling in non-yolo mode is
-            // addressed via --dangerously-skip-permissions instead.
+            // indefinite hang.
             drop(stdin);
         }
     }
@@ -180,131 +309,42 @@ pub(super) async fn handle_text_message(
         })
         .await?;
 
-    {
-        let stdout = claude.stdout();
-        let stream_result = crate::adapters::channel::stream_handler::stream_response(
-            stdout,
-            channel.as_ref(),
-            &msg.channel,
-            &delivery.platform_message_id,
-            state.channel_config.stream_timeout_secs,
-        )
-        .await;
+    let stdout = claude.stdout();
+    let stream_result = crate::adapters::channel::stream_handler::stream_response(
+        stdout,
+        channel.as_ref(),
+        &msg.channel,
+        &delivery.platform_message_id,
+        state.channel_config.stream_timeout_secs,
+    )
+    .await;
 
-        match stream_result {
-            Ok(result) => {
-                // Clear active process for this scope
-                {
-                    let mut active = state.active_claude.lock().await;
-                    active.remove(&scope);
-                }
-
-                if !result.has_content {
-                    let _ = channel
-                        .edit_message(&OutboundMessage {
-                            conversation_id: msg.conversation_id.clone(),
-                            channel: msg.channel.clone(),
-                            text: "No response".to_string(),
-                            message_ref: Some(delivery.platform_message_id.clone()),
-                            interaction: None,
-                        })
-                        .await;
-                } else if !result.accumulated_text.is_empty() {
-                    // Post-stream: analyze response and attach interactive buttons
-                    let analysis = crate::adapters::channel::response_analyzer::analyze_response(
-                        &result.accumulated_text,
-                    );
-                    if analysis.needs_interaction {
-                        let max_len = msg.channel.platform.max_message_length();
-                        let text = crate::adapters::channel::stream_handler::truncate_message(
-                            &result.accumulated_text,
-                            max_len,
-                        );
-                        let _ = channel
-                            .edit_message(&OutboundMessage {
-                                conversation_id: msg.conversation_id.clone(),
-                                channel: msg.channel.clone(),
-                                text,
-                                message_ref: Some(delivery.platform_message_id.clone()),
-                                interaction: Some(InteractionButtons {
-                                    prompt_text: "Choose or type your response".into(),
-                                    buttons: analysis.buttons,
-                                }),
-                            })
-                            .await;
-
-                        // YOLO auto-continue: if response needs interaction and pattern
-                        // matches, auto-send "proceed" after delay
-                        if yolo
-                            && crate::adapters::channel::response_analyzer::is_auto_continuable(
-                                &result.accumulated_text,
-                            )
-                        {
-                            let ac_state = state.clone();
-                            let spawn_state = ac_state.clone();
-                            let channel_id = msg.channel.clone();
-                            let conversation_id = msg.conversation_id.clone();
-                            let handle = tokio::spawn(async move {
-                                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-                                tracing::info!("YOLO auto-continue: sending 'proceed'");
-                                let synthetic = IncomingEvent::TextMessage(TextMessage {
-                                    conversation_id,
-                                    channel: channel_id,
-                                    text: "proceed".to_string(),
-                                    reply_to_id: None,
-                                });
-                                spawn_process_event(spawn_state, synthetic);
-                            });
-                            // Cancel old timer + store new one in a single lock scope
-                            {
-                                let mut ac = ac_state.auto_continue.lock().await;
-                                if let Some(h) = ac.remove(&scope) {
-                                    h.abort();
-                                }
-                                ac.insert(scope.clone(), handle);
-                            }
-                        }
-                    }
-                }
-
-                if let Some(ref sid) = result.session_id {
-                    let mut cs = state.channel_state.write().await;
-                    cs.set_session_id(&scope, sid);
-                    if let Some(ref c) = result.cwd {
-                        cs.set_working_dir(&scope, c);
-                    }
-                    if let Some(ref b) = result.branch {
-                        cs.set_branch(&scope, b);
-                    }
-                    if let Some(ref m) = result.model {
-                        cs.set_last_model(&scope, m);
-                    }
-                    if result.input_tokens > 0 || result.output_tokens > 0 {
-                        cs.add_tokens(&scope, result.input_tokens, result.output_tokens);
-                    }
-                    if let Err(e) = cs.save() {
-                        tracing::error!(error = %e, "Failed to persist session capture");
-                    }
-                    tracing::info!(session_id = %sid, cwd = ?result.cwd, "Session captured");
-                }
-            }
-            Err(e) => {
-                tracing::error!(error = %e, "Stream error");
-                {
-                    let mut active = state.active_claude.lock().await;
-                    active.remove(&scope);
-                }
-                let _ = channel
-                    .send_message(&OutboundMessage {
-                        conversation_id: msg.conversation_id.clone(),
-                        channel: msg.channel.clone(),
-                        text: format!("Error: {}", e),
-                        message_ref: None,
-                        interaction: None,
-                    })
-                    .await;
-                return Err(e);
-            }
+    match stream_result {
+        Ok(result) => {
+            process_stream_result(
+                state,
+                &scope,
+                channel.as_ref(),
+                &msg,
+                &delivery,
+                result,
+                yolo,
+            )
+            .await?;
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "Stream error");
+            state.active_claude.lock().await.remove(&scope);
+            let _ = channel
+                .send_message(&OutboundMessage {
+                    conversation_id: msg.conversation_id.clone(),
+                    channel: msg.channel.clone(),
+                    text: format!("Error: {}", e),
+                    message_ref: None,
+                    interaction: None,
+                })
+                .await;
+            return Err(e);
         }
     }
 
