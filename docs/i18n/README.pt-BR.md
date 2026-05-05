@@ -192,14 +192,15 @@ Regra de nome do Mode: `[a-z0-9][a-z0-9_-]*` (`mode` é reservado).
 ### Comandos de Channel (bridge opcional)
 
 ```bash
+claudy channel serve [--profile <profile>] [--listen <host:port>]
 claudy channel start [--profile <profile>] [--listen <host:port>]
 claudy channel stop
-claudy channel restart
+claudy channel restart [--profile <profile>] [--listen <host:port>]
 claudy channel status
 claudy channel add <telegram|slack|discord>
 claudy channel remove <telegram|slack|discord>
-claudy channel enable <telegram|slack|discord>
-claudy channel disable <telegram|slack|discord>
+claudy channel enable
+claudy channel disable
 ```
 
 `channel add` guia você pela configuração do token do bot, usuários permitidos, profile e mapeamento de Mode.
@@ -250,10 +251,12 @@ DISCORD_PUBLIC_KEY=...
 Execute `claudy mcp` para iniciar um servidor MCP baseado em stdio que permite ao Claude Code delegar tarefas para outros agentes de IA instalados localmente.
 
 ```bash
-claudy mcp
+claudy mcp run        # Iniciar o servidor MCP (chamado pelo Claude Code)
+claudy mcp install    # Registrar o claudy como servidor MCP nas configurações do Claude Code
+claudy mcp uninstall  # Remover o claudy das configurações MCP do Claude Code
 ```
 
-Na primeira execução, o claudy se registra automaticamente em `~/.claude/settings.json`. Ao criar um Mode com `claudy mode create <name>`, ele também se registra no arquivo de configuração do Mode. Nenhuma configuração manual é necessária.
+`claudy mcp install` registra automaticamente o claudy em `~/.claude/settings.json`. Ao criar um Mode com `claudy mode create <name>`, ele também se registra no arquivo de configuração do Mode. Nenhuma configuração manual é necessária.
 
 Para registrar manualmente (ou em um `.claude/settings.json` a nível de projeto):
 
@@ -293,7 +296,7 @@ O Claude Code seleciona o agente apropriado, passa o prompt e retorna o resultad
 cat ~/.claude/settings.json | grep -A3 claudy
 
 # Testar o servidor MCP manualmente
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp run
 ```
 
 #### Agentes suportados (detectados automaticamente pelo PATH)
@@ -356,7 +359,43 @@ claudy analytics insights          # Gerar resumo JSON compacto para análise LL
 claudy analytics insights --days 14  # Analisar os últimos 14 dias
 claudy analytics insights --from 2026-04-01 --to 2026-04-30  # Período específico
 claudy analytics insights --project my-project  # Filtrar por projeto
+claudy analytics sync-pricing      # Sincronizar preços de modelos do models.dev e da página de preços da Anthropic
+claudy analytics recalculate       # Recalcular todos os custos com os dados de preços mais recentes
 ```
+
+### Inside Claude Code: `/analytics-insights`
+
+A maneira mais rápida de analisar seu uso é diretamente dentro do Claude Code. A skill `analytics-insights` está disponível automaticamente — basta pedir naturalmente:
+
+```
+> /analytics-insights
+> /analytics-insights last 2 weeks
+> analyze my usage patterns
+> 사용 패턴 분석해줘
+```
+
+O Claude executa `claudy analytics insights`, analisa o JSON e retorna um relatório estruturado com:
+
+- **Tendências de custo** — gastos diários/semanais com detecção de picos
+- **Distribuição de modelos** — quais modelos você usa e quanto custam por sessão
+- **Padrões de ferramentas** — ferramentas mais usadas, taxas de erro, observações de eficiência
+- **Desempenho de cache** — proporção de acertos e economia estimada
+- **Recomendações acionáveis** — sugestões específicas como "rotear tarefas simples para turbo" com economia estimada em dólares
+
+Exemplo de saída (veja [`docs/examples/analytics-insights-sample.json`](docs/examples/analytics-insights-sample.json) para dados brutos):
+
+```
+#### Summary
+81 sessions, $481 total spend at an average of $68.7/day. Costs trending
+sharply upward — last 3 weekdays averaged $97/day.
+
+#### Recommendations
+1. Route simple tasks to glm-5-turbo — est. savings: ~$90/month
+2. Investigate $1.91/turn outlier session (6x average cost-per-turn)
+3. Reduce harness overhead — TaskCreate/Update accounted for ~1,000 calls
+```
+
+Sem comandos manuais, sem troca de contexto. Pergunte ao Claude sobre seu uso e receba respostas instantaneamente.
 
 O Analytics rastreia:
 
@@ -364,7 +403,6 @@ O Analytics rastreia:
 - **Tools**: Análise de distribuição mostrando quais ferramentas o Claude usa com mais frequência, incluindo contagens de chamadas, taxas de erro e tempo médio de execução.
 - **Custo**: Estimativa em tempo real dos custos de uso com base nos preços reais de tokens, incluindo previsões diárias/semanais/mensais e detecção de tendências (crescente/estável/decrescente).
 - **Dicas (Recomendações)**: Conselhos de otimização baseados em dados, como detecção de sessões de alto custo, sugestão do Haiku para tarefas simples e identificação de conversas longas que poderiam se beneficiar da sumarização de contexto.
-- **Insights (LLM)**: Resumo de uso compacto em formato JSON otimizado para análise LLM. Combina tendências de custos, distribuição de modelos, padrões de ferramentas, eficiência de cache e sessões notáveis em uma única carga (~2-3K tokens). Utilizável através da habilidade `analytics-insights` do Claude Code com linguagem natural — o Claude gera recomendações personalizadas.
 - **Projetos**: Mapeia automaticamente UUIDs crípticos de sessão para nomes de pastas de projetos legíveis por humanos para melhor contexto.
 
 Os dados são armazenados em um banco de dados SQLite local em `~/.claudy/analytics/`. O dashboard é executado como um aplicativo local de alto desempenho com Tauri 2 + Svelte. Use o botão **[Sync]** no dashboard para atualizar instantaneamente os dados do seu histórico do Claude CLI.

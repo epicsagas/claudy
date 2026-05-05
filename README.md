@@ -195,14 +195,15 @@ Mode name rule: `[a-z0-9][a-z0-9_-]*` (`mode` is reserved).
 ### Channel commands (optional bridge)
 
 ```bash
+claudy channel serve [--profile <profile>] [--listen <host:port>]
 claudy channel start [--profile <profile>] [--listen <host:port>]
 claudy channel stop
-claudy channel restart
+claudy channel restart [--profile <profile>] [--listen <host:port>]
 claudy channel status
 claudy channel add <telegram|slack|discord>
 claudy channel remove <telegram|slack|discord>
-claudy channel enable <telegram|slack|discord>
-claudy channel disable <telegram|slack|discord>
+claudy channel enable
+claudy channel disable
 ```
 
 `channel add` guides you through bot token, allowed users, profile, and mode mapping.
@@ -255,10 +256,12 @@ DISCORD_PUBLIC_KEY=...
 Run `claudy mcp` to start a stdio-based MCP server that lets Claude Code delegate tasks to other locally installed AI coding agents.
 
 ```bash
-claudy mcp
+claudy mcp run        # Start the MCP server (called by Claude Code)
+claudy mcp install    # Register claudy as an MCP server in Claude Code settings
+claudy mcp uninstall  # Remove claudy from Claude Code MCP settings
 ```
 
-On first run, claudy automatically registers itself in `~/.claude/settings.json`. When you create a mode with `claudy mode create <name>`, it also registers in the mode's settings file. No manual configuration needed.
+`claudy mcp install` automatically registers itself in `~/.claude/settings.json`. When you create a mode with `claudy mode create <name>`, it also registers in the mode's settings file. No manual configuration needed.
 
 To register manually (or in a project-level `.claude/settings.json`):
 
@@ -298,7 +301,7 @@ Claude Code selects the appropriate agent, passes the prompt, and returns the re
 cat ~/.claude/settings.json | grep -A3 claudy
 
 # Test the MCP server manually
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp run
 ```
 
 #### Supported agents (auto-detected from PATH)
@@ -357,6 +360,8 @@ claudy analytics ingest --project my-project  # Ingest specific project
 claudy analytics recommend         # Show usage recommendations in CLI
 claudy analytics export            # Export analytics data (JSON, default 30 days)
 claudy analytics export --format csv --days 7  # Export as CSV for last 7 days
+claudy analytics sync-pricing      # Sync model pricing from models.dev and Anthropic pricing page
+claudy analytics recalculate       # Recalculate all costs using the latest pricing data
 claudy analytics insights          # Generate compact JSON insights summary (default: 7 days)
 claudy analytics insights --days 14  # Analyze last 14 days
 claudy analytics insights --from 2026-04-01 --to 2026-04-30  # Specific date range

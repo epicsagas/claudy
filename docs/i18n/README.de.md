@@ -192,14 +192,15 @@ Benennungsregel für Mode: `[a-z0-9][a-z0-9_-]*` (`mode` ist reserviert).
 ### Channel-Befehle (optionale Bridge)
 
 ```bash
+claudy channel serve [--profile <profile>] [--listen <host:port>]
 claudy channel start [--profile <profile>] [--listen <host:port>]
 claudy channel stop
-claudy channel restart
+claudy channel restart [--profile <profile>] [--listen <host:port>]
 claudy channel status
 claudy channel add <telegram|slack|discord>
 claudy channel remove <telegram|slack|discord>
-claudy channel enable <telegram|slack|discord>
-claudy channel disable <telegram|slack|discord>
+claudy channel enable
+claudy channel disable
 ```
 
 `channel add` führt Sie durch Bot-Token, erlaubte Benutzer, Profile und Mode-Zuordnung.
@@ -250,10 +251,12 @@ DISCORD_PUBLIC_KEY=...
 Führen Sie `claudy mcp` aus, um einen stdio-basierten MCP-Server zu starten, der es Claude Code ermöglicht, Aufgaben an andere lokal installierte KI-Coding-Agenten zu delegieren.
 
 ```bash
-claudy mcp
+claudy mcp run        # MCP-Server starten (wird von Claude Code aufgerufen)
+claudy mcp install    # Claudy als MCP-Server in den Claude Code-Einstellungen registrieren
+claudy mcp uninstall  # Claudy aus den Claude Code MCP-Einstellungen entfernen
 ```
 
-Beim ersten Ausführen registriert sich claudy automatisch in `~/.claude/settings.json`. Wenn Sie einen Mode mit `claudy mode create <name>` erstellen, registriert er sich auch in der Einstellungsdatei des Modes. Keine manuelle Konfiguration erforderlich.
+`claudy mcp install` registriert sich automatisch in `~/.claude/settings.json`. Wenn Sie einen Mode mit `claudy mode create <name>` erstellen, registriert er sich auch in der Einstellungsdatei des Modes. Keine manuelle Konfiguration erforderlich.
 
 Für die manuelle Registrierung (oder in einer projektbezogenen `.claude/settings.json`):
 
@@ -293,7 +296,7 @@ Claude Code wählt den geeigneten Agenten aus, übergibt den Prompt und gibt das
 cat ~/.claude/settings.json | grep -A3 claudy
 
 # MCP-Server manuell testen
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp run
 ```
 
 #### Unterstützte Agenten (automatisch aus PATH erkannt)
@@ -352,19 +355,54 @@ claudy analytics ingest --project my-project  # Bestimmtes Projekt einlesen
 claudy analytics recommend         # Nutzungsempfehlungen im CLI anzeigen
 claudy analytics export            # Analytics-Daten exportieren (JSON, Standard 30 Tage)
 claudy analytics export --format csv --days 7  # Als CSV für die letzten 7 Tage exportieren
+claudy analytics sync-pricing      # Modellpreise synchronisieren
+claudy analytics recalculate       # Alle Kosten neu berechnen
 claudy analytics insights          # Kompakte JSON-Einblickszusammenfassung für LLM-Analyse (Standard: 7 Tage)
 claudy analytics insights --days 14  # Letzte 14 Tage analysieren
 claudy analytics insights --from 2026-04-01 --to 2026-04-30  # Spezifischer Zeitraum
 claudy analytics insights --project my-project  # Nach Projekt filtern
 ```
 
-Analytics verfolgt:
+### In Claude Code: `/analytics-insights`
+
+Der schnellste Weg zur Analyse Ihrer Nutzung ist direkt in Claude Code. Die `analytics-insights`-Fähigkeit ist automatisch verfügbar — fragen Sie einfach auf natürliche Weise:
+
+```
+> /analytics-insights
+> /analytics-insights last 2 weeks
+> analyze my usage patterns
+> 사용 패턴 분석해줘
+```
+
+Claude führt `claudy analytics insights` aus, analysiert die JSON-Daten und gibt einen strukturierten Bericht zurück mit:
+
+- **Kostentrends** — tägliche/wöchentliche Ausgaben mit Spike-Erkennung
+- **Modellverteilung** — welche Modelle Sie verwenden und was sie pro Sitzung kosten
+- **Werkzeugmuster** — am häufigsten genutzte Tools, Fehlerraten, Effizienzbeobachtungen
+- **Cache-Leistung** — Trefferquote und geschätzte Einsparungen
+- **Umsetzbare Empfehlungen** — konkrete Vorschläge wie „einfache Aufgaben an turbo weiterleiten" mit geschätzten Dollar-Einsparungen
+
+Beispielausgabe (siehe `docs/examples/analytics-insights-sample.json` für Rohdaten):
+
+```
+#### Summary
+81 sessions, $481 total spend at an average of $68.7/day. Costs trending
+sharply upward — last 3 weekdays averaged $97/day.
+
+#### Recommendations
+1. Route simple tasks to glm-5-turbo — est. savings: ~$90/month
+2. Investigate $1.91/turn outlier session (6x average cost-per-turn)
+3. Reduce harness overhead — TaskCreate/Update accounted for ~1,000 calls
+```
+
+Keine manuellen Befehle, kein Kontextwechsel. Fragen Sie Claude nach Ihrer Nutzung und erhalten Sie sofort Antworten.
+
+### Was Analytics verfolgt
 
 - **Tokens**: Detaillierte Trends von Eingabe-, Ausgabe- und Cache-Tokens über die letzten 30 Tage, gruppiert nach Modell und Datum.
 - **Tools**: Verteilungsanalyse, die zeigt, welche Tools Claude am häufigsten verwendet, einschließlich Aufrufzählungen, Fehlerquoten und durchschnittlicher Ausführungszeit.
 - **Kosten**: Echtzeit-Schätzung der Nutzungskosten basierend auf tatsächlichen Token-Preisen, einschließlich täglicher/wöchentlicher/monatlicher Prognosen und Trendeerkennung (steigend/stabil/fallend).
 - **Tipps (Empfehlungen)**: Datengestützte Optimierungshinweise, wie die Erkennung von kostenintensiven Sitzungen, Empfehlung von Haiku für einfache Aufgaben und Identifizierung langer Gespräche, die von einer Kontextzusammenfassung profitieren könnten.
-- **Einblicke (LLM-gestützt)**: Kompakte JSON-Nutzungszusammenfassung, optimiert für LLM-Analyse. Kombiniert Kostentrends, Modellverteilung, Werkzeugmuster, Cache-Effizienz und beachtliche Sitzungen in einer einzigen Nutzlast (~2-3K Token). Über die `analytics-insights`-Fähigkeit in Claude Code mit natürlicher Sprache nutzbar — Claude generiert personalisierte Empfehlungen.
 - **Projekte**: Ordnet kryptische Sitzungs-UUIDs automatisch lesbaren Projektordnernamen zu für besseren Kontext.
 
 Daten werden in einer lokalen SQLite-Datenbank unter `~/.claudy/analytics/` gespeichert. Das Dashboard läuft als hochperformante lokale Tauri 2 + Svelte-App. Verwenden Sie die **[Sync]**-Schaltfläche im Dashboard, um Daten aus Ihrem Claude CLI-Verlauf sofort zu aktualisieren.

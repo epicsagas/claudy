@@ -192,14 +192,15 @@ Aturan nama Mode: `[a-z0-9][a-z0-9_-]*` (`mode` dicadangkan).
 ### Perintah Channel (jembatan opsional)
 
 ```bash
+claudy channel serve [--profile <profile>] [--listen <host:port>]
 claudy channel start [--profile <profile>] [--listen <host:port>]
 claudy channel stop
-claudy channel restart
+claudy channel restart [--profile <profile>] [--listen <host:port>]
 claudy channel status
 claudy channel add <telegram|slack|discord>
 claudy channel remove <telegram|slack|discord>
-claudy channel enable <telegram|slack|discord>
-claudy channel disable <telegram|slack|discord>
+claudy channel enable
+claudy channel disable
 ```
 
 `channel add` memandu Anda melalui bot token, pengguna yang diizinkan, pemetaan Profile dan Mode.
@@ -250,10 +251,12 @@ DISCORD_PUBLIC_KEY=...
 Jalankan `claudy mcp` untuk memulai server MCP berbasis stdio yang memungkinkan Claude Code mendelegasikan tugas ke agen AI coding lokal lainnya.
 
 ```bash
-claudy mcp
+claudy mcp run        # Mulai server MCP (dipanggil oleh Claude Code)
+claudy mcp install    # Daftarkan claudy sebagai MCP server di pengaturan Claude Code
+claudy mcp uninstall  # Hapus claudy dari pengaturan MCP Claude Code
 ```
 
-Pada pertama kali dijalankan, claudy secara otomatis mendaftarkan dirinya di `~/.claude/settings.json`. Saat Anda membuat Mode dengan `claudy mode create <name>`, ia juga mendaftar di file pengaturan Mode. Tidak diperlukan konfigurasi manual.
+`claudy mcp install` secara otomatis mendaftarkan dirinya di `~/.claude/settings.json`. Saat Anda membuat Mode dengan `claudy mode create <name>`, ia juga mendaftar di file pengaturan Mode. Tidak diperlukan konfigurasi manual.
 
 Untuk mendaftar secara manual (atau di `.claude/settings.json` tingkat proyek):
 
@@ -293,7 +296,7 @@ Claude Code memilih agen yang tepat, meneruskan prompt, dan mengembalikan hasiln
 cat ~/.claude/settings.json | grep -A3 claudy
 
 # Uji server MCP secara manual
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp run
 ```
 
 #### Agen yang didukung (auto-detected dari PATH)
@@ -352,11 +355,47 @@ claudy analytics ingest --project my-project  # Serap proyek tertentu
 claudy analytics recommend         # Tampilkan rekomendasi penggunaan di CLI
 claudy analytics export            # Ekspor data analytics (JSON, default 30 hari)
 claudy analytics export --format csv --days 7  # Ekspor sebagai CSV untuk 7 hari terakhir
+claudy analytics sync-pricing      # Sinkronkan harga model dari models.dev dan halaman harga Anthropic
+claudy analytics recalculate       # Hitung ulang semua biaya menggunakan data harga terbaru
 claudy analytics insights          # Buat ringkasan JSON kompak untuk analisis LLM (default: 7 hari)
 claudy analytics insights --days 14  # Analisis 14 hari terakhir
 claudy analytics insights --from 2026-04-01 --to 2026-04-30  # Rentang tanggal spesifik
 claudy analytics insights --project my-project  # Filter berdasarkan proyek
 ```
+
+### Inside Claude Code: `/analytics-insights`
+
+Cara tercepat untuk menganalisis penggunaan Anda adalah langsung di dalam Claude Code. Skill `analytics-insights` tersedia secara otomatis — cukup tanyakan secara alami:
+
+```
+> /analytics-insights
+> /analytics-insights last 2 weeks
+> analyze my usage patterns
+> 사용 패턴 분석해줘
+```
+
+Claude menjalankan `claudy analytics insights`, menganalisis JSON, dan mengembalikan laporan terstruktur dengan:
+
+- **Tren biaya** — pengeluaran harian/mingguan dengan deteksi lonjakan
+- **Distribusi model** — model mana yang Anda gunakan dan berapa biayanya per sesi
+- **Pola alat** — alat yang paling sering digunakan, tingkat kesalahan, observasi efisiensi
+- **Performa cache** — rasio hit dan penghematan yang diperkirakan
+- **Rekomendasi yang dapat ditindaklanjuti** — saran spesifik seperti "arahkan tugas sederhana ke turbo" dengan estimasi penghematan dalam dolar
+
+Contoh output (lihat [`docs/examples/analytics-insights-sample.json`](docs/examples/analytics-insights-sample.json) untuk data mentah):
+
+```
+#### Summary
+81 sessions, $481 total spend at an average of $68.7/day. Costs trending
+sharply upward — last 3 weekdays averaged $97/day.
+
+#### Recommendations
+1. Route simple tasks to glm-5-turbo — est. savings: ~$90/month
+2. Investigate $1.91/turn outlier session (6x average cost-per-turn)
+3. Reduce harness overhead — TaskCreate/Update accounted for ~1,000 calls
+```
+
+Tanpa perintah manual, tanpa berpindah konteks. Tanyakan kepada Claude tentang penggunaan Anda dan dapatkan jawaban secara instan.
 
 Analytics melacak:
 
@@ -364,7 +403,6 @@ Analytics melacak:
 - **Tools**: Analisis distribusi yang menunjukkan alat mana yang paling sering digunakan Claude, termasuk jumlah panggilan, tingkat kesalahan, dan waktu eksekusi rata-rata.
 - **Cost**: Estimasi real-time biaya penggunaan berdasarkan harga token aktual, termasuk perkiraan harian/mingguan/bulanan dan deteksi tren (increasing/stable/decreasing).
 - **Tips (Recommendations)**: Saran optimasi berbasis data, seperti mendeteksi sesi berbiaya tinggi, menyarankan Haiku untuk tugas sederhana, dan mengidentifikasi percakapan panjang yang bisa mendapat manfaat dari ringkasan konteks.
-- **Wawasan (LLM)**: Ringkasan penggunaan kompak dalam format JSON yang dioptimalkan untuk analisis LLM. Menggabungkan tren biaya, distribusi model, pola alat, efisiensi cache, dan sesi penting dalam satu payload (~2-3K token). Dapat digunakan melalui skill `analytics-insights` di Claude Code dengan bahasa alami — Claude menghasilkan rekomendasi yang dipersonalisasi.
 - **Projects**: Secara otomatis memetakan UUID sesi yang tidak mudah dibaca ke nama folder proyek yang dapat dibaca manusia untuk konteks yang lebih baik.
 
 Data disimpan dalam database SQLite lokal di `~/.claudy/analytics/`. Dashboard berjalan sebagai aplikasi Tauri 2 + Svelte lokal berkinerja tinggi. Gunakan tombol **[Sync]** di dashboard untuk langsung menyegarkan data dari riwayat Claude CLI Anda.

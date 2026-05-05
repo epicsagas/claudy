@@ -192,14 +192,15 @@ Règle de nommage du Mode : `[a-z0-9][a-z0-9_-]*` (`mode` est réservé).
 ### Commandes de Channel (bridge optionnel)
 
 ```bash
+claudy channel serve [--profile <profile>] [--listen <host:port>]
 claudy channel start [--profile <profile>] [--listen <host:port>]
 claudy channel stop
-claudy channel restart
+claudy channel restart [--profile <profile>] [--listen <host:port>]
 claudy channel status
 claudy channel add <telegram|slack|discord>
 claudy channel remove <telegram|slack|discord>
-claudy channel enable <telegram|slack|discord>
-claudy channel disable <telegram|slack|discord>
+claudy channel enable
+claudy channel disable
 ```
 
 `channel add` vous guide à travers la configuration du token du bot, des utilisateurs autorisés, du profile et du mappage de Mode.
@@ -250,10 +251,12 @@ DISCORD_PUBLIC_KEY=...
 Exécutez `claudy mcp` pour démarrer un serveur MCP basé sur stdio qui permet à Claude Code de déléguer des tâches à d'autres agents IA installés localement.
 
 ```bash
-claudy mcp
+claudy mcp run        # Démarrer le serveur MCP (appelé par Claude Code)
+claudy mcp install    # Enregistrer claudy comme serveur MCP dans les paramètres de Claude Code
+claudy mcp uninstall  # Supprimer claudy des paramètres MCP de Claude Code
 ```
 
-Au premier lancement, claudy s'enregistre automatiquement dans `~/.claude/settings.json`. Lorsque vous créez un Mode avec `claudy mode create <name>`, il s'enregistre également dans le fichier de configuration du Mode. Aucune configuration manuelle n'est nécessaire.
+`claudy mcp install` enregistre automatiquement claudy dans `~/.claude/settings.json`. Lorsque vous créez un Mode avec `claudy mode create <name>`, il s'enregistre également dans le fichier de configuration du Mode. Aucune configuration manuelle n'est nécessaire.
 
 Pour enregistrer manuellement (ou dans un `.claude/settings.json` au niveau du projet) :
 
@@ -293,7 +296,7 @@ Claude Code sélectionne l'agent approprié, transmet le prompt et retourne le r
 cat ~/.claude/settings.json | grep -A3 claudy
 
 # Tester le serveur MCP manuellement
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp run
 ```
 
 #### Agents pris en charge (détectés automatiquement depuis PATH)
@@ -356,15 +359,50 @@ claudy analytics insights          # Générer un résumé JSON compact pour ana
 claudy analytics insights --days 14  # Analyser les 14 derniers jours
 claudy analytics insights --from 2026-04-01 --to 2026-04-30  # Période spécifique
 claudy analytics insights --project my-project  # Filtrer par projet
+claudy analytics sync-pricing      # Synchroniser les prix des modèles depuis models.dev et la page de tarification Anthropic
+claudy analytics recalculate       # Recalculer tous les coûts avec les dernières données de tarification
 ```
 
-Analytics suit :
+### Dans Claude Code : `/analytics-insights`
+
+Le moyen le plus rapide d'analyser votre utilisation est directement dans Claude Code. La compétence `analytics-insights` est automatiquement disponible — demandez simplement naturellement :
+
+```
+> /analytics-insights
+> /analytics-insights last 2 weeks
+> analyze my usage patterns
+> 사용 패턴 분석해줘
+```
+
+Claude exécute `claudy analytics insights`, analyse les données JSON et renvoie un rapport structuré avec :
+
+- **Tendances des coûts** — dépenses quotidiennes/hebdomadaires avec détection des pics
+- **Distribution des modèles** — quels modèles vous utilisez et ce qu'ils coûtent par session
+- **Schémas d'outils** — outils les plus utilisés, taux d'erreur, observations d'efficacité
+- **Performance du cache** — ratio de succès et économies estimées
+- **Recommandations actionnables** — suggestions spécifiques comme « router les tâches simples vers turbo » avec des économies estimées en dollars
+
+Exemple de sortie (voir `docs/examples/analytics-insights-sample.json` pour les données brutes) :
+
+```
+#### Summary
+81 sessions, $481 total spend at an average of $68.7/day. Costs trending
+sharply upward — last 3 weekdays averaged $97/day.
+
+#### Recommendations
+1. Route simple tasks to glm-5-turbo — est. savings: ~$90/month
+2. Investigate $1.91/turn outlier session (6x average cost-per-turn)
+3. Reduce harness overhead — TaskCreate/Update accounted for ~1,000 calls
+```
+
+Pas de commandes manuelles, pas de changement de contexte. Posez des questions à Claude sur votre utilisation et obtenez des réponses instantanément.
+
+### Ce qu'Analytics suit
 
 - **Tokens** : Tendances détaillées des tokens d'entrée, de sortie et de cache sur les 30 derniers jours, regroupés par modèle et par date.
 - **Tools** : Analyse de distribution montrant quels outils Claude utilise le plus fréquemment, y compris les comptages d'appels, les taux d'erreur et le temps d'exécution moyen.
 - **Coût** : Estimation en temps réel des coûts d'utilisation basée sur les prix réels des tokens, incluant des prévisions quotidiennes/hebdomadaires/mensuelles et la détection de tendances (croissante/stable/décroissante).
 - **Conseils (Recommandations)** : Conseils d'optimisation basés sur les données, comme la détection des sessions à coût élevé, la suggestion de Haiku pour les tâches simples et l'identification des longues conversations pouvant bénéficier d'une résumisation du contexte.
-- **Aperçus (LLM)** : Résumé d'utilisation compact au format JSON optimisé pour l'analyse LLM. Combine les tendances de coûts, la distribution des modèles, les schémas d'outils, l'efficacité du cache et les sessions remarquables en une seule charge utile (~2-3K tokens). Utilisable via la compétence `analytics-insights` de Claude Code avec un langage naturel — Claude génère des recommandations personnalisées.
 - **Projets** : Mappe automatiquement les UUIDs cryptiques de session vers des noms de dossiers de projets lisibles par les humains pour un meilleur contexte.
 
 Les données sont stockées dans une base de données SQLite locale sous `~/.claudy/analytics/`. Le tableau de bord s'exécute comme une application locale haute performance avec Tauri 2 + Svelte. Utilisez le bouton **[Sync]** dans le tableau de bord pour actualiser instantanément les données depuis votre historique Claude CLI.
