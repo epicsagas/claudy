@@ -1,0 +1,45 @@
+{
+  "period": { "from": "2026-04-28", "to": "2026-05-05", "days": 7 },
+  "overview": {
+    "total_sessions": 81,
+    "total_cost_usd": 480.99,
+    "total_turns": 1547,
+    "avg_tokens_per_session": 990256,
+    "most_used_model": "glm-5.1"
+  },
+  "daily_costs": [
+    { "date": "2026-04-28", "cost_usd": 25.33, "sessions": 6 },
+    { "date": "2026-04-29", "cost_usd": 27.59, "sessions": 12 },
+    { "date": "2026-04-30", "cost_usd": 34.96, "sessions": 8 },
+    { "date": "2026-05-01", "cost_usd": 88.80, "sessions": 22 },
+    { "date": "2026-05-02", "cost_usd": 102.80, "sessions": 20 },
+    { "date": "2026-05-03", "cost_usd": 58.58, "sessions": 19 },
+    { "date": "2026-05-04", "cost_usd": 122.09, "sessions": 24 }
+  ],
+  "model_distribution": [
+    { "model": "glm-5.1", "total_cost_usd": 439.67, "session_count": 73, "avg_cost_per_session": 6.02, "percentage": 91.4 },
+    { "model": "glm-5-turbo", "total_cost_usd": 50.54, "session_count": 29, "avg_cost_per_session": 1.74, "percentage": 10.5 }
+  ],
+  "tool_usage": [
+    { "tool_name": "Bash", "call_count": 3298, "percentage": 42.8 },
+    { "tool_name": "Read", "call_count": 1531, "percentage": 19.9 },
+    { "tool_name": "Edit", "call_count": 1086, "percentage": 14.1 },
+    { "tool_name": "TaskUpdate", "call_count": 392, "percentage": 5.1 },
+    { "tool_name": "Write", "call_count": 380, "percentage": 4.9 }
+  ],
+  "notable_sessions": [
+    { "project_name": "claudy", "cost_usd": 41.68, "turns": 148 },
+    { "project_name": "claudy", "cost_usd": 34.43, "turns": 18 },
+    { "project_name": "Syntagma", "cost_usd": 32.30, "turns": 44 }
+  ],
+  "cost_analysis": {
+    "total_cost_usd": 480.99,
+    "avg_cost_per_session": 5.94,
+    "avg_cost_per_turn": 0.31,
+    "weekly_avg_cost": 68.71
+  },
+  "cache_efficiency": {
+    "hit_ratio": 1.0,
+    "savings_usd": 5256.96
+  }
+}
