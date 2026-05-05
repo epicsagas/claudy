@@ -19,6 +19,27 @@ struct DiscordApiError {
     code: Option<i64>,
 }
 
+/// Validate `interaction_id` is a Discord snowflake (non-empty, all digits) and
+/// `token` contains only safe characters (alphanumeric, hyphen, underscore).
+fn validate_interaction_inputs(interaction_id: &str, token: &str) -> bool {
+    if interaction_id.is_empty() || !interaction_id.bytes().all(|b| b.is_ascii_digit()) {
+        tracing::warn!(
+            interaction_id,
+            "defer_interaction: invalid interaction_id, skipping"
+        );
+        return false;
+    }
+    if token.is_empty()
+        || !token
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    {
+        tracing::warn!(token, "defer_interaction: invalid token, skipping");
+        return false;
+    }
+    true
+}
+
 /// Low-level Discord REST client for the messages resource.
 pub struct DiscordApi {
     client: reqwest::Client,
@@ -159,16 +180,10 @@ impl DiscordApi {
 
     /// Acknowledge an interaction via REST (type 5 = DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE).
     /// Used by Gateway to respond to INTERACTION_CREATE events.
-    pub async fn defer_interaction(
-        secrets: &crate::config::vault::SecretVault,
-        interaction_id: &str,
-        token: &str,
-    ) -> Result<()> {
-        let bot_token = secrets
-            .get("DISCORD_BOT_TOKEN")
-            .cloned()
-            .unwrap_or_default();
-        let client = reqwest::Client::new();
+    pub async fn defer_interaction(&self, interaction_id: &str, token: &str) -> Result<()> {
+        if !validate_interaction_inputs(interaction_id, token) {
+            return Ok(());
+        }
 
         let url = format!(
             "{}/interactions/{}/{}/callback",
@@ -179,9 +194,10 @@ impl DiscordApi {
             "data": { "flags": 64 }
         });
 
-        let resp = client
+        let resp = self
+            .client
             .post(&url)
-            .header("Authorization", format!("Bot {bot_token}"))
+            .header("Authorization", format!("Bot {}", self.bot_token))
             .json(&body)
             .send()
             .await
@@ -314,5 +330,30 @@ mod tests {
     fn new_constructs_api() {
         let api = DiscordApi::new("tok".into());
         assert_eq!(api.bot_token, "tok");
+    }
+
+    #[test]
+    fn validate_rejects_empty_interaction_id() {
+        assert!(!validate_interaction_inputs("", "abc123"));
+    }
+
+    #[test]
+    fn validate_rejects_non_numeric_interaction_id() {
+        assert!(!validate_interaction_inputs("abc", "valid_token"));
+    }
+
+    #[test]
+    fn validate_rejects_empty_token() {
+        assert!(!validate_interaction_inputs("123456789", ""));
+    }
+
+    #[test]
+    fn validate_accepts_valid_inputs() {
+        assert!(validate_interaction_inputs("123456789012345678", "abcXYZ_123-456"));
+    }
+
+    #[test]
+    fn validate_rejects_token_with_path_traversal() {
+        assert!(!validate_interaction_inputs("123", "../../etc/passwd"));
     }
 }

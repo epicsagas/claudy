@@ -65,7 +65,7 @@ pub(super) struct BotCommand {
 }
 
 /// All bot commands registered for both Telegram and Discord.
-const BOT_COMMANDS: &[BotCommand] = &[
+pub(super) const BOT_COMMANDS: &[BotCommand] = &[
     BotCommand {
         name: "help",
         description: "Show available commands",
@@ -103,6 +103,14 @@ const BOT_COMMANDS: &[BotCommand] = &[
         description: "Show session history",
     },
 ];
+
+/// Check if `name` matches a registered bot command.
+///
+/// Used by platform normalize modules so they don't need to maintain a
+/// separate hardcoded list that can drift out of sync with [`BOT_COMMANDS`].
+pub fn is_bot_command(name: &str) -> bool {
+    BOT_COMMANDS.iter().any(|c| c.name == name)
+}
 
 pub(super) const THINKING_MESSAGES: &[&str] = &[
     "Thinking...",
