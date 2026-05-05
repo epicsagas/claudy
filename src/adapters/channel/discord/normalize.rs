@@ -4,6 +4,10 @@ use crate::domain::channel_events::{
 
 use super::webhook::{DiscordInteraction, DiscordInteractionType};
 
+const KNOWN_COMMANDS: &[&str] = &[
+    "help", "start", "cancel", "model", "yolo", "status", "sessions", "projects", "new", "history",
+];
+
 /// Convert a raw Discord interaction into a domain [`IncomingEvent`].
 ///
 /// Returns `None` for interaction types we do not handle (e.g. Ping).
@@ -24,13 +28,26 @@ pub fn normalize_interaction(interaction: &DiscordInteraction) -> Option<Incomin
         DiscordInteractionType::Ping => None,
 
         DiscordInteractionType::ApplicationCommand => {
-            let text = extract_command_text(interaction)?;
-            Some(IncomingEvent::TextMessage(TextMessage {
-                conversation_id,
-                channel,
-                text,
-                reply_to_id: None,
-            }))
+            let data = interaction.data.as_ref();
+            let cmd_name = data.and_then(|d| d.name.as_deref()).unwrap_or("");
+
+            if KNOWN_COMMANDS.contains(&cmd_name) {
+                let args = extract_command_args(interaction);
+                Some(IncomingEvent::BotCommand {
+                    command: format!("/{cmd_name}"),
+                    args,
+                    channel,
+                    conversation_id,
+                })
+            } else {
+                let text = extract_command_text(interaction)?;
+                Some(IncomingEvent::TextMessage(TextMessage {
+                    conversation_id,
+                    channel,
+                    text,
+                    reply_to_id: None,
+                }))
+            }
         }
 
         DiscordInteractionType::MessageComponent => {
@@ -99,6 +116,17 @@ fn extract_command_text(interaction: &DiscordInteraction) -> Option<String> {
         .clone()
 }
 
+/// Extract the first option value as command args (for bot commands like /model).
+fn extract_command_args(interaction: &DiscordInteraction) -> String {
+    interaction
+        .data
+        .as_ref()
+        .and_then(|d| d.options.as_ref())
+        .and_then(|opts| opts.first())
+        .and_then(|opt| opt.value.clone())
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,9 +150,53 @@ mod tests {
     }
 
     #[test]
-    fn application_command_produces_text_message() {
+    fn known_command_produces_bot_command() {
         let mut interaction = base_interaction(DiscordInteractionType::ApplicationCommand);
         interaction.data = Some(DiscordInteractionData {
+            name: Some("cancel".into()),
+            options: None,
+            custom_id: None,
+            component_type: None,
+        });
+
+        let event = normalize_interaction(&interaction).expect("some event");
+        match event {
+            IncomingEvent::BotCommand { command, args, .. } => {
+                assert_eq!(command, "/cancel");
+                assert_eq!(args, "");
+            }
+            other => panic!("expected BotCommand, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn known_command_with_args_produces_bot_command() {
+        let mut interaction = base_interaction(DiscordInteractionType::ApplicationCommand);
+        interaction.data = Some(DiscordInteractionData {
+            name: Some("model".into()),
+            options: Some(vec![DiscordOption {
+                name: "name".into(),
+                value: Some("sonnet".into()),
+            }]),
+            custom_id: None,
+            component_type: None,
+        });
+
+        let event = normalize_interaction(&interaction).expect("some event");
+        match event {
+            IncomingEvent::BotCommand { command, args, .. } => {
+                assert_eq!(command, "/model");
+                assert_eq!(args, "sonnet");
+            }
+            other => panic!("expected BotCommand, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn unknown_command_produces_text_message() {
+        let mut interaction = base_interaction(DiscordInteractionType::ApplicationCommand);
+        interaction.data = Some(DiscordInteractionData {
+            name: Some("ask".into()),
             options: Some(vec![DiscordOption {
                 name: "prompt".into(),
                 value: Some("hello world".into()),
@@ -150,9 +222,22 @@ mod tests {
     }
 
     #[test]
-    fn application_command_without_options_returns_none() {
+    fn unknown_command_without_options_returns_none() {
         let mut interaction = base_interaction(DiscordInteractionType::ApplicationCommand);
         interaction.data = Some(DiscordInteractionData {
+            name: Some("ask".into()),
+            options: Some(vec![]),
+            custom_id: None,
+            component_type: None,
+        });
+        assert!(normalize_interaction(&interaction).is_none());
+    }
+
+    #[test]
+    fn application_command_without_name_returns_none() {
+        let mut interaction = base_interaction(DiscordInteractionType::ApplicationCommand);
+        interaction.data = Some(DiscordInteractionData {
+            name: None,
             options: Some(vec![]),
             custom_id: None,
             component_type: None,
@@ -164,6 +249,7 @@ mod tests {
     fn message_component_produces_interaction_event() {
         let mut interaction = base_interaction(DiscordInteractionType::MessageComponent);
         interaction.data = Some(DiscordInteractionData {
+            name: None,
             options: None,
             custom_id: Some("allow".into()),
             component_type: Some(2),
@@ -184,6 +270,7 @@ mod tests {
     fn message_component_missing_custom_id_uses_default() {
         let mut interaction = base_interaction(DiscordInteractionType::MessageComponent);
         interaction.data = Some(DiscordInteractionData {
+            name: None,
             options: None,
             custom_id: None,
             component_type: Some(2),

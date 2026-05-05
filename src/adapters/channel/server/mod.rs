@@ -200,6 +200,73 @@ pub async fn run(ctx: &Context, listen_addr: &str) -> anyhow::Result<i32> {
     if let Some(token) = ctx.secrets.get("DISCORD_BOT_TOKEN")
         && !token.is_empty()
     {
+        {
+            use super::discord::api::{CommandDefinition, CommandOption, DiscordApi};
+            let api = DiscordApi::new(token.clone());
+            match api.get_application_id().await {
+                Ok(app_id) => {
+                    let commands = &[
+                        CommandDefinition {
+                            name: "help",
+                            description: "Show available commands",
+                            options: vec![],
+                        },
+                        CommandDefinition {
+                            name: "cancel",
+                            description: "Cancel current task",
+                            options: vec![],
+                        },
+                        CommandDefinition {
+                            name: "model",
+                            description: "Change Claude model",
+                            options: vec![CommandOption {
+                                name: "name",
+                                description: "Model name",
+                                kind: 3,
+                                required: false,
+                            }],
+                        },
+                        CommandDefinition {
+                            name: "yolo",
+                            description: "Toggle auto-allow permissions",
+                            options: vec![],
+                        },
+                        CommandDefinition {
+                            name: "status",
+                            description: "Show session status",
+                            options: vec![],
+                        },
+                        CommandDefinition {
+                            name: "sessions",
+                            description: "List recent sessions",
+                            options: vec![],
+                        },
+                        CommandDefinition {
+                            name: "projects",
+                            description: "List projects",
+                            options: vec![],
+                        },
+                        CommandDefinition {
+                            name: "new",
+                            description: "Start new session",
+                            options: vec![],
+                        },
+                        CommandDefinition {
+                            name: "history",
+                            description: "Show session history",
+                            options: vec![],
+                        },
+                    ];
+                    if let Err(e) = api.register_application_commands(&app_id, commands).await {
+                        tracing::warn!(error = %e, "Failed to register Discord slash commands");
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "Failed to get Discord application ID; skipping command registration");
+                }
+            }
+        }
+
         let gw_state = state.clone();
         let gw_token = token.clone();
         tokio::spawn(async move {

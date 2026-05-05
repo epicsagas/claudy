@@ -79,6 +79,8 @@ pub struct DiscordInteraction {
 /// The `data` field of an interaction (varies by type).
 #[derive(Debug, Deserialize)]
 pub struct DiscordInteractionData {
+    #[serde(default)]
+    pub name: Option<String>,
     pub options: Option<Vec<DiscordOption>>,
     pub custom_id: Option<String>,
     pub component_type: Option<u8>,
@@ -109,6 +111,7 @@ impl DiscordInteraction {
 
         let data_field = data.get("data");
         let discord_data = data_field.map(|d| DiscordInteractionData {
+            name: d.get("name").and_then(|v| v.as_str()).map(String::from),
             options: d
                 .get("options")
                 .and_then(|o| serde_json::from_value(o.clone()).ok()),
@@ -245,7 +248,7 @@ mod tests {
             "token":"tok",
             "channel_id":"ch1",
             "user_id":"u1",
-            "data":{"options":[{"name":"prompt","value":"hello"}]}
+            "data":{"name":"ask","options":[{"name":"prompt","value":"hello"}]}
         }"#;
         let interaction: DiscordInteraction = serde_json::from_str(json).expect("parse");
         assert_eq!(
@@ -253,6 +256,7 @@ mod tests {
             DiscordInteractionType::ApplicationCommand
         );
         let data = interaction.data.expect("data present");
+        assert_eq!(data.name.as_deref(), Some("ask"));
         let opt = data.options.expect("options present");
         assert_eq!(opt[0].name, "prompt");
         assert_eq!(opt[0].value, Some("hello".into()));

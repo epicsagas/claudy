@@ -109,7 +109,9 @@ pub fn extract_command(msg: &TelegramMessage) -> Option<(String, String)> {
         .as_ref()?
         .iter()
         .find(|e| e.entity_type == "bot_command")?;
-    let cmd = text.get(entity.offset..entity.offset + entity.length)?;
+    let raw = text.get(entity.offset..entity.offset + entity.length)?;
+    // Strip @botname suffix present in group chats (e.g. "/help@mybot" → "/help")
+    let cmd = raw.split_once('@').map_or(raw, |(c, _)| c);
     let args = text
         .get(entity.offset + entity.length..)
         .unwrap_or("")
@@ -290,5 +292,71 @@ mod tests {
         };
 
         assert!(normalize_update(update).is_none());
+    }
+
+    fn make_command_update(chat_id: i64, user_id: i64, text: &str) -> TelegramUpdate {
+        TelegramUpdate {
+            _update_id: 3,
+            message: Some(TelegramMessage {
+                _message_id: 300,
+                chat: TelegramChat { id: chat_id },
+                from: Some(TelegramFrom {
+                    id: user_id,
+                    _first_name: Some("Test".to_string()),
+                }),
+                text: Some(text.to_string()),
+                reply_to_message: None,
+                entities: Some(vec![TelegramEntity {
+                    entity_type: "bot_command".to_string(),
+                    offset: 0,
+                    length: text.find(' ').unwrap_or(text.len()),
+                }]),
+            }),
+            callback_query: None,
+        }
+    }
+
+    #[test]
+    fn extract_command_strips_botname_suffix() {
+        let mut update = make_command_update(42, 99, "/help@my_claudy_bot");
+        // Adjust entity length to cover "/help@my_claudy_bot" (19 chars)
+        update.message.as_mut().unwrap().entities.as_mut().unwrap()[0].length = 19;
+        let msg = update.message.as_ref().unwrap();
+        let (cmd, args) = extract_command(msg).expect("command extracted");
+        assert_eq!(cmd, "/help");
+        assert_eq!(args, "");
+    }
+
+    #[test]
+    fn extract_command_with_botname_suffix_and_args() {
+        let mut update = make_command_update(42, 99, "/model@claudy_bot sonnet");
+        update.message.as_mut().unwrap().entities.as_mut().unwrap()[0].length = 17;
+        let msg = update.message.as_ref().unwrap();
+        let (cmd, args) = extract_command(msg).expect("command extracted");
+        assert_eq!(cmd, "/model");
+        assert_eq!(args, "sonnet");
+    }
+
+    #[test]
+    fn extract_command_without_suffix_unchanged() {
+        let update = make_command_update(42, 99, "/cancel");
+        let msg = update.message.as_ref().unwrap();
+        let (cmd, args) = extract_command(msg).expect("command extracted");
+        assert_eq!(cmd, "/cancel");
+        assert_eq!(args, "");
+    }
+
+    #[test]
+    fn normalize_bot_command_with_botname_suffix_routes_correctly() {
+        let mut update = make_command_update(42, 99, "/help@my_claudy_bot");
+        update.message.as_mut().unwrap().entities.as_mut().unwrap()[0].length = 19;
+        let event = normalize_update(update).unwrap();
+        match event {
+            IncomingEvent::BotCommand { command, args, .. } => {
+                assert_eq!(command, "/help");
+                assert_eq!(args, "");
+            }
+            other => panic!("expected BotCommand, got {:?}", other),
+        }
     }
 }
