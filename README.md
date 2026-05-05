@@ -40,6 +40,29 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
 
 <img src="docs/assets/features-2048.png" alt="Why Claudy" width="100%" />
 
+## Why Claudy
+
+- **Multi-provider launch**: switch across built-in, Z.AI, OpenRouter alias, Ollama and custom Anthropic-compatible endpoints.
+- **Config modes**: isolate Claude configuration (`CLAUDE.md`, `settings.json`, skills/plugins/agents) per mode.
+- **Provider profile resolution**: unify built-in providers, custom providers, and OpenRouter aliases.
+- **Safe process behavior**: forwards SIGINT/SIGTERM to child Claude process.
+- **Operational UX**: install/update/uninstall commands, status checks, and connectivity tests.
+- **Optional channel bridge**: run a local bot bridge for Telegram, Slack, and Discord with interactive permission prompts.
+- **Agent MCP bridge**: delegate tasks from Claude Code to other local AI agents (Gemini, Codex, Aider, etc.) via MCP.
+- **Usage analytics**: ingest session data from `~/.claude/projects/`, track token usage and costs per session/project, view a local dashboard with recommendations.
+
+## Supported Providers
+
+> Claudy was inspired by [Clother](https://github.com/jolehuit/clother), a Go-based multi-provider launcher for Claude CLI. Z.AI has been the most thoroughly tested provider. If you run into any issues with other providers, please [open an issue](https://github.com/epicsagas/claudy/issues).
+
+| Provider | Status | Notes |
+|---|---|---|
+| Built-in (Anthropic) | ✅ Tested | Default |
+| Z.AI | ✅ Tested | |
+| OpenRouter alias | ⚠️ Experimental | Not fully tested — report issues on GitHub |
+| Ollama | ⚠️ Experimental | Not fully tested — report issues on GitHub |
+| Custom endpoint | ⚠️ Experimental | Not fully tested — report issues on GitHub |
+
 ## Install & Configure
 
 ```bash
@@ -89,7 +112,7 @@ All configuration lives in `~/.claudy/config.yaml`. Only add the sections you ne
 # Provider overrides — override default model and model tiers per provider
 provider_overrides:
   zai:
-    model: "glm-5.1"                  # Override default model
+    model: "glm-5.1"
     model_tiers:
       haiku: "glm-4.7"                # → ANTHROPIC_DEFAULT_HAIKU_MODEL
       sonnet: "glm-5.1"               # → ANTHROPIC_DEFAULT_SONNET_MODEL
@@ -142,29 +165,6 @@ agents:
 </details>
 
 ---
-
-## Why Claudy
-
-- **Multi-provider launch**: switch across built-in, Z.AI, OpenRouter alias, Ollama and custom Anthropic-compatible endpoints.
-- **Config modes**: isolate Claude configuration (`CLAUDE.md`, `settings.json`, skills/plugins/agents) per mode.
-- **Provider profile resolution**: unify built-in providers, custom providers, and OpenRouter aliases.
-- **Safe process behavior**: forwards SIGINT/SIGTERM to child Claude process.
-- **Operational UX**: install/update/uninstall commands, status checks, and connectivity tests.
-- **Optional channel bridge**: run a local bot bridge for Telegram, Slack, and Discord with interactive permission prompts.
-- **Agent MCP bridge**: delegate tasks from Claude Code to other local AI agents (Gemini, Codex, Aider, etc.) via MCP.
-- **Usage analytics**: ingest session data from `~/.claude/projects/`, track token usage and costs per session/project, view a local dashboard with recommendations.
-
-## Supported Providers
-
-> Claudy was inspired by [Clother](https://github.com/jolehuit/clother), a Go-based multi-provider launcher for Claude CLI. Z.AI has been the most thoroughly tested provider. If you run into any issues with other providers, please [open an issue](https://github.com/epicsagas/claudy/issues).
-
-| Provider | Status | Notes |
-|---|---|---|
-| Built-in (Anthropic) | ✅ Tested | Default |
-| Z.AI | ✅ Tested | |
-| OpenRouter alias | ⚠️ Experimental | Not fully tested — report issues on GitHub |
-| Ollama | ⚠️ Experimental | Not fully tested — report issues on GitHub |
-| Custom endpoint | ⚠️ Experimental | Not fully tested — report issues on GitHub |
 
 ## Core Concepts
 
