@@ -120,4 +120,4 @@ chore: bump Rust edition to 2024
 
 ## Code of Conduct
 
-Please review and follow our [Code of Conduct](CODE_OF_CONDUCT.md). All contributors are expected to uphold these standards.
+Be respectful and constructive. Harassment, discrimination, and toxic behavior are not tolerated.

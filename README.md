@@ -65,9 +65,11 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
 
 ## Requirements
 
-- macOS or Linux
-- Rust toolchain (`cargo`) for build/install from source
-- Claude CLI installed and available in `PATH`
+- macOS or Linux (Windows not supported)
+- **Pre-built binary**: no additional toolchain needed
+- **Build from source**: Rust 1.92+ (`rustup update stable`), Node.js 18+ (for analytics dashboard build)
+- Claude CLI installed and available in `PATH` (`which claude` to verify)
+- **Linux build from source** only: `libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf`
 
 ## Installation
 
@@ -104,9 +106,11 @@ cargo install --path .
 ### Verify
 
 ```bash
-claudy --help
-claudy --version
+claudy --version     # Confirm installation
+claudy doctor        # Check version, paths, and profile status
 ```
+
+> If `claudy` is not found after install, ensure the install directory (`~/bin` on macOS, `~/.local/bin` on Linux) is on your `PATH`. Restart your shell or run `source ~/.zshrc` (or `~/.bashrc`).
 
 ## Quick Start
 
@@ -125,6 +129,119 @@ claudy show <profile>
 # 4) Run Claude with a profile
 claudy <profile> [claude-args...]
 ```
+
+## Configuration
+
+### Interactive setup
+
+```bash
+claudy setup        # Guided provider and credential setup
+```
+
+### Non-interactive setup (CI/automation/agents)
+
+Write credentials directly to `~/.claudy/secrets.env`:
+
+```bash
+mkdir -p ~/.claudy
+echo 'ZAI_API_KEY=<your-api-key>' > ~/.claudy/secrets.env
+chmod 600 ~/.claudy/secrets.env
+```
+
+Or set the environment variable before running claudy:
+
+```bash
+export ZAI_API_KEY=<your-api-key>
+claudy zai
+```
+
+### Provider credentials (`secrets.env`)
+
+| Variable | Provider |
+|---|---|
+| `ANTHROPIC_API_KEY` | Anthropic (native) |
+| `ZAI_API_KEY` | Z.AI |
+| `ZAI_CN_API_KEY` | Z.AI China |
+| `MINIMAX_API_KEY` | MiniMax |
+| `MINIMAX_CN_API_KEY` | MiniMax China |
+| `KIMI_API_KEY` | Kimi K2 |
+| `MOONSHOT_API_KEY` | Moonshot AI |
+| `ARK_API_KEY` | VolcEngine |
+| `DEEPSEEK_API_KEY` | DeepSeek |
+| `MIMO_API_KEY` | Xiaomi MiMo |
+| `ALIBABA_API_KEY` | Alibaba Coding Plan |
+| `OPENROUTER_API_KEY` | OpenRouter (all aliases) |
+
+Custom providers use the `api_key_env` variable defined in their `custom_providers` entry.
+
+### `config.yaml` schema
+
+All configuration lives in `~/.claudy/config.yaml`. Only add the sections you need — defaults are used for anything omitted.
+
+```yaml
+# Provider overrides — override default model and model tiers per provider
+provider_overrides:
+  zai:
+    model: "glm-5.1"                  # Override default model
+    model_tiers:                       # Map tier names to models
+      haiku: "glm-4.7"                # → ANTHROPIC_DEFAULT_HAIKU_MODEL
+      sonnet: "glm-5.1"               # → ANTHROPIC_DEFAULT_SONNET_MODEL
+      opus: "glm-5"                   # → ANTHROPIC_DEFAULT_OPUS_MODEL
+
+# OpenRouter aliases — invoke as: claudy or <alias>
+openrouter_aliases:
+  kimi: "moonshotai/kimi-k2.5"
+  sonnet: "anthropic/claude-sonnet-4"
+
+# Custom Anthropic-compatible providers — invoke as: claudy <slug>
+custom_providers:
+  my-llm:
+    name: "my-llm"
+    display_name: "My Custom LLM"
+    base_url: "https://my-llm.com/api/anthropic"
+    api_key_env: "MY_LLM_API_KEY"     # Looked up in secrets.env
+    default_model: "my-model-v1"
+
+# Compaction policy
+compaction:
+  auto_compact: true                   # default: true
+  threshold: 0.8                       # 0.0–1.0, default: 0.8
+
+# Per-model context window overrides
+model_settings:
+  deepseek-chat:
+    max_context_tokens: 64000
+  glm-5:
+    max_context_tokens: 128000
+
+# Agent overrides — override built-in agent binary, args, or timeout
+agents:
+  aider:
+    binary: "aider"
+    args: ["--message", "{prompt}"]    # {prompt} replaced with task
+    timeout: 300                       # seconds
+```
+
+### Built-in providers
+
+| ID | Display Name | `key_var` |
+|---|---|---|
+| `native` | Anthropic | *(auto-detected)* |
+| `zai` | Z.AI | `ZAI_API_KEY` |
+| `zai-cn` | Z.AI China | `ZAI_CN_API_KEY` |
+| `minimax` | MiniMax | `MINIMAX_API_KEY` |
+| `minimax-cn` | MiniMax China | `MINIMAX_CN_API_KEY` |
+| `kimi` | Kimi K2 | `KIMI_API_KEY` |
+| `moonshot` | Moonshot AI | `MOONSHOT_API_KEY` |
+| `ve` | VolcEngine | `ARK_API_KEY` |
+| `deepseek` | DeepSeek | `DEEPSEEK_API_KEY` |
+| `mimo` | Xiaomi MiMo | `MIMO_API_KEY` |
+| `alibaba` | Alibaba (SG) | `ALIBABA_API_KEY` |
+| `alibaba-us` | Alibaba (US) | `ALIBABA_API_KEY` |
+| `alibaba-cn` | Alibaba (CN) | `ALIBABA_API_KEY` |
+| `ollama` | Ollama (local) | *(none)* |
+| `lmstudio` | LM Studio (local) | *(none)* |
+| `llamacpp` | llama.cpp (local) | *(none)* |
 
 ## Core Concepts
 
@@ -331,19 +448,15 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp r
 
 #### Custom agents
 
-Add agents in `~/.claudy/config.yaml`:
+Add agents in `~/.claudy/config.yaml` under the `agents` key (see [Configuration](#configyaml-schema) for full schema):
 
-```json
-{
-  "agents": {
-    "my-agent": {
-      "binary": "my-agent",
-      "args": ["--prompt", "{prompt}", "--no-interactive"],
-      "description": "My custom agent",
-      "timeout": 180
-    }
-  }
-}
+```yaml
+agents:
+  my-agent:
+    binary: "my-agent"
+    args: ["--prompt", "{prompt}", "--no-interactive"]
+    description: "My custom agent"
+    timeout: 180
 ```
 
 Same key as a built-in agent overrides its defaults. `{prompt}` in `args` is replaced with the actual task.
@@ -502,7 +615,7 @@ claudy ping
 - **Channel status unhealthy**: run `claudy channel status`, then restart with `claudy channel stop` and `claudy channel start`.
 - **Channel bot not responding**: check `~/.claudy/channel/logs/server.log` for errors. Verify bot token in `~/.claudy/secrets.env` and that `allowed_users` includes your chat user ID.
 - **Permission prompt not appearing**: ensure Claude CLI is not running with `--dangerously-skip-permissions`. The prompt only triggers when Claude needs explicit approval for tool use.
-- **Binary not found after install**: ensure Claudy's bin directory is on `PATH`, then restart your shell.
+- **Binary not found after install**: see the PATH note in the [Verify](#verify) section.
 - **Agent not showing in MCP**: ensure the agent binary is on `PATH` (`which gemini`). Only installed agents appear in `tools/list`.
 - **Agent timeout**: increase timeout in `config.yaml` agents field (default: 120s).
 - **MCP not registered**: run `claudy mcp` once manually, or check `~/.claude/settings.json` for the `mcpServers.claudy` entry.
