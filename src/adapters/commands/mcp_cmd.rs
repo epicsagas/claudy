@@ -16,6 +16,17 @@ pub fn install_mcp(ctx: &mut Context) -> anyhow::Result<i32> {
     // Also register in all existing modes
     register_all_modes(&ctx.paths.modes_dir);
 
+    // Seed bundled skills
+    let global_skills = home.join(".claude").join("skills");
+    let (installed, skipped) = crate::adapters::skill::seeder::install_skills(&global_skills);
+    seed_all_modes(&ctx.paths.modes_dir);
+
+    if installed > 0 {
+        ctx.output.info(&format!(
+            "Seeded {installed} skill(s), {skipped} already up to date"
+        ));
+    }
+
     ctx.output
         .success("MCP server registered in Claude Code settings");
     Ok(0)
@@ -28,6 +39,11 @@ pub fn uninstall_mcp(ctx: &mut Context) -> anyhow::Result<i32> {
 
     // Also unregister from all modes
     unregister_all_modes(&ctx.paths.modes_dir);
+
+    // Remove bundled skills
+    let global_skills = home.join(".claude").join("skills");
+    crate::adapters::skill::seeder::uninstall_skills(&global_skills);
+    unseed_all_modes(&ctx.paths.modes_dir);
 
     ctx.output
         .success("MCP server removed from Claude Code settings");
@@ -65,5 +81,17 @@ fn unregister_all_modes(modes_dir: &str) {
     for_each_mode(modes_dir, |path, _name| {
         let config = path.join(".claude.json");
         crate::adapters::mcp::server::unregister(&config);
+    });
+}
+
+fn seed_all_modes(modes_dir: &str) {
+    for_each_mode(modes_dir, |path, _name| {
+        crate::adapters::skill::seeder::install_skills(&path.join("skills"));
+    });
+}
+
+fn unseed_all_modes(modes_dir: &str) {
+    for_each_mode(modes_dir, |path, _name| {
+        crate::adapters::skill::seeder::uninstall_skills(&path.join("skills"));
     });
 }

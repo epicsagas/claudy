@@ -29,6 +29,17 @@ pub fn run_session(
         env.push(format!("CLAUDE_CONFIG_DIR={}", mode_dir.display()));
     }
 
+    // Seed bundled skills (global + mode-specific)
+    if let Some(home) = dirs::home_dir() {
+        let global_skills = home.join(".claude").join("skills");
+        crate::adapters::skill::seeder::install_skills(&global_skills);
+        if let Some(mode_name) = mode {
+            let mode_skills =
+                std::path::Path::new(&paths.modes_dir).join(mode_name).join("skills");
+            crate::adapters::skill::seeder::install_skills(&mode_skills);
+        }
+    }
+
     // Update check
     if let Some(msg) =
         crate::adapters::update::check::maybe_message(paths, crate::adapters::version::VALUE)

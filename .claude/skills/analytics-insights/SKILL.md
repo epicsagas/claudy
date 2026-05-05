@@ -1,11 +1,6 @@
 ---
 name: analytics-insights
-description: >
-  Analyze Claude Code usage patterns and provide actionable insights. Triggers on
-  Korean: "사용 패턴 분석", "사용 분석", "인사이트", "사용량 인사이트", "비용 분석"
-  and English: "usage insights", "analyze usage", "analytics insights", "usage patterns",
-  "cost analysis". Reports on costs, model distribution, tool usage, cache efficiency,
-  and session patterns.
+description: Analyze Claude Code usage patterns and provide actionable insights. Triggers on "usage insights", "analyze usage", "analytics insights", "usage patterns", "cost analysis". Reports on costs, model distribution, tool usage, cache efficiency, and session patterns.
 ---
 
 # Usage Analytics Insights

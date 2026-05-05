@@ -4,6 +4,7 @@ pub mod channel;
 pub mod cli;
 pub mod commands;
 pub mod mcp;
+pub mod skill;
 pub mod ui;
 pub mod update;
 pub mod version;
