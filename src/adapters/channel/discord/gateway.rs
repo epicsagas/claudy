@@ -4,6 +4,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio_tungstenite::tungstenite::Message;
 
+use super::api::DiscordApi;
 use crate::adapters::channel::server::{AppState, authorize_and_spawn};
 use crate::domain::channel_events::Platform;
 
@@ -50,11 +51,19 @@ pub async fn start_discord_gateway(state: Arc<AppState>, token: String) {
     let mut session_id: Option<String> = None;
     let mut resume_url: Option<String> = None;
     let mut last_seq: Option<u64> = None;
+    let api = DiscordApi::new(token.clone());
 
     loop {
         let url = resume_url.as_deref().unwrap_or(GATEWAY_URL);
-        let result =
-            run_gateway_session(&state, &token, url, session_id.as_deref(), &mut last_seq).await;
+        let result = run_gateway_session(
+            &state,
+            &api,
+            &token,
+            url,
+            session_id.as_deref(),
+            &mut last_seq,
+        )
+        .await;
 
         match result {
             Ok(Some(ready)) => {
@@ -84,6 +93,7 @@ pub async fn start_discord_gateway(state: Arc<AppState>, token: String) {
 /// or None if the connection closed cleanly.
 async fn run_gateway_session(
     state: &Arc<AppState>,
+    api: &DiscordApi,
     token: &str,
     url: &str,
     session_id: Option<&str>,
@@ -204,7 +214,7 @@ async fn run_gateway_session(
                                         handle_message_create(state, &event.d).await;
                                     }
                                     "INTERACTION_CREATE" => {
-                                        handle_interaction_create(state, &event.d).await;
+                                        handle_interaction_create(state, api, &event.d).await;
                                     }
                                     _ => {}
                                 }
@@ -269,18 +279,20 @@ async fn handle_message_create(state: &Arc<AppState>, data: &serde_json::Value) 
     }
 }
 
-async fn handle_interaction_create(state: &Arc<AppState>, data: &serde_json::Value) {
+async fn handle_interaction_create(
+    state: &Arc<AppState>,
+    api: &DiscordApi,
+    data: &serde_json::Value,
+) {
     let interaction = match super::webhook::DiscordInteraction::from_gateway_event(data) {
         Some(i) => i,
         None => return,
     };
 
     // Ack the interaction via REST (type 5 = DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE)
-    {
-        let id = &interaction.id;
-        let token = &interaction.token;
-        let _ = super::api::DiscordApi::defer_interaction(&state.secrets, id, token).await;
-    }
+    let _ = api
+        .defer_interaction(&interaction.id, &interaction.token)
+        .await;
 
     if let Some(event) = super::normalize::normalize_interaction(&interaction) {
         authorize_and_spawn(state, Platform::Discord, event);

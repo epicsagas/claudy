@@ -2,11 +2,8 @@ use crate::domain::channel_events::{
     ChannelIdentity, ConversationId, IncomingEvent, InteractionEvent, Platform, TextMessage,
 };
 
+use super::super::server::is_bot_command;
 use super::webhook::{DiscordInteraction, DiscordInteractionType};
-
-const KNOWN_COMMANDS: &[&str] = &[
-    "help", "start", "cancel", "model", "yolo", "status", "sessions", "projects", "new", "history",
-];
 
 /// Convert a raw Discord interaction into a domain [`IncomingEvent`].
 ///
@@ -31,7 +28,7 @@ pub fn normalize_interaction(interaction: &DiscordInteraction) -> Option<Incomin
             let data = interaction.data.as_ref();
             let cmd_name = data.and_then(|d| d.name.as_deref()).unwrap_or("");
 
-            if KNOWN_COMMANDS.contains(&cmd_name) {
+            if is_bot_command(cmd_name) {
                 let args = extract_command_args(interaction);
                 Some(IncomingEvent::BotCommand {
                     command: format!("/{cmd_name}"),
