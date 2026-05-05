@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#ffb596",
+                        "surface-container-lowest": "#0f0e0a",
+                        "inverse-surface": "#e6e2db",
+                        "secondary-fixed-dim": "#c8c6c3",
+                        "surface-variant": "#363530",
+                        "tertiary-container": "#929094",
+                        "tertiary-fixed-dim": "#c8c6c9",
+                        "on-secondary": "#30302f",
+                        "on-secondary-container": "#b9b8b5",
+                        "on-primary-fixed-variant": "#7c2e00",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary-container": "#2a292c",
+                        "surface-container-highest": "#363530",
+                        "error-container": "#93000a",
+                        "surface-container": "#20201b",
+                        "primary": "#ffb596",
+                        "on-primary-container": "#4d1900",
+                        "error": "#ffb4ab",
+                        "on-primary-fixed": "#360f00",
+                        "on-surface": "#e6e2db",
+                        "surface-dim": "#14130f",
+                        "on-tertiary-fixed": "#1b1b1e",
+                        "secondary-container": "#494947",
+                        "primary-fixed": "#ffdbcd",
+                        "surface-container-high": "#2b2a25",
+                        "on-primary": "#581e00",
+                        "on-error": "#690005",
+                        "on-secondary-fixed": "#1b1c1a",
+                        "on-background": "#e6e2db",
+                        "surface": "#14130f",
+                        "surface-bright": "#3a3934",
+                        "primary-container": "#f26411",
+                        "tertiary": "#c8c6c9",
+                        "secondary-fixed": "#e4e2df",
+                        "surface-container-low": "#1c1c17",
+                        "on-secondary-fixed-variant": "#474745",
+                        "inverse-primary": "#a33e00",
+                        "outline-variant": "#594137",
+                        "outline": "#a98a7e",
+                        "background": "#14130f",
+                        "on-tertiary-fixed-variant": "#47464a",
+                        "tertiary-fixed": "#e4e1e5",
+                        "on-surface-variant": "#e1bfb2",
+                        "on-tertiary": "#303033",
+                        "secondary": "#c8c6c3",
+                        "surface-tint": "#ffb596",
+                        "inverse-on-surface": "#31302c"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "md": "16px",
+                        "sm": "8px",
+                        "lg": "24px",
+                        "gutter": "1px",
+                        "unit": "4px",
+                        "xs": "4px",
+                        "xl": "40px"
+                    },
+                    "fontFamily": {
+                        "ui-medium": ["Bricolage Grotesque"],
+                        "ui-small": ["Bricolage Grotesque"],
+                        "data-lg": ["JetBrains Mono"],
+                        "display-lg": ["Bricolage Grotesque"],
+                        "data-mono": ["JetBrains Mono"],
+                        "data-label": ["JetBrains Mono"],
+                        "heading-md": ["Bricolage Grotesque"],
+                        "display-xl": ["Bricolage Grotesque"]
+                    },
+                    "fontSize": {
+                        "ui-medium": ["14px", {"lineHeight": "1.2", "fontWeight": "500"}],
+                        "ui-small": ["12px", {"lineHeight": "1", "fontWeight": "500"}],
+                        "data-lg": ["24px", {"lineHeight": "1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "display-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "data-mono": ["13px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "data-label": ["11px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                        "heading-md": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                        "display-xl": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "800"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            font-size: 18px;
+        }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #0f0e0a; }
+        ::-webkit-scrollbar-thumb { background: #363530; }
+        ::-webkit-scrollbar-thumb:hover { background: #e85d04; }
+        .grid-line { border: 1px solid #2a2a2e; }
+        .border-technical { border-color: #2a2a2e; }
+    </style>
+</head>
+<body class="bg-background text-on-background font-ui-medium selection:bg-primary-container selection:text-white overflow-hidden">
+<!-- SIDE NAVIGATION RAIL -->
+<aside class="fixed left-0 top-0 h-full z-50 w-16 h-full border-r border-zinc-800 flex flex-col items-center py-4 bg-zinc-950">
+<div class="mb-8 flex flex-col items-center">
+<span class="font-black text-orange-600 dark:text-orange-500 tracking-widest text-xs">CLAUDY</span>
+<span class="font-['Bricolage_Grotesque'] tracking-tighter uppercase text-[8px] text-zinc-500 mt-1">CLI_v2.4</span>
+</div>
+<nav class="flex-1 w-full space-y-4">
+<!-- Dashboard -->
+<button class="w-full flex flex-col items-center py-3 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 transition-colors duration-75 cursor-crosshair active:opacity-80">
+<span class="material-symbols-outlined mb-1" data-icon="dashboard">dashboard</span>
+<span class="font-['Bricolage_Grotesque'] tracking-tighter uppercase text-[8px]">Dashboard</span>
+</button>
+<!-- Tokens -->
+<button class="w-full flex flex-col items-center py-3 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 transition-colors duration-75 cursor-crosshair active:opacity-80">
+<span class="material-symbols-outlined mb-1" data-icon="payments">payments</span>
+<span class="font-['Bricolage_Grotesque'] tracking-tighter uppercase text-[8px]">Tokens</span>
+</button>
+<!-- Tool Inspector (ACTIVE) -->
+<button class="w-full flex flex-col items-center py-3 text-orange-500 border-l-2 border-orange-500 bg-orange-500/5 transition-colors duration-75 cursor-crosshair active:opacity-80">
+<span class="material-symbols-outlined mb-1" data-icon="construction">construction</span>
+<span class="font-['Bricolage_Grotesque'] tracking-tighter uppercase text-[8px]">Tool Inspector</span>
+</button>
+<!-- Session Logs -->
+<button class="w-full flex flex-col items-center py-3 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 transition-colors duration-75 cursor-crosshair active:opacity-80">
+<span class="material-symbols-outlined mb-1" data-icon="history">history</span>
+<span class="font-['Bricolage_Grotesque'] tracking-tighter uppercase text-[8px]">Session Logs</span>
+</button>
+</nav>
+<div class="mt-auto w-full">
+<button class="w-full flex flex-col items-center py-3 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 transition-colors duration-75 cursor-crosshair active:opacity-80">
+<span class="material-symbols-outlined mb-1" data-icon="settings">settings</span>
+<span class="font-['Bricolage_Grotesque'] tracking-tighter uppercase text-[8px]">Settings</span>
+</button>
+</div>
+</aside>
+<!-- TOP APP BAR -->
+<header class="fixed top-0 left-16 right-0 z-40 h-12 border-b border-zinc-800 flex items-center px-4 bg-zinc-950 justify-between">
+<div class="flex items-center space-x-6">
+<span class="font-bold text-zinc-100 font-['JetBrains_Mono'] text-[11px] uppercase tracking-mono">CLAUDY_ANALYTICS</span>
+<nav class="hidden md:flex space-x-4 font-['JetBrains_Mono'] text-[11px] uppercase tracking-mono">
+<a class="text-zinc-400 hover:text-zinc-100 transition-none" href="#">LIVE_FEED</a>
+<a class="text-orange-500 border-b border-orange-500 transition-none" href="#">METRICS</a>
+<a class="text-zinc-400 hover:text-zinc-100 transition-none" href="#">ALERTS</a>
+</nav>
+</div>
+<div class="flex items-center space-x-4">
+<div class="relative group">
+<input class="bg-zinc-900 border border-zinc-800 text-[10px] font-data-mono px-3 py-1 w-48 focus:outline-none focus:border-orange-500 transition-colors placeholder:text-zinc-600" placeholder="CMD_SEARCH..." type="text"/>
+<span class="absolute right-2 top-1.5 material-symbols-outlined text-zinc-600 text-xs" data-icon="terminal">terminal</span>
+</div>
+<div class="flex space-x-2 border-l border-zinc-800 pl-4">
+<button class="text-zinc-400 hover:text-orange-500 transition-none"><span class="material-symbols-outlined" data-icon="refresh">refresh</span></button>
+<button class="text-zinc-400 hover:text-orange-500 transition-none"><span class="material-symbols-outlined" data-icon="more_vert">more_vert</span></button>
+</div>
+</div>
+</header>
+<!-- MAIN CONTENT AREA -->
+<main class="ml-16 mt-12 h-[calc(100vh-48px)] flex flex-col overflow-hidden bg-surface">
+<!-- Filter Header -->
+<section class="h-14 border-b border-technical bg-surface-container-low px-4 flex items-center gap-4">
+<div class="flex items-center space-x-2">
+<span class="font-data-label text-zinc-500 uppercase">Filter_Tool:</span>
+<select class="bg-surface-container-lowest border border-technical text-data-label text-on-surface px-2 py-1 focus:ring-0 focus:border-orange-500">
+<option>ALL_OPERATIONS</option>
+<option>SQL_QUERY</option>
+<option>FILE_READ</option>
+<option>HTTP_POST</option>
+<option>VECTOR_SEARCH</option>
+</select>
+</div>
+<div class="flex items-center space-x-2">
+<span class="font-data-label text-zinc-500 uppercase">Status:</span>
+<div class="flex bg-surface-container-lowest border border-technical p-0.5">
+<button class="px-3 py-0.5 font-data-label text-[9px] bg-orange-600 text-on-primary">ALL</button>
+<button class="px-3 py-0.5 font-data-label text-[9px] text-zinc-500 hover:text-on-surface">SUCCESS</button>
+<button class="px-3 py-0.5 font-data-label text-[9px] text-zinc-500 hover:text-on-surface">FAIL</button>
+</div>
+</div>
+<div class="flex items-center space-x-2">
+<span class="font-data-label text-zinc-500 uppercase">Range:</span>
+<div class="flex items-center bg-surface-container-lowest border border-technical px-2 py-1 font-data-mono text-[10px]">
+<span class="material-symbols-outlined text-[14px] mr-2 text-zinc-500" data-icon="calendar_today">calendar_today</span>
+<span>2023-10-27T08:00Z</span>
+<span class="mx-2 text-zinc-700">/</span>
+<span>NOW</span>
+</div>
+</div>
+<div class="ml-auto">
+<button class="bg-primary-container text-white font-data-label text-[10px] px-4 py-1.5 uppercase hover:bg-orange-600 active:scale-95 transition-all">Export_Log.CSV</button>
+</div>
+</section>
+<!-- Main Workspace: Split View -->
+<div class="flex-1 flex overflow-hidden">
+<!-- Ledger Table -->
+<div class="flex-1 overflow-auto bg-surface-dim">
+<table class="w-full border-collapse text-left font-data-mono text-[12px]">
+<thead class="sticky top-0 z-10 bg-surface-container-high border-b border-technical">
+<tr>
+<th class="px-4 py-2 font-data-label text-zinc-500 uppercase border-r border-technical">Timestamp_UTC</th>
+<th class="px-4 py-2 font-data-label text-zinc-500 uppercase border-r border-technical">Tool_ID</th>
+<th class="px-4 py-2 font-data-label text-zinc-500 uppercase border-r border-technical">Arguments_Snapshot</th>
+<th class="px-4 py-2 font-data-label text-zinc-500 uppercase border-r border-technical">Status</th>
+<th class="px-4 py-2 font-data-label text-zinc-500 uppercase border-r border-technical">Lat_ms</th>
+<th class="px-4 py-2 font-data-label text-zinc-500 uppercase">Tokens</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-technical">
+<!-- Row 1 -->
+<tr class="hover:bg-orange-500/5 group cursor-crosshair transition-colors bg-surface-container-lowest">
+<td class="px-4 py-2 border-r border-technical text-zinc-400">14:22:01.004</td>
+<td class="px-4 py-2 border-r border-technical font-bold text-orange-500">get_customer_id</td>
+<td class="px-4 py-2 border-r border-technical text-zinc-500">{"email": "user_492@domain..."}</td>
+<td class="px-4 py-2 border-r border-technical">
+<div class="flex items-center">
+<span class="w-2 h-2 bg-emerald-500 mr-2"></span>
+<span class="text-emerald-500 text-[10px] font-data-label">SUCCESS</span>
+</div>
+</td>
+<td class="px-4 py-2 border-r border-technical text-right">142</td>
+<td class="px-4 py-2 text-right">241</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-orange-500/5 group cursor-crosshair transition-colors bg-orange-500/10">
+<td class="px-4 py-2 border-r border-technical text-zinc-400">14:21:58.892</td>
+<td class="px-4 py-2 border-r border-technical font-bold text-orange-500">execute_sql</td>
+<td class="px-4 py-2 border-r border-technical text-zinc-500">{"query": "SELECT * FROM pay..."}</td>
+<td class="px-4 py-2 border-r border-technical">
+<div class="flex items-center">
+<span class="w-2 h-2 bg-rose-600 mr-2"></span>
+<span class="text-rose-600 text-[10px] font-data-label">TIMEOUT</span>
+</div>
+</td>
+<td class="px-4 py-2 border-r border-technical text-right text-rose-500">5000</td>
+<td class="px-4 py-2 text-right">86</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-orange-500/5 group cursor-crosshair transition-colors bg-surface-container-lowest">
+<td class="px-4 py-2 border-r border-technical text-zinc-400">14:21:45.121</td>
+<td class="px-4 py-2 border-r border-technical font-bold text-orange-500">weather_v2</td>
+<td class="px-4 py-2 border-r border-technical text-zinc-500">{"lat": -33.86, "long": 151.2}</td>
+<td class="px-4 py-2 border-r border-technical">
+<div class="flex items-center">
+<span class="w-2 h-2 bg-emerald-500 mr-2"></span>
+<span class="text-emerald-500 text-[10px] font-data-label">SUCCESS</span>
+</div>
+</td>
+<td class="px-4 py-2 border-r border-technical text-right">892</td>
+<td class="px-4 py-2 text-right">312</td>
+</tr>
+<!-- More Dummy Rows -->
+<tr class="hover:bg-orange-500/5 group cursor-crosshair transition-colors bg-surface-container-lowest">
+<td class="px-4 py-2 border-r border-technical text-zinc-400">14:21:30.550</td>
+<td class="px-4 py-2 border-r border-technical font-bold text-orange-500">send_slack_alert</td>
+<td class="px-4 py-2 border-r border-technical text-zinc-500">{"channel": "#ops-critical", "msg": "Threshold..."}</td>
+<td class="px-4 py-2 border-r border-technical">
+<div class="flex items-center">
+<span class="w-2 h-2 bg-emerald-500 mr-2"></span>
+<span class="text-emerald-500 text-[10px] font-data-label">SUCCESS</span>
+</div>
+</td>
+<td class="px-4 py-2 border-r border-technical text-right">412</td>
+<td class="px-4 py-2 text-right">512</td>
+</tr>
+<tr class="hover:bg-orange-500/5 group cursor-crosshair transition-colors bg-surface-container-lowest">
+<td class="px-4 py-2 border-r border-technical text-zinc-400">14:20:12.991</td>
+<td class="px-4 py-2 border-r border-technical font-bold text-orange-500">recalculate_indices</td>
+<td class="px-4 py-2 border-r border-technical text-zinc-500">{"shard_id": 4, "force": true}</td>
+<td class="px-4 py-2 border-r border-technical">
+<div class="flex items-center">
+<span class="w-2 h-2 bg-emerald-500 mr-2"></span>
+<span class="text-emerald-500 text-[10px] font-data-label">SUCCESS</span>
+</div>
+</td>
+<td class="px-4 py-2 border-r border-technical text-right">3401</td>
+<td class="px-4 py-2 text-right">1092</td>
+</tr>
+<tr class="hover:bg-orange-500/5 group cursor-crosshair transition-colors bg-surface-container-lowest">
+<td class="px-4 py-2 border-r border-technical text-zinc-400">14:19:55.002</td>
+<td class="px-4 py-2 border-r border-technical font-bold text-orange-500">auth_verify</td>
+<td class="px-4 py-2 border-r border-technical text-zinc-500">{"token": "JWT_SECRET_...", "aud": "claudy"}</td>
+<td class="px-4 py-2 border-r border-technical">
+<div class="flex items-center">
+<span class="w-2 h-2 bg-rose-600 mr-2"></span>
+<span class="text-rose-600 text-[10px] font-data-label">PERMISSION_DENIED</span>
+</div>
+</td>
+<td class="px-4 py-2 border-r border-technical text-right text-rose-500">12</td>
+<td class="px-4 py-2 text-right">44</td>
+</tr>
+<!-- Fill remaining vertical space with empty lines to emphasize technical feel -->
+<script>
+                            for(let i=0; i<20; i++) {
+                                document.write(`
+                                    <tr class="bg-surface-dim opacity-20 border-b border-technical/10">
+                                        <td class="px-4 py-2 border-r border-technical/10">&nbsp;</td>
+                                        <td class="px-4 py-2 border-r border-technical/10">&nbsp;</td>
+                                        <td class="px-4 py-2 border-r border-technical/10">&nbsp;</td>
+                                        <td class="px-4 py-2 border-r border-technical/10">&nbsp;</td>
+                                        <td class="px-4 py-2 border-r border-technical/10">&nbsp;</td>
+                                        <td class="px-4 py-2">&nbsp;</td>
+                                    </tr>
+                                `);
+                            }
+                        </script>
+</tbody>
+</table>
+</div>
+<!-- Detail Pane (Code Block Style) -->
+<aside class="w-[450px] border-l border-technical bg-surface-container-low flex flex-col">
+<header class="p-4 border-b border-technical flex justify-between items-center bg-surface-container">
+<h2 class="font-heading-md text-sm uppercase tracking-wider text-orange-500">Execution_Inspector</h2>
+<button class="text-zinc-500 hover:text-zinc-100 transition-none"><span class="material-symbols-outlined" data-icon="close">close</span></button>
+</header>
+<div class="flex-1 p-4 overflow-y-auto space-y-6">
+<!-- Call Metadata -->
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-lowest border border-technical p-3">
+<span class="block text-[9px] font-data-label text-zinc-500 uppercase mb-1">Execution_Time</span>
+<span class="block font-data-mono text-xs">2023-10-27T14:21:58.892Z</span>
+</div>
+<div class="bg-surface-container-lowest border border-technical p-3">
+<span class="block text-[9px] font-data-label text-zinc-500 uppercase mb-1">Total_Latency</span>
+<span class="block font-data-mono text-xs text-rose-500">5000.12ms (ABORTED)</span>
+</div>
+</div>
+<!-- Arguments -->
+<div>
+<div class="flex items-center justify-between mb-2">
+<span class="text-[9px] font-data-label text-zinc-500 uppercase">Input_Arguments</span>
+<span class="text-[9px] font-data-mono text-zinc-600">86 bytes</span>
+</div>
+<div class="bg-zinc-950 p-4 border border-technical font-data-mono text-[12px] text-emerald-400 overflow-x-auto">
+<pre><code>{
+  "query": "SELECT * FROM payments WHERE status = 'pending' LIMIT 100",
+  "connection_pool": "analytics_primary",
+  "timeout": 5000,
+  "retry": false
+}</code></pre>
+</div>
+</div>
+<!-- System Trace -->
+<div>
+<div class="flex items-center justify-between mb-2">
+<span class="text-[9px] font-data-label text-zinc-500 uppercase">Stack_Trace / Error_Log</span>
+<span class="bg-rose-500/10 text-rose-500 border border-rose-500/20 px-2 py-0.5 text-[8px] font-data-label">CRITICAL</span>
+</div>
+<div class="bg-zinc-950 p-4 border border-technical font-data-mono text-[11px] text-zinc-400">
+<div class="mb-2 text-rose-400">Error: Database connection timeout reached.</div>
+<div class="opacity-50">
+                                0.00ms: Resolving database address...<br/>
+                                4.12ms: Dialing analytics_primary (10.0.4.12:5432)...<br/>
+                                5000.00ms: Connection pool exhausted or network delay.<br/>
+                                5000.01ms: Aborting task 'execute_sql'.<br/>
+                                5000.12ms: Returning timeout status to Orchestrator.
+                            </div>
+</div>
+</div>
+<!-- Visual Visualization (Context Image) -->
+<div class="border border-technical relative h-32 overflow-hidden group">
+<img class="w-full h-full object-cover grayscale opacity-30 group-hover:opacity-50 transition-opacity" data-alt="A technical, high-angle shot of rows upon rows of glowing server racks in a dark, high-security data center. The lighting is dominated by sharp, surgical orange and cool white LEDs that cut through the deep shadows. The atmosphere is industrial and silent, conveying the massive computational power required for real-time analytics. The visual style is crisp and detailed, emphasizing the mechanical precision of global data infrastructure." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDcYQNiMh3gakQ79VV8TaY3c1jqr0ZBJr4_20hveMtM_krOODTmoJYbDNGscr9IUNQzwfuAC7BgeZmgCWZdwX3ClcTJGoENzOblhvfJTDv4NZ6EtFnznks9sVCD23VBhPdgbfl-ngxxg08QANizV5F9ttEuK7uK9x_UU00OD55GTNKsij9WUdmiJ5ABhYfnkcV4Ux1k3SuGtu9kk5pP7NjqYhobubwbOKNtgnPAXU8YINaKmSrRDXPGHbhmaACisaeA_B5naAo6mOE"/>
+<div class="absolute inset-0 bg-gradient-to-t from-zinc-950 to-transparent"></div>
+<div class="absolute bottom-2 left-3">
+<span class="text-[9px] font-data-label text-orange-500 uppercase tracking-widest">Node_Cluster_ID: PX-4</span>
+</div>
+</div>
+</div>
+<footer class="p-4 border-t border-technical bg-surface-container flex gap-2">
+<button class="flex-1 bg-surface-container-highest border border-technical font-data-label text-[10px] py-2 uppercase hover:bg-zinc-800">Retry_Call</button>
+<button class="flex-1 border border-technical font-data-label text-[10px] py-2 uppercase hover:bg-zinc-800">Copy_JSON</button>
+</footer>
+</aside>
+</div>
+<!-- Footer Stats Bar -->
+<footer class="h-6 bg-zinc-950 border-t border-technical flex items-center px-4 justify-between font-data-label text-[9px] text-zinc-500">
+<div class="flex items-center space-x-4">
+<span>SYSTEM_STATUS: <span class="text-emerald-500">NOMINAL</span></span>
+<span class="border-l border-zinc-800 pl-4">THROUGHPUT: 1.2k ops/sec</span>
+<span class="border-l border-zinc-800 pl-4">PENDING_QUEUE: 0</span>
+</div>
+<div class="flex items-center space-x-4">
+<span>LATENCY_P99: 894ms</span>
+<span class="bg-orange-500 text-on-primary px-2">LIVE_SYNC: ACTIVE</span>
+</div>
+</footer>
+</main>
+<!-- Contextual FAB (Suppressed on Details screen, but shown for Tool creation on main dashboard-like list) -->
+<button class="fixed bottom-10 right-8 w-12 h-12 bg-primary-container rounded-none flex items-center justify-center text-white border border-technical shadow-xl hover:bg-orange-600 active:scale-90 transition-all z-50">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+</button>
+</body></html>

@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            font-size: 18px;
+        }
+        .tracking-mono { letter-spacing: 0.05em; }
+        /* Grid-line approach for borders */
+        .grid-line-container {
+            display: grid;
+            gap: 1px;
+            background-color: #2a2a2e;
+            border: 1px solid #2a2a2e;
+        }
+        .grid-line-item {
+            background-color: #14130f;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#ffb596",
+                        "surface-container-lowest": "#0f0e0a",
+                        "inverse-surface": "#e6e2db",
+                        "secondary-fixed-dim": "#c8c6c3",
+                        "surface-variant": "#363530",
+                        "tertiary-container": "#929094",
+                        "tertiary-fixed-dim": "#c8c6c9",
+                        "on-secondary": "#30302f",
+                        "on-secondary-container": "#b9b8b5",
+                        "on-primary-fixed-variant": "#7c2e00",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary-container": "#2a292c",
+                        "surface-container-highest": "#363530",
+                        "error-container": "#93000a",
+                        "surface-container": "#20201b",
+                        "primary": "#ffb596",
+                        "on-primary-container": "#4d1900",
+                        "error": "#ffb4ab",
+                        "on-primary-fixed": "#360f00",
+                        "on-surface": "#e6e2db",
+                        "surface-dim": "#14130f",
+                        "on-tertiary-fixed": "#1b1b1e",
+                        "secondary-container": "#494947",
+                        "primary-fixed": "#ffdbcd",
+                        "surface-container-high": "#2b2a25",
+                        "on-primary": "#581e00",
+                        "on-error": "#690005",
+                        "on-secondary-fixed": "#1b1c1a",
+                        "on-background": "#e6e2db",
+                        "surface": "#14130f",
+                        "surface-bright": "#3a3934",
+                        "primary-container": "#f26411",
+                        "tertiary": "#c8c6c9",
+                        "secondary-fixed": "#e4e2df",
+                        "surface-container-low": "#1c1c17",
+                        "on-secondary-fixed-variant": "#474745",
+                        "inverse-primary": "#a33e00",
+                        "outline-variant": "#594137",
+                        "outline": "#a98a7e",
+                        "background": "#14130f",
+                        "on-tertiary-fixed-variant": "#47464a",
+                        "tertiary-fixed": "#e4e1e5",
+                        "on-surface-variant": "#e1bfb2",
+                        "on-tertiary": "#303033",
+                        "secondary": "#c8c6c3",
+                        "surface-tint": "#ffb596",
+                        "inverse-on-surface": "#31302c"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0px",
+                        "lg": "0px",
+                        "xl": "0px",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "ui-medium": ["Bricolage Grotesque"],
+                        "ui-small": ["Bricolage Grotesque"],
+                        "data-lg": ["JetBrains Mono"],
+                        "display-lg": ["Bricolage Grotesque"],
+                        "data-mono": ["JetBrains Mono"],
+                        "data-label": ["JetBrains Mono"],
+                        "heading-md": ["Bricolage Grotesque"],
+                        "display-xl": ["Bricolage Grotesque"]
+                    },
+                    "fontSize": {
+                        "ui-medium": ["14px", {"lineHeight": "1.2", "fontWeight": "500"}],
+                        "ui-small": ["12px", {"lineHeight": "1", "fontWeight": "500"}],
+                        "data-lg": ["24px", {"lineHeight": "1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "display-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "data-mono": ["13px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "data-label": ["11px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                        "heading-md": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                        "display-xl": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "800"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-surface text-on-surface font-ui-medium selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar (Rail) -->
+<aside class="fixed left-0 top-0 h-full z-50 w-16 bg-zinc-950 border-r border-zinc-800 flex flex-col items-center py-4">
+<div class="mb-8">
+<span class="font-black text-orange-600 dark:text-orange-500 tracking-widest text-xs">CLDY</span>
+</div>
+<nav class="flex-1 flex flex-col gap-6">
+<a class="text-orange-500 border-l-2 border-orange-500 bg-orange-500/5 p-2 flex flex-col items-center cursor-crosshair" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-['Bricolage_Grotesque'] tracking-tighter uppercase text-[8px] mt-1">Dashboard</span>
+</a>
+<a class="text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 transition-colors duration-75 p-2 flex flex-col items-center cursor-crosshair" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-['Bricolage_Grotesque'] tracking-tighter uppercase text-[8px] mt-1">Tokens</span>
+</a>
+<a class="text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 transition-colors duration-75 p-2 flex flex-col items-center cursor-crosshair" href="#">
+<span class="material-symbols-outlined">construction</span>
+<span class="font-['Bricolage_Grotesque'] tracking-tighter uppercase text-[8px] mt-1">Tools</span>
+</a>
+<a class="text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 transition-colors duration-75 p-2 flex flex-col items-center cursor-crosshair" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="font-['Bricolage_Grotesque'] tracking-tighter uppercase text-[8px] mt-1">Logs</span>
+</a>
+</nav>
+<div class="mt-auto border-t border-zinc-800 pt-4 w-full flex flex-col items-center gap-4">
+<a class="text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 transition-colors duration-75 p-2 flex flex-col items-center cursor-crosshair" href="#">
+<span class="material-symbols-outlined">settings</span>
+</a>
+</div>
+</aside>
+<!-- TopAppBar -->
+<header class="fixed top-0 left-16 right-0 z-40 h-12 bg-zinc-950 border-b border-zinc-800 flex items-center justify-between px-4">
+<div class="flex items-center gap-4">
+<span class="font-bold text-zinc-100 font-['JetBrains_Mono'] text-[11px] uppercase tracking-mono">CLAUDY_DASHBOARD</span>
+<div class="h-4 w-px bg-zinc-800"></div>
+<nav class="flex gap-4">
+<a class="text-orange-500 border-b border-orange-500 font-['JetBrains_Mono'] text-[11px] uppercase tracking-mono" href="#">LIVE_FEED</a>
+<a class="text-zinc-400 hover:text-zinc-100 font-['JetBrains_Mono'] text-[11px] uppercase tracking-mono" href="#">METRICS</a>
+<a class="text-zinc-400 hover:text-zinc-100 font-['JetBrains_Mono'] text-[11px] uppercase tracking-mono" href="#">ALERTS</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="bg-surface-container-lowest border border-zinc-800 px-2 py-1 flex items-center gap-2">
+<span class="material-symbols-outlined text-zinc-500 text-sm">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-[10px] font-data-mono p-0 w-32 placeholder:text-zinc-600" placeholder="CMD+K TO SEARCH" type="text"/>
+</div>
+<div class="flex gap-2 text-zinc-400">
+<span class="material-symbols-outlined cursor-pointer hover:text-zinc-100">terminal</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-zinc-100">refresh</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-zinc-100">more_vert</span>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pl-16 pt-12 min-h-screen">
+<div class="max-w-[1280px] mx-auto p-4 space-y-4">
+<!-- Data Ribbon (4 Sparklines) -->
+<div class="grid grid-cols-1 md:grid-cols-4 grid-line-container">
+<!-- Stat 1 -->
+<div class="grid-line-item p-4 border-r border-zinc-800">
+<div class="flex justify-between items-start mb-2">
+<span class="text-zinc-500 font-data-label">TOTAL_TOKENS</span>
+<span class="text-primary text-[10px] font-data-mono">+12.4%</span>
+</div>
+<div class="text-on-surface font-data-lg">2.44M</div>
+<div class="h-8 mt-2 flex items-end gap-[2px]">
+<div class="w-full bg-orange-900/30 h-1/2"></div>
+<div class="w-full bg-orange-900/30 h-3/4"></div>
+<div class="w-full bg-primary h-2/3"></div>
+<div class="w-full bg-orange-900/30 h-1/2"></div>
+<div class="w-full bg-orange-900/30 h-5/6"></div>
+<div class="w-full bg-primary h-1/4"></div>
+<div class="w-full bg-orange-900/30 h-1/2"></div>
+</div>
+</div>
+<!-- Stat 2 -->
+<div class="grid-line-item p-4 border-r border-zinc-800">
+<div class="flex justify-between items-start mb-2">
+<span class="text-zinc-500 font-data-label">EST_COST</span>
+<span class="text-primary text-[10px] font-data-mono">$1,240.82</span>
+</div>
+<div class="text-on-surface font-data-lg font-data-mono">$84.21<span class="text-sm text-zinc-500 ml-1">/hr</span></div>
+<div class="h-8 mt-2 flex items-end gap-[2px]">
+<div class="w-full bg-orange-900/10 h-1/2"></div>
+<div class="w-full bg-primary/20 h-2/3"></div>
+<div class="w-full bg-primary/40 h-1/2"></div>
+<div class="w-full bg-primary/60 h-3/4"></div>
+<div class="w-full bg-primary/80 h-2/3"></div>
+<div class="w-full bg-primary h-5/6"></div>
+<div class="w-full bg-primary/90 h-full"></div>
+</div>
+</div>
+<!-- Stat 3 -->
+<div class="grid-line-item p-4 border-r border-zinc-800">
+<div class="flex justify-between items-start mb-2">
+<span class="text-zinc-500 font-data-label">TOOL_CALLS</span>
+<span class="text-primary text-[10px] font-data-mono">8.2K</span>
+</div>
+<div class="text-on-surface font-data-lg">12,402</div>
+<div class="h-8 mt-2 flex items-end gap-[2px]">
+<div class="w-full bg-primary h-1/2"></div>
+<div class="w-full bg-primary h-2/3"></div>
+<div class="w-full bg-primary h-1/2"></div>
+<div class="w-full bg-primary h-1/4"></div>
+<div class="w-full bg-primary h-2/3"></div>
+<div class="w-full bg-primary h-5/6"></div>
+<div class="w-full bg-primary h-2/3"></div>
+</div>
+</div>
+<!-- Stat 4 -->
+<div class="grid-line-item p-4">
+<div class="flex justify-between items-start mb-2">
+<span class="text-zinc-500 font-data-label">AVG_LATENCY</span>
+<span class="text-primary text-[10px] font-data-mono">NOMINAL</span>
+</div>
+<div class="text-on-surface font-data-lg font-data-mono">842ms</div>
+<div class="h-8 mt-2 flex items-end gap-[2px]">
+<div class="w-full bg-primary/20 h-1/2"></div>
+<div class="w-full bg-primary/20 h-1/2"></div>
+<div class="w-full bg-primary/20 h-1/2"></div>
+<div class="w-full bg-primary/20 h-1/2"></div>
+<div class="w-full bg-primary/20 h-1/2"></div>
+<div class="w-full bg-primary/20 h-1/2"></div>
+<div class="w-full bg-primary h-1/2"></div>
+</div>
+</div>
+</div>
+<!-- Middle Section: 60/40 Split -->
+<div class="grid grid-cols-1 lg:grid-cols-10 grid-line-container">
+<!-- Usage Line Chart (60%) -->
+<div class="lg:col-span-6 grid-line-item p-6 border-r border-zinc-800">
+<div class="flex justify-between items-end mb-8">
+<div>
+<h3 class="text-zinc-400 font-data-label mb-1">AGGREGATED_USAGE_METRICS</h3>
+<div class="text-on-surface font-display-lg">LOAD_BALANCING</div>
+</div>
+<div class="flex gap-2">
+<button class="px-3 py-1 border border-zinc-800 text-[10px] font-data-mono text-zinc-400">1H</button>
+<button class="px-3 py-1 border border-primary text-[10px] font-data-mono text-primary bg-primary/5">24H</button>
+<button class="px-3 py-1 border border-zinc-800 text-[10px] font-data-mono text-zinc-400">7D</button>
+</div>
+</div>
+<div class="relative h-64 w-full border-l border-b border-zinc-800/50">
+<!-- Simulated Chart Grid -->
+<div class="absolute inset-0 flex flex-col justify-between opacity-10">
+<div class="border-t border-zinc-500 w-full"></div>
+<div class="border-t border-zinc-500 w-full"></div>
+<div class="border-t border-zinc-500 w-full"></div>
+<div class="border-t border-zinc-500 w-full"></div>
+</div>
+<!-- Sharp Line Chart Path -->
+<svg class="absolute inset-0 h-full w-full overflow-visible" preserveaspectratio="none">
+<path class="vector-effect-non-scaling-stroke" d="M 0 180 L 100 160 L 200 200 L 300 120 L 400 140 L 500 40 L 600 100 L 700 80 L 800 20" fill="none" stroke="#f26411" stroke-width="2"></path>
+<path class="opacity-10" d="M 0 180 L 100 160 L 200 200 L 300 120 L 400 140 L 500 40 L 600 100 L 700 80 L 800 20 V 256 H 0 Z" fill="url(#gradient-usage)"></path>
+<defs>
+<lineargradient id="gradient-usage" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#f26411"></stop>
+<stop offset="100%" stop-color="transparent"></stop>
+</lineargradient>
+</defs>
+</svg>
+<!-- Tooltip line -->
+<div class="absolute left-1/2 top-0 bottom-0 border-l border-zinc-700 border-dashed"></div>
+<div class="absolute left-1/2 top-1/4 -translate-x-1/2 bg-zinc-900 border border-primary px-2 py-1">
+<span class="font-data-mono text-[10px] text-primary">T+14:22 | 84.2K REQ</span>
+</div>
+</div>
+</div>
+<!-- Intelligence Rail (40%) -->
+<div class="lg:col-span-4 grid-line-item flex flex-col divide-y divide-zinc-800">
+<div class="p-6">
+<h3 class="text-zinc-500 font-data-label mb-4">MODEL_DISTRIBUTION</h3>
+<div class="space-y-4">
+<div>
+<div class="flex justify-between text-[11px] font-data-mono mb-1">
+<span class="text-zinc-100">CLAUDE_3.5_SONNET</span>
+<span class="text-zinc-400">72.4%</span>
+</div>
+<div class="h-1 bg-zinc-800">
+<div class="h-full bg-primary" style="width: 72.4%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-[11px] font-data-mono mb-1">
+<span class="text-zinc-100">CLAUDE_3_HAIKU</span>
+<span class="text-zinc-400">27.6%</span>
+</div>
+<div class="h-1 bg-zinc-800">
+<div class="h-full bg-zinc-500" style="width: 27.6%;"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="p-6 flex-1">
+<h3 class="text-zinc-500 font-data-label mb-4">TOP_TOOL_METRICS</h3>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-2 border border-zinc-800 bg-surface-container-low">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">terminal</span>
+<span class="font-data-mono text-[11px]">BASH_EXECUTOR</span>
+</div>
+<span class="font-data-mono text-[11px] text-zinc-100">4,210 <span class="text-zinc-500">OPS</span></span>
+</div>
+<div class="flex items-center justify-between p-2 border border-zinc-800 bg-surface-container-low">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-zinc-500">search</span>
+<span class="font-data-mono text-[11px]">SEARCH_API</span>
+</div>
+<span class="font-data-mono text-[11px] text-zinc-100">1,822 <span class="text-zinc-500">OPS</span></span>
+</div>
+<div class="flex items-center justify-between p-2 border border-zinc-800 bg-surface-container-low">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-zinc-500">database</span>
+<span class="font-data-mono text-[11px]">VECTOR_STORE</span>
+</div>
+<span class="font-data-mono text-[11px] text-zinc-100">944 <span class="text-zinc-500">OPS</span></span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Section: Session Ledger -->
+<div class="grid-line-container">
+<div class="grid-line-item p-4">
+<div class="flex justify-between items-center mb-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-zinc-400">list_alt</span>
+<h3 class="text-on-surface font-heading-md">SESSION_LEDGER</h3>
+</div>
+<span class="text-zinc-500 font-data-label">SHOWING LAST 10 SESSIONS</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-zinc-800">
+<th class="py-3 px-4 text-[10px] font-data-label text-zinc-500 uppercase tracking-widest">SESSION_ID</th>
+<th class="py-3 px-4 text-[10px] font-data-label text-zinc-500 uppercase tracking-widest">START_TIME</th>
+<th class="py-3 px-4 text-[10px] font-data-label text-zinc-500 uppercase tracking-widest">TOKENS</th>
+<th class="py-3 px-4 text-[10px] font-data-label text-zinc-500 uppercase tracking-widest">COST</th>
+<th class="py-3 px-4 text-[10px] font-data-label text-zinc-500 uppercase tracking-widest">TOOLS</th>
+<th class="py-3 px-4 text-[10px] font-data-label text-zinc-500 uppercase tracking-widest">STATUS</th>
+</tr>
+</thead>
+<tbody class="font-data-mono text-[12px] divide-y divide-zinc-800">
+<tr class="hover:bg-zinc-900 transition-colors cursor-crosshair">
+<td class="py-2 px-4 text-primary">#X9F-2024-K2</td>
+<td class="py-2 px-4 text-zinc-400">14:22:04</td>
+<td class="py-2 px-4">42,801</td>
+<td class="py-2 px-4">$0.42</td>
+<td class="py-2 px-4">12</td>
+<td class="py-2 px-4">
+<span class="border border-orange-500/50 bg-orange-500/10 text-primary text-[9px] px-2 py-0.5 uppercase font-bold">Active</span>
+</td>
+</tr>
+<tr class="hover:bg-zinc-900 transition-colors cursor-crosshair">
+<td class="py-2 px-4 text-primary">#R2D-2024-L8</td>
+<td class="py-2 px-4 text-zinc-400">14:15:33</td>
+<td class="py-2 px-4">12,400</td>
+<td class="py-2 px-4">$0.12</td>
+<td class="py-2 px-4">4</td>
+<td class="py-2 px-4">
+<span class="border border-zinc-700 bg-zinc-800 text-zinc-400 text-[9px] px-2 py-0.5 uppercase font-bold">Closed</span>
+</td>
+</tr>
+<tr class="hover:bg-zinc-900 transition-colors cursor-crosshair">
+<td class="py-2 px-4 text-primary">#B05-2024-M1</td>
+<td class="py-2 px-4 text-zinc-400">14:10:12</td>
+<td class="py-2 px-4">84,122</td>
+<td class="py-2 px-4">$1.24</td>
+<td class="py-2 px-4">31</td>
+<td class="py-2 px-4">
+<span class="border border-zinc-700 bg-zinc-800 text-zinc-400 text-[9px] px-2 py-0.5 uppercase font-bold">Closed</span>
+</td>
+</tr>
+<tr class="hover:bg-zinc-900 transition-colors cursor-crosshair">
+<td class="py-2 px-4 text-primary">#P9Q-2024-V4</td>
+<td class="py-2 px-4 text-zinc-400">13:58:45</td>
+<td class="py-2 px-4">2,500</td>
+<td class="py-2 px-4">$0.04</td>
+<td class="py-2 px-4">1</td>
+<td class="py-2 px-4">
+<span class="border border-zinc-700 bg-zinc-800 text-zinc-400 text-[9px] px-2 py-0.5 uppercase font-bold">Closed</span>
+</td>
+</tr>
+<tr class="hover:bg-zinc-900 transition-colors cursor-crosshair">
+<td class="py-2 px-4 text-primary">#T2X-2024-Z9</td>
+<td class="py-2 px-4 text-zinc-400">13:45:22</td>
+<td class="py-2 px-4">15,622</td>
+<td class="py-2 px-4">$0.18</td>
+<td class="py-2 px-4">6</td>
+<td class="py-2 px-4">
+<span class="border border-zinc-700 bg-zinc-800 text-zinc-400 text-[9px] px-2 py-0.5 uppercase font-bold">Closed</span>
+</td>
+</tr>
+<tr class="hover:bg-zinc-900 transition-colors cursor-crosshair">
+<td class="py-2 px-4 text-primary">#A11-2024-Y0</td>
+<td class="py-2 px-4 text-zinc-400">13:30:11</td>
+<td class="py-2 px-4">32,400</td>
+<td class="py-2 px-4">$0.32</td>
+<td class="py-2 px-4">14</td>
+<td class="py-2 px-4">
+<span class="border border-zinc-700 bg-zinc-800 text-zinc-400 text-[9px] px-2 py-0.5 uppercase font-bold">Closed</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<!-- Footer Meta -->
+<div class="flex justify-between items-center py-2 px-1 border-t border-zinc-900">
+<div class="flex gap-4 text-[10px] font-data-mono text-zinc-600">
+<span>SYSTEM_STATUS: <span class="text-primary">OPERATIONAL</span></span>
+<span>Uptime: 99.998%</span>
+<span>Region: us-east-1</span>
+</div>
+<div class="flex items-center gap-2 text-[10px] font-data-mono text-zinc-600">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span>LIVE_SYNC_ENABLED</span>
+</div>
+</div>
+</div>
+</main>
+<!-- FAB Suppression: Not rendered on dashboard per instructions -->
+</body></html>
