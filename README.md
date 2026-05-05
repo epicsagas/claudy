@@ -43,31 +43,23 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
 ## Install & Configure
 
 ```bash
-# ── Install ──────────────────────────────────────────────
-# Binary (recommended, no compilation):
-cargo install cargo-binstall && cargo binstall claudy
+# Install
+cargo binstall claudy
 
-# Or build from source (requires Rust 1.92+, Node.js 18+):
-# cargo install claudy
+# Sync — auto-creates dirs, seeds config.yaml, secrets.env (0600), registers MCP
+claudy sync
 
-# Or Homebrew (macOS):
-# brew tap epicsagas/tap && brew install claudy
+# Set your provider API key
+echo 'ZAI_API_KEY=your-key-here' >> ~/.claudy/secrets.env
 
-# ── Configure (non-interactive) ──────────────────────────
-# Pick a provider and set your API key:
-mkdir -p ~/.claudy
-echo 'ZAI_API_KEY=your-key-here' > ~/.claudy/secrets.env
-chmod 600 ~/.claudy/secrets.env
-
-# ── Verify ───────────────────────────────────────────────
-claudy --version && claudy doctor
-
-# ── Launch ───────────────────────────────────────────────
-claudy zai              # or: claudy deepseek, claudy native, claudy or <alias>
+# Launch
+claudy zai
 ```
 
+Other install methods: `cargo install claudy` (source) | `brew tap epicsagas/tap && brew install claudy` (macOS)
+
 <details>
-<summary>Other provider keys</summary>
+<summary>Provider credentials</summary>
 
 | Variable | Provider |
 |---|---|
@@ -84,10 +76,12 @@ claudy zai              # or: claudy deepseek, claudy native, claudy or <alias>
 | `ALIBABA_API_KEY` | Alibaba Coding Plan |
 | `OPENROUTER_API_KEY` | OpenRouter (all aliases) |
 
+Custom providers use the `api_key_env` variable defined in their `custom_providers` entry.
+
 </details>
 
 <details>
-<summary>Advanced config.yaml (custom providers, model tiers, channels, agents)</summary>
+<summary>config.yaml schema</summary>
 
 All configuration lives in `~/.claudy/config.yaml`. Only add the sections you need — defaults are used for anything omitted.
 
@@ -96,7 +90,7 @@ All configuration lives in `~/.claudy/config.yaml`. Only add the sections you ne
 provider_overrides:
   zai:
     model: "glm-5.1"                  # Override default model
-    model_tiers:                       # Map tier names to models
+    model_tiers:
       haiku: "glm-4.7"                # → ANTHROPIC_DEFAULT_HAIKU_MODEL
       sonnet: "glm-5.1"               # → ANTHROPIC_DEFAULT_SONNET_MODEL
       opus: "glm-5"                   # → ANTHROPIC_DEFAULT_OPUS_MODEL
@@ -112,7 +106,7 @@ custom_providers:
     name: "my-llm"
     display_name: "My Custom LLM"
     base_url: "https://my-llm.com/api/anthropic"
-    api_key_env: "MY_LLM_API_KEY"     # Looked up in secrets.env
+    api_key_env: "MY_LLM_API_KEY"
     default_model: "my-model-v1"
 
 # Compaction policy
@@ -124,44 +118,25 @@ compaction:
 model_settings:
   deepseek-chat:
     max_context_tokens: 64000
-  glm-5:
-    max_context_tokens: 128000
 
-# Channel bridge (optional) — non-interactive alternative to `claudy channel add`
+# Channel bridge — non-interactive alternative to `claudy channel add`
 channel:
   enabled_platforms: ["telegram"]
   listen_addr: "127.0.0.1:3456"
   default_profile: "zai"
   platform_profiles:
     telegram: "zai"
-    discord: "deepseek"
-  channel_profiles:
-    "telegram:12345": "kimi"
-  default_mode: ""
-  platform_modes:
-    telegram: "concise"
-  allowed_users: []
   platform_allowed_users:
     telegram: ["user_id_1"]
   max_concurrent_sessions: 0           # 0 = unlimited
   stream_timeout_secs: 1800
 
-# Agent overrides — override built-in agent binary, args, or timeout
+# Agent overrides
 agents:
   aider:
     binary: "aider"
     args: ["--message", "{prompt}"]
     timeout: 300
-```
-
-Channel secrets go in `~/.claudy/secrets.env`:
-```env
-TELEGRAM_BOT_TOKEN=...
-SLACK_BOT_TOKEN=xoxb-...
-SLACK_SIGNING_SECRET=...
-DISCORD_BOT_TOKEN=...
-DISCORD_APPLICATION_ID=...
-DISCORD_PUBLIC_KEY=...
 ```
 
 </details>
