@@ -84,6 +84,12 @@ pub struct BridgeSettings {
     /// Per-channel mode overrides. Key = "platform:channel_id".
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub channel_modes: HashMap<String, String>,
+    /// Default project directory used when a channel has no explicit mapping.
+    #[serde(default)]
+    pub default_project: String,
+    /// Per-channel project directory overrides. Key = "platform:channel_id" or "platform:guild_id:channel_id".
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub channel_projects: HashMap<String, String>,
     #[serde(default)]
     pub allowed_users: Vec<String>,
     /// Per-platform allowed user overrides. Key = platform, Value = user IDs/usernames.
@@ -181,6 +187,45 @@ impl BridgeSettings {
             return Some(mode.clone());
         }
         self.mode_for(platform)
+    }
+
+    /// Resolve project directory with channel-level and guild-level override.
+    /// Lookup: channel_projects["platform:guild_id:channel_id"] → channel_projects["platform:guild_id"] → channel_projects["platform:channel_id"] → default_project.
+    pub fn project_for_channel(
+        &self,
+        platform: &str,
+        channel_id: &str,
+        guild_id: Option<&str>,
+    ) -> Option<String> {
+        // Most specific: platform:guild_id:channel_id
+        if let Some(gid) = guild_id {
+            let full_key = format!("{}:{}:{}", platform, gid, channel_id);
+            if let Some(p) = self.channel_projects.get(&full_key)
+                && !p.is_empty()
+            {
+                return Some(p.clone());
+            }
+            // Guild-level: platform:guild_id
+            let guild_key = format!("{}:{}", platform, gid);
+            if let Some(p) = self.channel_projects.get(&guild_key)
+                && !p.is_empty()
+            {
+                return Some(p.clone());
+            }
+        }
+        // Channel-level: platform:channel_id
+        let channel_key = format!("{}:{}", platform, channel_id);
+        if let Some(p) = self.channel_projects.get(&channel_key)
+            && !p.is_empty()
+        {
+            return Some(p.clone());
+        }
+        // Default
+        if !self.default_project.is_empty() {
+            Some(self.default_project.clone())
+        } else {
+            None
+        }
     }
 
     /// Resolve allowed users for a given platform.
@@ -497,5 +542,103 @@ mod tests {
             cfg.openrouter_aliases.get("kimi-k25").map(|s| s.as_str()),
             Some("moonshotai/kimi-k2.5")
         );
+    }
+
+    #[test]
+    fn test_project_for_channel_fallback_order() {
+        let cfg = BridgeSettings {
+            default_project: "/default".to_string(),
+            channel_projects: HashMap::from([
+                ("discord:guild1".to_string(), "/guild1".to_string()),
+                ("discord:guild1:ch1".to_string(), "/guild1-ch1".to_string()),
+                ("discord:ch2".to_string(), "/ch2".to_string()),
+            ]),
+            ..Default::default()
+        };
+
+        // Most specific: platform:guild_id:channel_id
+        assert_eq!(
+            cfg.project_for_channel("discord", "ch1", Some("guild1")),
+            Some("/guild1-ch1".to_string())
+        );
+        // Guild-level: platform:guild_id
+        assert_eq!(
+            cfg.project_for_channel("discord", "ch_other", Some("guild1")),
+            Some("/guild1".to_string())
+        );
+        // Channel-level: platform:channel_id
+        assert_eq!(
+            cfg.project_for_channel("discord", "ch2", None),
+            Some("/ch2".to_string())
+        );
+        // Default fallback
+        assert_eq!(
+            cfg.project_for_channel("discord", "ch_unknown", None),
+            Some("/default".to_string())
+        );
+    }
+
+    #[test]
+    fn test_project_for_channel_no_default() {
+        let cfg = BridgeSettings {
+            channel_projects: HashMap::from([("slack:ch1".to_string(), "/project".to_string())]),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            cfg.project_for_channel("slack", "ch1", None),
+            Some("/project".to_string())
+        );
+        assert_eq!(cfg.project_for_channel("slack", "ch_unknown", None), None);
+    }
+
+    #[test]
+    fn test_project_for_channel_empty_value_skipped() {
+        let cfg = BridgeSettings {
+            default_project: "/default".to_string(),
+            channel_projects: HashMap::from([
+                ("discord:ch1".to_string(), "".to_string()),
+                ("discord:guild1:ch2".to_string(), "".to_string()),
+            ]),
+            ..Default::default()
+        };
+
+        // Empty channel value should fall through to default
+        assert_eq!(
+            cfg.project_for_channel("discord", "ch1", None),
+            Some("/default".to_string())
+        );
+        // Empty guild+channel value should fall through to default
+        assert_eq!(
+            cfg.project_for_channel("discord", "ch2", Some("guild1")),
+            Some("/default".to_string())
+        );
+    }
+
+    #[test]
+    fn test_bridge_settings_project_serialization() {
+        let cfg = BridgeSettings {
+            default_project: "/home/user/project".to_string(),
+            channel_projects: HashMap::from([
+                (
+                    "discord:123".to_string(),
+                    "/home/user/discord-proj".to_string(),
+                ),
+                (
+                    "slack:T123:C456".to_string(),
+                    "/home/user/slack-proj".to_string(),
+                ),
+            ]),
+            ..Default::default()
+        };
+
+        let yaml = serde_yaml::to_string(&cfg).unwrap();
+        assert!(yaml.contains("default_project: /home/user/project"));
+        assert!(yaml.contains("discord:123"));
+        assert!(yaml.contains("slack:T123:C456"));
+
+        let deserialized: BridgeSettings = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(deserialized.default_project, "/home/user/project");
+        assert_eq!(deserialized.channel_projects.len(), 2);
     }
 }

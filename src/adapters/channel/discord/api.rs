@@ -349,7 +349,10 @@ mod tests {
 
     #[test]
     fn validate_accepts_valid_inputs() {
-        assert!(validate_interaction_inputs("123456789012345678", "abcXYZ_123-456"));
+        assert!(validate_interaction_inputs(
+            "123456789012345678",
+            "abcXYZ_123-456"
+        ));
     }
 
     #[test]

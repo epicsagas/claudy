@@ -49,14 +49,25 @@ pub fn normalize_interaction(interaction: &DiscordInteraction) -> Option<Incomin
 
         DiscordInteractionType::MessageComponent => {
             let data = interaction.data.as_ref()?;
-            let action_id = data.custom_id.clone().unwrap_or_default();
-            let message_ref = interaction.id.clone();
+            let custom_id = data.custom_id.clone().unwrap_or_default();
+
+            // Split custom_id on ":" to extract action prefix and payload,
+            // matching Telegram's callback_data parsing convention.
+            let (action_id, message_ref) = match custom_id.split_once(':') {
+                Some((action, payload)) => (action.to_string(), payload.to_string()),
+                None => (custom_id, String::new()),
+            };
+
+            // Extract the original message ID from the interaction payload
+            // for keyboard dismissal (edit the button message in-place).
+            let callback_message_id = interaction.message.as_ref().map(|m| m.id.clone());
+
             Some(IncomingEvent::Interaction(InteractionEvent {
                 conversation_id,
                 channel,
                 action_id,
                 message_ref,
-                callback_message_id: None,
+                callback_message_id,
                 callback_query_id: None,
             }))
         }
@@ -127,7 +138,9 @@ fn extract_command_args(interaction: &DiscordInteraction) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapters::channel::discord::webhook::{DiscordInteractionData, DiscordOption};
+    use crate::adapters::channel::discord::webhook::{
+        DiscordInteractionData, DiscordMessageRef, DiscordOption,
+    };
 
     fn base_interaction(itype: DiscordInteractionType) -> DiscordInteraction {
         DiscordInteraction {
@@ -137,6 +150,7 @@ mod tests {
             channel_id: Some("channel-42".into()),
             user_id: Some("user-7".into()),
             data: None,
+            message: None,
         }
     }
 
@@ -248,16 +262,60 @@ mod tests {
         interaction.data = Some(DiscordInteractionData {
             name: None,
             options: None,
-            custom_id: Some("allow".into()),
+            custom_id: Some("choice:1. Use Redis".into()),
+            component_type: Some(2),
+        });
+        interaction.message = Some(DiscordMessageRef {
+            id: "msg-42".into(),
+        });
+
+        let event = normalize_interaction(&interaction).expect("some event");
+        match event {
+            IncomingEvent::Interaction(evt) => {
+                assert_eq!(evt.action_id, "choice");
+                assert_eq!(evt.message_ref, "1. Use Redis");
+                assert_eq!(evt.callback_message_id, Some("msg-42".to_string()));
+                assert_eq!(evt.channel.platform, Platform::Discord);
+            }
+            other => panic!("expected Interaction, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn message_component_without_colon_uses_full_id_as_action() {
+        let mut interaction = base_interaction(DiscordInteractionType::MessageComponent);
+        interaction.data = Some(DiscordInteractionData {
+            name: None,
+            options: None,
+            custom_id: Some("reply".into()),
             component_type: Some(2),
         });
 
         let event = normalize_interaction(&interaction).expect("some event");
         match event {
             IncomingEvent::Interaction(evt) => {
-                assert_eq!(evt.action_id, "allow");
-                assert_eq!(evt.message_ref, "interaction-1");
-                assert_eq!(evt.channel.platform, Platform::Discord);
+                assert_eq!(evt.action_id, "reply");
+                assert_eq!(evt.message_ref, "");
+            }
+            other => panic!("expected Interaction, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn message_component_without_message_has_no_callback_id() {
+        let mut interaction = base_interaction(DiscordInteractionType::MessageComponent);
+        interaction.data = Some(DiscordInteractionData {
+            name: None,
+            options: None,
+            custom_id: Some("choice:yes".into()),
+            component_type: Some(2),
+        });
+        // No message field — callback_message_id should be None
+
+        let event = normalize_interaction(&interaction).expect("some event");
+        match event {
+            IncomingEvent::Interaction(evt) => {
+                assert_eq!(evt.callback_message_id, None);
             }
             other => panic!("expected Interaction, got {:?}", other),
         }

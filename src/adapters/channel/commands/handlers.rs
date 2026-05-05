@@ -142,6 +142,7 @@ pub struct SessionStatus<'a> {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub last_model: Option<&'a str>,
+    pub project: Option<&'a str>,
 }
 
 pub async fn handle_status(
@@ -178,8 +179,14 @@ pub async fn handle_status(
         .unwrap_or_else(|| "unknown".to_string());
 
     let mut text = format!(
-        "Status:\n{}\nBranch: {}\nModel: {}\nProfile: {}\nMode: {}\nYolo: {}",
-        session_info, branch_display, model_info, profile, mode, yolo_label,
+        "Status:\n{}\nBranch: {}\nModel: {}\nProfile: {}\nMode: {}\nProject: {}\nYolo: {}",
+        session_info,
+        branch_display,
+        model_info,
+        profile,
+        mode,
+        status.project.unwrap_or("default"),
+        yolo_label,
     );
 
     if status.input_tokens > 0 || status.output_tokens > 0 {

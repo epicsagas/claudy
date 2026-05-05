@@ -101,9 +101,12 @@ pub struct InteractionEvent {
     pub action_id: String,
     /// The payload after the action prefix (e.g. session ID prefix, encoded dir, model name).
     pub message_ref: String,
-    /// The Telegram message_id that contains the inline keyboard button.
-    /// Used for editMessageText to dismiss the keyboard after handling.
-    pub callback_message_id: Option<i64>,
+    /// Platform-specific message reference for the message containing the button.
+    /// Used to dismiss the keyboard by editing the original message.
+    /// - Telegram: message_id as string (e.g. "200")
+    /// - Discord: message snowflake (e.g. "123456789012345678")
+    /// - Slack: composite "channel:ts" (e.g. "C12345:1234567890.654321")
+    pub callback_message_id: Option<String>,
     /// The platform's callback query ID (e.g. Telegram callback_query ID).
     /// Used for answerCallbackQuery to dismiss the loading spinner.
     pub callback_query_id: Option<String>,

@@ -291,12 +291,20 @@ pub fn discover_sessions(claude_projects_dir: &str, limit: usize) -> Vec<Session
     sessions
 }
 
+/// Reject encoded directory names that could escape the projects root.
+fn is_safe_encoded_dir(dir: &str) -> bool {
+    !dir.is_empty() && !dir.contains("..") && !dir.contains('/') && !dir.contains('\\')
+}
+
 /// Find sessions for a specific project directory.
 pub fn discover_project_sessions(
     claude_projects_dir: &str,
     encoded_dir: &str,
     limit: usize,
 ) -> Vec<SessionInfo> {
+    if !is_safe_encoded_dir(encoded_dir) {
+        return Vec::new();
+    }
     let proj_dir = Path::new(claude_projects_dir).join(encoded_dir);
     if !proj_dir.exists() {
         return Vec::new();
@@ -494,5 +502,29 @@ mod tests {
             dir.path().to_str().unwrap(),
             "nonexistent-session-id"
         ));
+    }
+
+    #[test]
+    fn test_safe_encoded_dir_rejects_traversal() {
+        assert!(!is_safe_encoded_dir(".."));
+        assert!(!is_safe_encoded_dir("../etc"));
+        assert!(!is_safe_encoded_dir("foo/../../etc"));
+        assert!(!is_safe_encoded_dir("foo\\bar"));
+        assert!(!is_safe_encoded_dir(""));
+    }
+
+    #[test]
+    fn test_safe_encoded_dir_accepts_valid() {
+        assert!(is_safe_encoded_dir("-Volumes-T5-projects-claudy"));
+        assert!(is_safe_encoded_dir("-home-user-myapp"));
+    }
+
+    #[test]
+    fn test_discover_project_sessions_rejects_traversal() {
+        let dir = tempfile::tempdir().unwrap();
+        let sessions = discover_project_sessions(dir.path().to_str().unwrap(), "../etc", 5);
+        assert!(sessions.is_empty());
+        let sessions = discover_project_sessions(dir.path().to_str().unwrap(), "..", 5);
+        assert!(sessions.is_empty());
     }
 }

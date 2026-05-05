@@ -5,7 +5,7 @@ use crate::domain::channel_events::{
     OutboundMessage, TextMessage,
 };
 
-use super::{AppState, THINKING_MESSAGES, TypingGuard, spawn_process_event};
+use super::{AppState, THINKING_MESSAGES, TypingGuard, is_authorized, spawn_process_event};
 use crate::adapters::channel::state::scope_key;
 
 /// Validate a stored session ID by checking if the session file still exists on disk.
@@ -242,6 +242,11 @@ pub(super) async fn handle_text_message(
         &msg.channel.channel_id,
         msg.channel.guild_id.as_deref(),
     );
+    let config_project = state.channel_config.project_for_channel(
+        platform.as_str(),
+        &msg.channel.channel_id,
+        msg.channel.guild_id.as_deref(),
+    );
 
     let _typing = TypingGuard::start(channel.clone(), msg.channel.clone());
 
@@ -249,7 +254,10 @@ pub(super) async fn handle_text_message(
     let (resume_session, working_dir, model, yolo) = {
         let cs = state.channel_state.read().await;
         let session = cs.session_id(&scope).map(|s| s.to_string());
-        let cwd = cs.working_dir(&scope).map(|s| s.to_string());
+        let cwd = cs
+            .working_dir(&scope)
+            .map(|s| s.to_string())
+            .or(config_project);
         let m = cs.model(&scope).map(|s| s.to_string());
         let y = cs.yolo(&scope);
         (session, cwd, m, y)
@@ -356,6 +364,17 @@ pub(super) async fn handle_interaction(
     inter: InteractionEvent,
 ) -> anyhow::Result<()> {
     let platform = inter.channel.platform;
+
+    // Defense-in-depth: authorize_and_spawn checks at the entry point,
+    // but reject here if somehow bypassed.
+    if !is_authorized(state, platform, &inter.channel.user_id) {
+        tracing::warn!(
+            user_id = %inter.channel.user_id,
+            "Interaction reached handler without authorization"
+        );
+        return Ok(());
+    }
+
     let channel = state
         .channels
         .get(&platform)
@@ -464,6 +483,11 @@ pub(super) async fn handle_bot_command(
             let input_tokens = cs.input_tokens(&scope);
             let output_tokens = cs.output_tokens(&scope);
             let last_model = cs.last_model(&scope).map(|s| s.to_string());
+            let resolved_project = state.channel_config.project_for_channel(
+                platform.as_str(),
+                &bot_channel.channel_id,
+                bot_channel.guild_id.as_deref(),
+            );
             crate::adapters::channel::commands::handle_status(
                 adapter.as_ref(),
                 &bot_channel,
@@ -477,6 +501,7 @@ pub(super) async fn handle_bot_command(
                     input_tokens,
                     output_tokens,
                     last_model: last_model.as_deref(),
+                    project: resolved_project.as_deref(),
                 },
             )
             .await

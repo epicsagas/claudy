@@ -127,7 +127,7 @@ pub fn normalize_interaction(payload: &SlackInteractionPayload) -> Option<Incomi
     let actions = payload.actions.as_ref()?;
     let first_action = actions.first()?;
 
-    let action_id = first_action.action_id.as_deref()?;
+    let raw_action_id = first_action.action_id.as_deref()?;
 
     let slack_channel = payload.channel.as_ref()?;
     let slack_user = payload.user.as_ref()?;
@@ -143,14 +143,23 @@ pub fn normalize_interaction(payload: &SlackInteractionPayload) -> Option<Incomi
     );
 
     let conversation_id = ConversationId::from_platform(Platform::Slack, &slack_channel.id);
-    let message_ref = format!("{}:{}", slack_channel.id, ts);
+
+    // Split action_id on ":" to extract action prefix and payload,
+    // matching Telegram's callback_data parsing convention.
+    let (action_id, message_ref) = match raw_action_id.split_once(':') {
+        Some((action, payload)) => (action.to_string(), payload.to_string()),
+        None => (raw_action_id.to_string(), String::new()),
+    };
+
+    // Composite message reference for Slack keyboard dismissal
+    let callback_message_id = Some(format!("{}:{}", slack_channel.id, ts));
 
     Some(IncomingEvent::Interaction(InteractionEvent {
         conversation_id,
         channel,
-        action_id: action_id.to_string(),
+        action_id,
         message_ref,
-        callback_message_id: None,
+        callback_message_id,
         callback_query_id: None,
     }))
 }
@@ -262,9 +271,51 @@ mod tests {
         match event {
             IncomingEvent::Interaction(interaction) => {
                 assert_eq!(interaction.action_id, "approve_btn");
-                assert_eq!(interaction.message_ref, "C789:1234567890.654321");
+                // No colon in action_id, so message_ref is empty
+                assert_eq!(interaction.message_ref, "");
+                // callback_message_id is the composite "channel:ts" format
+                assert_eq!(
+                    interaction.callback_message_id,
+                    Some("C789:1234567890.654321".to_string())
+                );
                 assert_eq!(interaction.channel.channel_id, "C789");
                 assert_eq!(interaction.channel.user_id, "U012");
+            }
+            _ => panic!("expected Interaction"),
+        }
+    }
+
+    #[test]
+    fn normalize_interaction_with_colon_action() {
+        let payload = SlackInteractionPayload {
+            type_field: None,
+            payload_type: "block_actions".to_string(),
+            channel: Some(SlackInteractionChannel {
+                id: "C789".to_string(),
+            }),
+            user: Some(SlackInteractionUser {
+                id: "U012".to_string(),
+            }),
+            actions: Some(vec![SlackAction {
+                action_type: "button".to_string(),
+                action_id: Some("choice:1. Use Redis".to_string()),
+                value: None,
+            }]),
+            message: Some(SlackInteractionMessage {
+                ts: Some("1234567890.654321".to_string()),
+            }),
+            response_url: None,
+        };
+
+        let event = normalize_interaction(&payload).expect("should normalize");
+        match event {
+            IncomingEvent::Interaction(interaction) => {
+                assert_eq!(interaction.action_id, "choice");
+                assert_eq!(interaction.message_ref, "1. Use Redis");
+                assert_eq!(
+                    interaction.callback_message_id,
+                    Some("C789:1234567890.654321".to_string())
+                );
             }
             _ => panic!("expected Interaction"),
         }
