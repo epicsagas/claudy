@@ -95,7 +95,14 @@ pub fn run_ingestion(
                 continue;
             }
 
-            match jsonl_parser::parse_and_ingest(&store, project_id, &file_path, &path_str, full, Some(&store)) {
+            match jsonl_parser::parse_and_ingest(
+                &store,
+                project_id,
+                &file_path,
+                &path_str,
+                full,
+                Some(&store),
+            ) {
                 Ok(stats) => {
                     result.files_ingested += 1;
                     result.sessions_created += stats.sessions_created;

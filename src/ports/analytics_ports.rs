@@ -61,7 +61,11 @@ pub trait AnalyticsStore: Send + Sync {
     fn insert_recommendation(&self, rec: &Recommendation) -> anyhow::Result<()>;
     fn get_recommendations(&self) -> anyhow::Result<Vec<Recommendation>>;
 
-    fn aggregate_token_trends(&self, days: u32, project_id: Option<i64>) -> anyhow::Result<Vec<TokenTrendPoint>>;
+    fn aggregate_token_trends(
+        &self,
+        days: u32,
+        project_id: Option<i64>,
+    ) -> anyhow::Result<Vec<TokenTrendPoint>>;
     fn aggregate_tool_distribution(
         &self,
         days: Option<u32>,
@@ -89,14 +93,26 @@ pub trait PricingStore: Send + Sync {
 }
 
 pub trait AnalysisEngine: Send + Sync {
-    fn compute_token_trends(&self, days: u32, project_id: Option<i64>) -> anyhow::Result<Vec<TokenTrendPoint>>;
+    fn compute_token_trends(
+        &self,
+        days: u32,
+        project_id: Option<i64>,
+    ) -> anyhow::Result<Vec<TokenTrendPoint>>;
     fn compute_tool_distribution(
         &self,
         days: Option<u32>,
         project_id: Option<i64>,
     ) -> anyhow::Result<Vec<ToolDistribution>>;
-    fn compute_cost_metrics(&self, days: u32, project_id: Option<i64>) -> anyhow::Result<CostMetrics>;
-    fn compute_dashboard_stats(&self, days: u32, project_id: Option<i64>) -> anyhow::Result<DashboardStats>;
+    fn compute_cost_metrics(
+        &self,
+        days: u32,
+        project_id: Option<i64>,
+    ) -> anyhow::Result<CostMetrics>;
+    fn compute_dashboard_stats(
+        &self,
+        days: u32,
+        project_id: Option<i64>,
+    ) -> anyhow::Result<DashboardStats>;
     fn compute_prompt_efficiency(&self, limit: u32) -> anyhow::Result<Vec<PromptEfficiency>>;
     fn detect_tool_patterns(&self, min_frequency: u32) -> anyhow::Result<Vec<ToolPattern>>;
     fn compare_model_performance(&self) -> anyhow::Result<Vec<ModelPerformance>>;

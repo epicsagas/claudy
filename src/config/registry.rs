@@ -113,7 +113,12 @@ impl BridgeSettings {
 
     /// Resolve profile with channel-level and guild-level override.
     /// Lookup: channel_profiles["platform:guild_id:channel_id"] → channel_profiles["platform:guild_id"] → channel_profiles["platform:channel_id"] → platform_profiles["platform"] → default_profile.
-    pub fn profile_for_channel(&self, platform: &str, channel_id: &str, guild_id: Option<&str>) -> String {
+    pub fn profile_for_channel(
+        &self,
+        platform: &str,
+        channel_id: &str,
+        guild_id: Option<&str>,
+    ) -> String {
         // Most specific: platform:guild_id:channel_id
         if let Some(gid) = guild_id {
             let full_key = format!("{}:{}:{}", platform, gid, channel_id);
@@ -146,7 +151,12 @@ impl BridgeSettings {
     }
 
     /// Resolve mode with channel-level and guild-level override.
-    pub fn mode_for_channel(&self, platform: &str, channel_id: &str, guild_id: Option<&str>) -> Option<String> {
+    pub fn mode_for_channel(
+        &self,
+        platform: &str,
+        channel_id: &str,
+        guild_id: Option<&str>,
+    ) -> Option<String> {
         // Most specific: platform:guild_id:channel_id
         if let Some(gid) = guild_id {
             let full_key = format!("{}:{}:{}", platform, gid, channel_id);

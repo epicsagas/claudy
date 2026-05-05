@@ -33,9 +33,7 @@ fn get_state(app_handle: &tauri::AppHandle) -> AppState {
             app_handle
                 .path()
                 .app_data_dir()
-                .map(|p: std::path::PathBuf| {
-                    p.join("analytics.db").to_string_lossy().to_string()
-                })
+                .map(|p: std::path::PathBuf| p.join("analytics.db").to_string_lossy().to_string())
                 .unwrap_or_default()
         });
     AppState { db_path }
@@ -203,8 +201,7 @@ pub fn trigger_ingestion(
         let cache_path = dirs::home_dir()
             .map(|h| h.join(".claudy").join("cache").join("models_dev.json"))
             .unwrap_or_default();
-        let _ =
-            crate::adapters::analytics::pricing::sync::run_pricing_sync(&store, &cache_path);
+        let _ = crate::adapters::analytics::pricing::sync::run_pricing_sync(&store, &cache_path);
     }
 
     let result = crate::adapters::analytics::ingestion::run_ingestion(

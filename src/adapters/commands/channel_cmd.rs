@@ -283,10 +283,7 @@ fn show_channel_config(ctx: &mut Context) {
 
     ctx.output.header("Channels");
     for (platform, token_key, extra_key, socket_key) in platforms {
-        let has_token = ctx
-            .secrets
-            .get(*token_key)
-            .is_some_and(|v| !v.is_empty());
+        let has_token = ctx.secrets.get(*token_key).is_some_and(|v| !v.is_empty());
         let has_extra = extra_key
             .map(|k| ctx.secrets.get(k).is_some_and(|v| !v.is_empty()))
             .unwrap_or(true);
@@ -572,9 +569,7 @@ fn prompt_channel_overrides(
         );
         if let Some(input) = ctx.prompt.prompt_opt(&mode_label, &mode_default)? {
             if !input.is_empty() && input != "default" {
-                cfg.channel
-                    .channel_modes
-                    .insert(channel_key.clone(), input);
+                cfg.channel.channel_modes.insert(channel_key.clone(), input);
             } else {
                 cfg.channel.channel_modes.remove(&channel_key);
             }
@@ -598,8 +593,16 @@ fn prompt_extra_secrets(
     let extras: &[Extra] = match platform {
         "discord" => &[],
         "slack" => &[
-            Extra { key: "SLACK_SIGNING_SECRET", label: "Signing Secret", required: false },
-            Extra { key: "SLACK_APP_TOKEN", label: "App Token (xapp-)", required: false },
+            Extra {
+                key: "SLACK_SIGNING_SECRET",
+                label: "Signing Secret",
+                required: false,
+            },
+            Extra {
+                key: "SLACK_APP_TOKEN",
+                label: "App Token (xapp-)",
+                required: false,
+            },
         ],
         _ => &[],
     };

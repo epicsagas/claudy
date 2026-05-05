@@ -34,8 +34,9 @@ pub fn run_session(
         let global_skills = home.join(".claude").join("skills");
         crate::adapters::skill::seeder::install_skills(&global_skills);
         if let Some(mode_name) = mode {
-            let mode_skills =
-                std::path::Path::new(&paths.modes_dir).join(mode_name).join("skills");
+            let mode_skills = std::path::Path::new(&paths.modes_dir)
+                .join(mode_name)
+                .join("skills");
             crate::adapters::skill::seeder::install_skills(&mode_skills);
         }
     }

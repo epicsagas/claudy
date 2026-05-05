@@ -1,7 +1,6 @@
 use ureq::config::Config;
 
-const ANTHROPIC_PRICING_URL: &str =
-    "https://platform.claude.com/docs/en/about-claude/pricing";
+const ANTHROPIC_PRICING_URL: &str = "https://platform.claude.com/docs/en/about-claude/pricing";
 
 #[derive(Debug, Clone)]
 pub struct AnthropicModelPrice {

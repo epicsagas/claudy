@@ -275,7 +275,10 @@ mod tests {
             ..AppRegistry::default()
         };
         let result = build_anthropic_config_override("any-model", &cfg);
-        assert!(result.is_none(), "auto_compact=false should produce no override");
+        assert!(
+            result.is_none(),
+            "auto_compact=false should produce no override"
+        );
     }
 
     #[test]
@@ -287,8 +290,8 @@ mod tests {
             },
             ..AppRegistry::default()
         };
-        let json = build_anthropic_config_override("any-model", &cfg)
-            .expect("should produce override");
+        let json =
+            build_anthropic_config_override("any-model", &cfg).expect("should produce override");
         assert!(json.contains("autoCompactThreshold"));
         assert!(json.contains("0.7"));
     }

@@ -4,8 +4,8 @@ use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::domain::channel_events::Platform;
 use crate::adapters::channel::server::{AppState, is_authorized, spawn_process_event};
+use crate::domain::channel_events::Platform;
 
 #[derive(Deserialize, Debug)]
 struct SocketModeMessage {
@@ -14,7 +14,10 @@ struct SocketModeMessage {
     envelope_id: Option<String>,
     payload: Option<serde_json::Value>,
     #[serde(default)]
-    #[expect(dead_code, reason = "deserialized from Slack envelope but not needed for ack")]
+    #[expect(
+        dead_code,
+        reason = "deserialized from Slack envelope but not needed for ack"
+    )]
     accepts_response_payload: Option<bool>,
 }
 
@@ -25,11 +28,7 @@ struct ConnectionsOpenResponse {
     error: Option<String>,
 }
 
-pub async fn start_slack_socket_mode(
-    state: Arc<AppState>,
-    _bot_token: String,
-    app_token: String,
-) {
+pub async fn start_slack_socket_mode(state: Arc<AppState>, _bot_token: String, app_token: String) {
     loop {
         if let Err(e) = run_socket_session(&state, &app_token).await {
             tracing::error!(error = %e, "Slack Socket Mode error, reconnecting in 5s");
@@ -39,15 +38,13 @@ pub async fn start_slack_socket_mode(
     }
 }
 
-async fn run_socket_session(
-    state: &Arc<AppState>,
-    app_token: &str,
-) -> anyhow::Result<()> {
+async fn run_socket_session(state: &Arc<AppState>, app_token: &str) -> anyhow::Result<()> {
     // Get WebSocket URL from Slack
     let ws_url = get_socket_url(app_token).await?;
     tracing::info!("Slack Socket Mode connecting");
 
-    let (mut ws, _) = tokio_tungstenite::connect_async(&ws_url).await
+    let (mut ws, _) = tokio_tungstenite::connect_async(&ws_url)
+        .await
         .map_err(|e| anyhow::anyhow!("WebSocket connect failed: {}", e))?;
 
     tracing::info!("Slack Socket Mode WebSocket connected");
@@ -131,19 +128,21 @@ async fn get_socket_url(app_token: &str) -> anyhow::Result<String> {
         );
     }
 
-    resp.url.ok_or_else(|| anyhow::anyhow!("No URL in connections.open response"))
+    resp.url
+        .ok_or_else(|| anyhow::anyhow!("No URL in connections.open response"))
 }
 
 async fn handle_events_api(state: &Arc<AppState>, payload: &serde_json::Value) {
     // The payload from Socket Mode wraps the event in an "event" field
     // that matches the SlackEventCallback structure
-    let callback: super::normalize::SlackEventCallback = match serde_json::from_value(payload.clone()) {
-        Ok(c) => c,
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to parse Slack event callback");
-            return;
-        }
-    };
+    let callback: super::normalize::SlackEventCallback =
+        match serde_json::from_value(payload.clone()) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to parse Slack event callback");
+                return;
+            }
+        };
 
     if let Some(event) = super::normalize::normalize_event(&callback) {
         let user_id = match &event {
@@ -170,7 +169,9 @@ async fn handle_interactive(state: &Arc<AppState>, payload: &serde_json::Value) 
 
     if let Some(event) = super::normalize::normalize_interaction(&interaction) {
         let user_id = match &event {
-            crate::domain::channel_events::IncomingEvent::Interaction(inter) => &inter.channel.user_id,
+            crate::domain::channel_events::IncomingEvent::Interaction(inter) => {
+                &inter.channel.user_id
+            }
             _ => return,
         };
         if !is_authorized(state, Platform::Slack, user_id) {

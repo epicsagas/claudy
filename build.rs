@@ -1,8 +1,8 @@
 fn main() {
     #[cfg(feature = "analytics-ui")]
     {
-        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-            .expect("CARGO_MANIFEST_DIR must be set by cargo");
+        let manifest_dir =
+            std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR must be set by cargo");
         let ui_dir = std::path::Path::new(&manifest_dir).join("ui");
         let dist_dir = ui_dir.join("dist");
 

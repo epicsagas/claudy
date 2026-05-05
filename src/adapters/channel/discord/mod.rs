@@ -12,7 +12,6 @@ use crate::ports::channel_ports::ChannelPort;
 
 use api::DiscordApi;
 
-
 /// Discord adapter implementing the [`ChannelPort`] trait.
 pub struct DiscordAdapter {
     api: DiscordApi,

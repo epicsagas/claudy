@@ -164,7 +164,8 @@ impl DiscordApi {
         interaction_id: &str,
         token: &str,
     ) -> Result<()> {
-        let bot_token = secrets.get("DISCORD_BOT_TOKEN")
+        let bot_token = secrets
+            .get("DISCORD_BOT_TOKEN")
             .cloned()
             .unwrap_or_default();
         let client = reqwest::Client::new();

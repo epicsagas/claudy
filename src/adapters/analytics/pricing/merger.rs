@@ -233,7 +233,10 @@ mod tests {
         assert_eq!(result.len(), 1);
         let p = &result[0];
         assert_eq!(p.model_id, "claude-sonnet-4-6");
-        assert!((p.input - 3.5).abs() < 1e-9, "input should use Anthropic value");
+        assert!(
+            (p.input - 3.5).abs() < 1e-9,
+            "input should use Anthropic value"
+        );
         assert!((p.output - 17.5).abs() < 1e-9);
         assert!((p.cache_write - 4.375).abs() < 1e-9);
         assert!((p.cache_read - 0.35).abs() < 1e-9);
@@ -282,7 +285,11 @@ mod tests {
 
     #[test]
     fn test_merge_with_provider_prefix_in_id() {
-        let models_dev = vec![make_entry("anthropic/claude-opus-4-7", Some(15.0), Some(75.0))];
+        let models_dev = vec![make_entry(
+            "anthropic/claude-opus-4-7",
+            Some(15.0),
+            Some(75.0),
+        )];
         let anthropic = vec![make_anthropic_price(
             "Claude Opus 4.7",
             15.0,
@@ -311,7 +318,11 @@ mod tests {
         assert!(result.is_empty(), "NaN input price must be skipped");
 
         // input = Infinity should be skipped
-        let models_dev_inf = vec![make_entry("claude-test-inf", Some(f64::INFINITY), Some(15.0))];
+        let models_dev_inf = vec![make_entry(
+            "claude-test-inf",
+            Some(f64::INFINITY),
+            Some(15.0),
+        )];
         let result = PricingMerger::merge(&models_dev_inf, &anthropic);
         assert!(result.is_empty(), "Infinity input price must be skipped");
     }

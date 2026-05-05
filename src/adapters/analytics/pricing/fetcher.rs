@@ -57,16 +57,10 @@ fn parse_raw_response(raw: HashMap<String, RawProvider>) -> Vec<ModelsDevEntry> 
                 .entry(id)
                 .and_modify(|existing| {
                     // Prefer the richer cost entry (one that has cache_read)
-                    let incoming_has_cache = entry
-                        .cost
-                        .as_ref()
-                        .and_then(|c| c.cache_read)
-                        .is_some();
-                    let existing_has_cache = existing
-                        .cost
-                        .as_ref()
-                        .and_then(|c| c.cache_read)
-                        .is_some();
+                    let incoming_has_cache =
+                        entry.cost.as_ref().and_then(|c| c.cache_read).is_some();
+                    let existing_has_cache =
+                        existing.cost.as_ref().and_then(|c| c.cache_read).is_some();
                     if incoming_has_cache && !existing_has_cache {
                         *existing = entry.clone();
                     }
@@ -230,7 +224,10 @@ mod tests {
         }];
 
         fetcher.write_cache_atomic(&entries).unwrap();
-        assert!(cache_path.exists(), "cache file must exist after atomic write");
+        assert!(
+            cache_path.exists(),
+            "cache file must exist after atomic write"
+        );
 
         let loaded = fetcher.load_cache().unwrap();
         assert_eq!(loaded.len(), 1);

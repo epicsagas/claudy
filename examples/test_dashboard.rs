@@ -28,12 +28,32 @@ fn main() {
         };
     }
 
-    check!("get_sessions (30d)", store.get_sessions(100, Some(30), None).map(|_| ()));
-    check!("get_recommendations", store.get_recommendations().map(|_| ()));
-    check!("aggregate_token_trends", store.aggregate_token_trends(30, None).map(|_| ()));
-    check!("aggregate_tool_distribution", store.aggregate_tool_distribution(Some(30), None).map(|_| ()));
-    check!("aggregate_cost_metrics", store.aggregate_cost_metrics(30, None).map(|_| ()));
-    check!("aggregate_dashboard_stats", store.aggregate_dashboard_stats(30, None).map(|_| ()));
+    check!(
+        "get_sessions (30d)",
+        store.get_sessions(100, Some(30), None).map(|_| ())
+    );
+    check!(
+        "get_recommendations",
+        store.get_recommendations().map(|_| ())
+    );
+    check!(
+        "aggregate_token_trends",
+        store.aggregate_token_trends(30, None).map(|_| ())
+    );
+    check!(
+        "aggregate_tool_distribution",
+        store
+            .aggregate_tool_distribution(Some(30), None)
+            .map(|_| ())
+    );
+    check!(
+        "aggregate_cost_metrics",
+        store.aggregate_cost_metrics(30, None).map(|_| ())
+    );
+    check!(
+        "aggregate_dashboard_stats",
+        store.aggregate_dashboard_stats(30, None).map(|_| ())
+    );
 
     if ok {
         eprintln!("\nAll checks passed.");

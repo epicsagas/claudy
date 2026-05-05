@@ -95,7 +95,10 @@ impl DiscordInteraction {
         };
         let id = data.get("id").and_then(|v| v.as_str())?.to_string();
         let token = data.get("token").and_then(|v| v.as_str())?.to_string();
-        let channel_id = data.get("channel_id").and_then(|v| v.as_str()).map(String::from);
+        let channel_id = data
+            .get("channel_id")
+            .and_then(|v| v.as_str())
+            .map(String::from);
         let user_id = data
             .get("member")
             .and_then(|m| m.get("user"))
@@ -106,9 +109,17 @@ impl DiscordInteraction {
 
         let data_field = data.get("data");
         let discord_data = data_field.map(|d| DiscordInteractionData {
-            options: d.get("options").and_then(|o| serde_json::from_value(o.clone()).ok()),
-            custom_id: d.get("custom_id").and_then(|v| v.as_str()).map(String::from),
-            component_type: d.get("component_type").and_then(|v| v.as_u64()).map(|v| v as u8),
+            options: d
+                .get("options")
+                .and_then(|o| serde_json::from_value(o.clone()).ok()),
+            custom_id: d
+                .get("custom_id")
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            component_type: d
+                .get("component_type")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u8),
         });
 
         Some(DiscordInteraction {

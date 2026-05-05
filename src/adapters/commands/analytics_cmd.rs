@@ -1,9 +1,9 @@
-use crate::domain::commands::AnalyticsAction;
-use crate::domain::context::Context;
 use crate::domain::analytics::{
     InsightsCacheEfficiency, InsightsCostAnalysis, InsightsDailyCost, InsightsOverview,
     InsightsPeriod, InsightsSummary, SessionCostHighlight,
 };
+use crate::domain::commands::AnalyticsAction;
+use crate::domain::context::Context;
 use crate::ports::analytics_ports::AnalyticsStore;
 
 pub fn run_analytics(ctx: &mut Context, action: AnalyticsAction) -> anyhow::Result<i32> {
@@ -22,7 +22,13 @@ pub fn run_analytics(ctx: &mut Context, action: AnalyticsAction) -> anyhow::Resu
             from,
             to,
             project,
-        } => run_insights(ctx, days, from.as_deref(), to.as_deref(), project.as_deref()),
+        } => run_insights(
+            ctx,
+            days,
+            from.as_deref(),
+            to.as_deref(),
+            project.as_deref(),
+        ),
         AnalyticsAction::Recalculate => run_recalculate(ctx),
     }
 }
@@ -71,7 +77,8 @@ fn run_recalculate(ctx: &mut Context) -> anyhow::Result<i32> {
     let cache_path = std::path::Path::new(&ctx.paths.cache_dir).join("models_dev.json");
     crate::adapters::analytics::pricing::sync::run_pricing_sync(&store, &cache_path)?;
 
-    ctx.output.info("Recalculating costs with updated pricing...");
+    ctx.output
+        .info("Recalculating costs with updated pricing...");
     let updated = store.recalculate_costs()?;
 
     ctx.output.info(&format!(
@@ -177,8 +184,7 @@ fn run_sync_pricing(ctx: &mut Context) -> anyhow::Result<i32> {
         .map(|h| h.join(".claudy").join("cache").join("models_dev.json"))
         .ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
 
-    let result =
-        crate::adapters::analytics::pricing::sync::run_pricing_sync(&store, &cache_path)?;
+    let result = crate::adapters::analytics::pricing::sync::run_pricing_sync(&store, &cache_path)?;
 
     for warning in &result.warnings {
         println!("Warning: {warning}");

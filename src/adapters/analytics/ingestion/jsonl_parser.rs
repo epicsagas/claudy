@@ -268,14 +268,13 @@ pub fn parse_and_ingest(
                             })
                         })
                     });
-                    let tool_use_id = msg
-                        .get("tool_use_id")
-                        .and_then(|v| v.as_str())
-                        .or_else(|| {
+                    let tool_use_id =
+                        msg.get("tool_use_id").and_then(|v| v.as_str()).or_else(|| {
                             msg.get("content")
                                 .and_then(|c| c.as_array())
                                 .and_then(|arr| {
-                                    arr.iter().find_map(|b| b.get("tool_use_id").and_then(|v| v.as_str()))
+                                    arr.iter()
+                                        .find_map(|b| b.get("tool_use_id").and_then(|v| v.as_str()))
                                 })
                         });
                     if let Some(tuid) = tool_use_id

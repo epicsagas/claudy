@@ -18,7 +18,11 @@ impl SqliteAnalysisEngine {
 }
 
 impl AnalysisEngine for SqliteAnalysisEngine {
-    fn compute_token_trends(&self, days: u32, project_id: Option<i64>) -> anyhow::Result<Vec<TokenTrendPoint>> {
+    fn compute_token_trends(
+        &self,
+        days: u32,
+        project_id: Option<i64>,
+    ) -> anyhow::Result<Vec<TokenTrendPoint>> {
         self.store.aggregate_token_trends(days, project_id)
     }
 
@@ -30,11 +34,19 @@ impl AnalysisEngine for SqliteAnalysisEngine {
         self.store.aggregate_tool_distribution(days, project_id)
     }
 
-    fn compute_cost_metrics(&self, days: u32, project_id: Option<i64>) -> anyhow::Result<CostMetrics> {
+    fn compute_cost_metrics(
+        &self,
+        days: u32,
+        project_id: Option<i64>,
+    ) -> anyhow::Result<CostMetrics> {
         self.store.aggregate_cost_metrics(days, project_id)
     }
 
-    fn compute_dashboard_stats(&self, days: u32, project_id: Option<i64>) -> anyhow::Result<DashboardStats> {
+    fn compute_dashboard_stats(
+        &self,
+        days: u32,
+        project_id: Option<i64>,
+    ) -> anyhow::Result<DashboardStats> {
         self.store.aggregate_dashboard_stats(days, project_id)
     }
 

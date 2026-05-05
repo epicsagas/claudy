@@ -50,7 +50,7 @@ pub fn run_pricing_sync(
                 Err(e) => {
                     return Err(anyhow::anyhow!(
                         "network unavailable and no local cache: {e}"
-                    ))
+                    ));
                 }
             },
         }
@@ -60,9 +60,7 @@ pub fn run_pricing_sync(
             Err(_) => {
                 let entries = ModelsDev::new(cache_path.to_path_buf())
                     .load_cache()
-                    .map_err(|e| {
-                        anyhow::anyhow!("network unavailable and no local cache: {e}")
-                    })?;
+                    .map_err(|e| anyhow::anyhow!("network unavailable and no local cache: {e}"))?;
                 (entries, true)
             }
         }
@@ -156,8 +154,7 @@ mod tests {
         // because we only care about the cache fallback logic).
         //
         // Instead, test the logic directly: merge with empty anthropic list → ratio source.
-        let models_dev_entries =
-            ModelsDev::new(cache_path.clone()).load_cache().unwrap();
+        let models_dev_entries = ModelsDev::new(cache_path.clone()).load_cache().unwrap();
         let anthropic_entries: Vec<
             crate::adapters::analytics::pricing::anthropic::AnthropicModelPrice,
         > = Vec::new();
@@ -182,7 +179,10 @@ mod tests {
         let tmp_dir = TempDir::new().unwrap();
         let path = tmp_dir.path().join("fresh.json");
         std::fs::write(&path, b"{}").unwrap();
-        assert!(cache_is_fresh(&path, 3600), "newly written file must be fresh");
+        assert!(
+            cache_is_fresh(&path, 3600),
+            "newly written file must be fresh"
+        );
     }
 
     /// cache_is_fresh returns false when file does not exist.
@@ -190,7 +190,10 @@ mod tests {
     fn test_cache_is_fresh_returns_false_for_missing_file() {
         let tmp_dir = TempDir::new().unwrap();
         let path = tmp_dir.path().join("nonexistent.json");
-        assert!(!cache_is_fresh(&path, 3600), "missing file must not be fresh");
+        assert!(
+            !cache_is_fresh(&path, 3600),
+            "missing file must not be fresh"
+        );
     }
 
     /// batch_upsert_model_pricing stores all rows inside one transaction.
