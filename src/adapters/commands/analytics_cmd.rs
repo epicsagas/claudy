@@ -297,7 +297,7 @@ fn run_insights(
         .collect();
 
     let mut top_tools = tool_dist;
-    top_tools.sort_by(|a, b| b.call_count.cmp(&a.call_count));
+    top_tools.sort_by_key(|b| std::cmp::Reverse(b.call_count));
     top_tools.truncate(10);
 
     let notable_sessions: Vec<SessionCostHighlight> = {
