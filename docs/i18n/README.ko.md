@@ -75,7 +75,7 @@ Claudy는 하나의 일관된 명령어 인터페이스로 여러 Provider에서
 **macOS / Linux (원라인 설치)**
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
 ```
 
 **macOS (Homebrew)**
@@ -88,7 +88,7 @@ brew install claudy
 **Windows (PowerShell)**
 
 ```powershell
-irm https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.ps1 | iex
+irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
 ```
 
 **Cargo (모든 플랫폼)**

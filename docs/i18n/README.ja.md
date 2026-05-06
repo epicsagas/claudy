@@ -74,7 +74,7 @@ Claudy は、統一されたコマンドインターフェースで複数の Pro
 
 **macOS / Linux (ワンライナー)**
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
 ```
 
 **macOS (Homebrew)**
@@ -85,7 +85,7 @@ brew install claudy
 
 **Windows (PowerShell)**
 ```powershell
-irm https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.ps1 | iex
+irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
 ```
 
 **Cargo (全プラットフォーム)**

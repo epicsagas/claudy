@@ -5,8 +5,8 @@ edition = "2024"
 rust-version = "1.92"
 description = "Modern multi-provider launcher for Claude CLI"
 license = "Apache-2.0"
-repository = "https://github.com/epicsagas/tools"
-homepage = "https://github.com/epicsagas/tools"
+repository = "https://github.com/epicsagas/claudy"
+homepage = "https://github.com/epicsagas/claudy"
 authors = ["epicsagas"]
 
 [package.metadata.wix]

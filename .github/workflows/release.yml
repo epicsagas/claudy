@@ -289,71 +289,11 @@ jobs:
 
           gh release create "${{ needs.plan.outputs.tag }}" --target "$RELEASE_COMMIT" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
 
-  publish-to-tools:
-    name: Publish to epicsagas/tools
-    needs:
-      - plan
-      - host
-    if: ${{ needs.host.result == 'success' }}
-    runs-on: "ubuntu-22.04"
-    env:
-      PUBLIC_RELEASE_REPO: ${{ vars.PUBLIC_RELEASE_REPO }}
-      PUBLIC_RELEASE_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
-    steps:
-      - name: Validate configuration
-        run: |
-          if [ -z "${PUBLIC_RELEASE_REPO}" ]; then
-            echo "PUBLIC_RELEASE_REPO is not set." && exit 1
-          fi
-          if [ -z "${PUBLIC_RELEASE_TOKEN}" ]; then
-            echo "PUBLIC_RELEASE_TOKEN is not set." && exit 1
-          fi
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v7
-        with:
-          pattern: artifacts-*
-          path: downloaded-artifacts
-          merge-multiple: true
-
-      - name: Remove dist manifests
-        run: find downloaded-artifacts -name "*-dist-manifest.json" -delete
-
-      - name: Resolve release tag
-        id: tag
-        run: |
-          TAG="${{ needs.plan.outputs.tag }}"
-          # Normalize: v0.1.0 → claudy-v0.1.0
-          if [[ "$TAG" =~ ^v ]]; then
-            TAG="claudy-${TAG}"
-          fi
-          echo "value=${TAG}" >> "$GITHUB_OUTPUT"
-
-      - name: Publish release to public repository
-        env:
-          GH_TOKEN: ${{ env.PUBLIC_RELEASE_TOKEN }}
-          RELEASE_TAG: ${{ steps.tag.outputs.value }}
-        run: |
-          set -euo pipefail
-          if gh release view "$RELEASE_TAG" --repo "$PUBLIC_RELEASE_REPO" >/dev/null 2>&1; then
-            echo "Release $RELEASE_TAG already exists in $PUBLIC_RELEASE_REPO"
-          else
-            gh release create "$RELEASE_TAG" \
-              --repo "$PUBLIC_RELEASE_REPO" \
-              --title "$RELEASE_TAG" \
-              --notes "Automated binary release from private source repository."
-          fi
-          mapfile -t FILES < <(find downloaded-artifacts -type f | sort)
-          [ "${#FILES[@]}" -eq 0 ] && echo "No files found." && exit 1
-          gh release upload "$RELEASE_TAG" "${FILES[@]}" \
-            --repo "$PUBLIC_RELEASE_REPO" \
-            --clobber
-
   update-homebrew:
     name: Update Homebrew Tap
     needs:
       - plan
-      - publish-to-tools
+      - host
     runs-on: ubuntu-22.04
     steps:
       - name: Download all artifacts
@@ -397,24 +337,24 @@ jobs:
         run: |
           printf 'class Claudy < Formula\n' > Formula/claudy.rb
           printf '  desc "Modern multi-provider launcher for Claude CLI"\n' >> Formula/claudy.rb
-          printf '  homepage "https://github.com/epicsagas/tools"\n' >> Formula/claudy.rb
+          printf '  homepage "https://github.com/epicsagas/claudy"\n' >> Formula/claudy.rb
           printf '  version "%s"\n' "$VER" >> Formula/claudy.rb
           printf '  license "Apache-2.0"\n\n' >> Formula/claudy.rb
           printf '  on_macos do\n' >> Formula/claudy.rb
           printf '    if Hardware::CPU.arm?\n' >> Formula/claudy.rb
-          printf '      url "https://github.com/epicsagas/tools/releases/download/%s/claudy-aarch64-apple-darwin.tar.xz"\n' "$TAG" >> Formula/claudy.rb
+          printf '      url "https://github.com/epicsagas/claudy/releases/download/%s/claudy-aarch64-apple-darwin.tar.xz"\n' "$TAG" >> Formula/claudy.rb
           printf '      sha256 "%s"\n' "$SHA_DARWIN_ARM" >> Formula/claudy.rb
           printf '    else\n' >> Formula/claudy.rb
-          printf '      url "https://github.com/epicsagas/tools/releases/download/%s/claudy-x86_64-apple-darwin.tar.xz"\n' "$TAG" >> Formula/claudy.rb
+          printf '      url "https://github.com/epicsagas/claudy/releases/download/%s/claudy-x86_64-apple-darwin.tar.xz"\n' "$TAG" >> Formula/claudy.rb
           printf '      sha256 "%s"\n' "$SHA_DARWIN_AMD" >> Formula/claudy.rb
           printf '    end\n' >> Formula/claudy.rb
           printf '  end\n\n' >> Formula/claudy.rb
           printf '  on_linux do\n' >> Formula/claudy.rb
           printf '    if Hardware::CPU.arm?\n' >> Formula/claudy.rb
-          printf '      url "https://github.com/epicsagas/tools/releases/download/%s/claudy-aarch64-unknown-linux-gnu.tar.xz"\n' "$TAG" >> Formula/claudy.rb
+          printf '      url "https://github.com/epicsagas/claudy/releases/download/%s/claudy-aarch64-unknown-linux-gnu.tar.xz"\n' "$TAG" >> Formula/claudy.rb
           printf '      sha256 "%s"\n' "$SHA_LINUX_ARM" >> Formula/claudy.rb
           printf '    else\n' >> Formula/claudy.rb
-          printf '      url "https://github.com/epicsagas/tools/releases/download/%s/claudy-x86_64-unknown-linux-gnu.tar.xz"\n' "$TAG" >> Formula/claudy.rb
+          printf '      url "https://github.com/epicsagas/claudy/releases/download/%s/claudy-x86_64-unknown-linux-gnu.tar.xz"\n' "$TAG" >> Formula/claudy.rb
           printf '      sha256 "%s"\n' "$SHA_LINUX_AMD" >> Formula/claudy.rb
           printf '    end\n' >> Formula/claudy.rb
           printf '  end\n\n' >> Formula/claudy.rb
@@ -438,9 +378,8 @@ jobs:
     needs:
       - plan
       - host
-      - publish-to-tools
       - update-homebrew
-    if: ${{ always() && needs.host.result == 'success' && (needs.publish-to-tools.result == 'skipped' || needs.publish-to-tools.result == 'success') && (needs.update-homebrew.result == 'skipped' || needs.update-homebrew.result == 'success') }}
+    if: ${{ always() && needs.host.result == 'success' && (needs.update-homebrew.result == 'skipped' || needs.update-homebrew.result == 'success') }}
     runs-on: "ubuntu-22.04"
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

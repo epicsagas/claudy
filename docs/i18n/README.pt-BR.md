@@ -73,7 +73,7 @@ O Claudy permite que você execute o Claude com múltiplos providers por meio de
 ### macOS / Linux (uma linha)
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
 ```
 
 ### macOS Homebrew
@@ -86,7 +86,7 @@ brew install claudy
 ### Windows PowerShell
 
 ```powershell
-irm https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.ps1 | iex
+irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
 ```
 
 ### crates.io
