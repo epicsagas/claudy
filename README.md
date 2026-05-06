@@ -448,6 +448,10 @@ No manual commands, no context switching. Ask Claude about your usage and get an
 
 Data is stored in a local SQLite database under `~/.claudy/analytics/`. The dashboard runs as a high-performance local Tauri 2 + Svelte app. Use the **[Sync]** button in the dashboard to instantly refresh data from your Claude CLI history.
 
+### Analytics Dashboard 
+```bash
+claudy analytics dashbord
+```
 <img src="docs/assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
 
 ## Files and Directory Layout

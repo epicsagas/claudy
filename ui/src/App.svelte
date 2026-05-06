@@ -4,15 +4,16 @@
   import { Chart, registerables } from 'chart.js/auto';
 
   Chart.register(...registerables);
-  Chart.defaults.color = '#a98a7e';
-  Chart.defaults.borderColor = '#2a2a2e';
+  Chart.defaults.color = '#707a8a';
+  Chart.defaults.borderColor = '#2b3139';
   Chart.defaults.font.family = "'JetBrains Mono', monospace";
   Chart.defaults.font.size = 11;
   Chart.defaults.plugins.legend.labels.boxWidth = 12;
   Chart.defaults.plugins.legend.labels.padding = 16;
   Chart.defaults.animation.duration = 400;
 
-  const CHART_COLORS = ['#e85d04', '#6b6459', '#3d3a35', '#8a8477', '#ffb596', '#c8c6c3'];
+  // Dark: Binance palette  Light: Airbnb palette
+  const CHART_COLORS = ['#fcd535', '#0ecb81', '#f6465d', '#707a8a', '#f0b90b', '#929aa5'];
 
   let activeTab = $state('dashboard');
   let sessions = $state([]);
@@ -32,9 +33,13 @@
   function toggleTheme() {
     isLight = !isLight;
     document.body.classList.toggle('light', isLight);
-    const style = getComputedStyle(document.body);
-    Chart.defaults.color = style.getPropertyValue('--outline').trim();
-    Chart.defaults.borderColor = style.getPropertyValue('--border').trim();
+    if (isLight) {
+      Chart.defaults.color = '#6a6a6a';
+      Chart.defaults.borderColor = '#dddddd';
+    } else {
+      Chart.defaults.color = '#707a8a';
+      Chart.defaults.borderColor = '#2b3139';
+    }
   }
 
   // Settings state
@@ -163,6 +168,9 @@
   }
 
   onMount(async () => {
+    // Always start in dark mode — Binance-inspired dark canvas is the default
+    document.body.classList.remove('light');
+    isLight = false;
     const projs = await invoke('get_projects').catch(() => []);
     projects = projs || [];
     await loadData();
@@ -268,7 +276,7 @@
         scales: {
           y: {
             ticks: { callback: v => v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(0)}K` : v },
-            grid: { color: '#2a2a2e' },
+            grid: { color: '#2b3139' },
           },
           x: { grid: { display: false } },
         },
@@ -347,7 +355,7 @@
           y: {
             stacked: true,
             ticks: { callback: v => v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(0)}K` : v },
-            grid: { color: '#2a2a2e' },
+            grid: { color: '#2b3139' },
           },
           x: { grid: { display: false } },
         },
@@ -375,8 +383,8 @@
           {
             label: 'Errors',
             data: toolDist.map(t => t.error_count),
-            backgroundColor: '#dc2f0266',
-            borderColor: '#dc2f02',
+            backgroundColor: '#f6465d66',
+            borderColor: '#f6465d',
             borderWidth: 1,
             borderRadius: 0,
           },
@@ -388,7 +396,7 @@
         indexAxis: 'y',
         plugins: { legend: { position: 'bottom', labels: { font: { family: "'JetBrains Mono', monospace", size: 10 } } } },
         scales: {
-          x: { grid: { color: '#2a2a2e' }, ticks: { callback: v => v.toLocaleString() } },
+          x: { grid: { color: '#2b3139' }, ticks: { callback: v => v.toLocaleString() } },
           y: { grid: { display: false } },
         },
       },
@@ -409,14 +417,14 @@
         datasets: [{
           label: 'Daily Cost ($)',
           data: costByDate,
-          borderColor: '#e85d04',
-          backgroundColor: 'rgba(232, 93, 4, 0.15)',
+          borderColor: '#fcd535',
+          backgroundColor: 'rgba(252, 213, 53, 0.15)',
           borderWidth: 1.5,
           fill: true,
           tension: 0,
           pointRadius: 3,
           pointStyle: 'rect',
-          pointBackgroundColor: '#e85d04',
+          pointBackgroundColor: '#fcd535',
         }],
       },
       options: {
@@ -428,7 +436,7 @@
           tooltip: { callbacks: { label: ctx => `$${ctx.parsed.y.toFixed(4)}` } },
         },
         scales: {
-          y: { ticks: { callback: v => `$${v.toFixed(2)}` }, grid: { color: '#2a2a2e' } },
+          y: { ticks: { callback: v => `$${v.toFixed(2)}` }, grid: { color: '#2b3139' } },
           x: { grid: { display: false } },
         },
       },
@@ -1325,7 +1333,9 @@
 </div>
 
 <style>
-  /* Shell */
+  /* ============================================================
+   * Shell
+   * ============================================================ */
   .shell {
     display: grid;
     grid-template-columns: var(--nav-width) 1fr;
@@ -1334,11 +1344,15 @@
     overflow: hidden;
   }
 
-  /* Side Nav */
+  /* ============================================================
+   * Side Nav
+   * Dark:  Binance surface-card (#1e2329), flat, border-left active indicator
+   * Light: Airbnb white nav, rounded items, fill-only active state
+   * ============================================================ */
   .side-nav {
     grid-row: 1 / -1;
     grid-column: 1;
-    background: var(--surface-lowest);
+    background: var(--surface-mid);
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
@@ -1377,6 +1391,7 @@
     padding: 0 8px;
   }
 
+  /* Dark: Binance-style — border-left 2px orange active indicator */
   .nav-btn {
     display: flex;
     align-items: center;
@@ -1385,17 +1400,19 @@
     background: transparent;
     border: none;
     border-left: 2px solid transparent;
-    color: var(--outline-variant);
+    color: var(--outline);
     cursor: pointer;
-    transition: all 75ms ease-out;
+    transition: color 75ms ease-out, background 75ms ease-out, border-color 75ms ease-out;
     font-family: var(--font-display);
     width: 100%;
     text-align: left;
+    border-radius: var(--radius-xs);
   }
 
   .nav-btn:hover {
-    color: var(--outline);
+    color: var(--on-surface);
     background: var(--accent-dim);
+    border-left-color: var(--border-hover);
   }
 
   .nav-btn.active {
@@ -1403,6 +1420,23 @@
     border-left-color: var(--accent);
     background: var(--accent-dim);
     cursor: crosshair;
+  }
+
+  /* Light: Airbnb-style — no border-left, rounded items, fill-only */
+  :global(body.light) .nav-btn {
+    border-left: none;
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+  }
+
+  :global(body.light) .nav-btn:hover {
+    border-left: none;
+    background: var(--accent-dim);
+  }
+
+  :global(body.light) .nav-btn.active {
+    border-left: none;
+    background: var(--accent-dim);
   }
 
   .nav-label {
@@ -1421,17 +1455,25 @@
     padding-inline: 8px;
   }
 
-  /* Top Bar */
+  /* ============================================================
+   * Top Bar
+   * Dark:  surface-mid (#1e2329) — Binance dark nav
+   * Light: surface-lowest (#ffffff) — Airbnb white nav bar
+   * ============================================================ */
   .top-bar {
     grid-row: 1;
     grid-column: 2;
-    background: var(--surface-lowest);
+    background: var(--surface-mid);
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 16px;
     z-index: 40;
+  }
+
+  :global(body.light) .top-bar {
+    background: var(--surface-lowest);
   }
 
   .top-left {
@@ -1466,42 +1508,58 @@
     gap: 2px;
   }
 
+  /* Dark: Binance segmented control — flat rectangles, radius-sm */
   .day-btns button {
     background: transparent;
     border: 1px solid var(--border);
-    color: var(--outline-variant);
-    padding: 2px 8px;
+    color: var(--outline);
+    padding: 3px 10px;
     font-family: var(--font-data);
     font-size: 10px;
+    font-weight: 600;
     cursor: pointer;
     transition: all 75ms ease-out;
-    border-radius: 0;
+    border-radius: var(--radius-sm);
   }
 
-  .day-btns button:hover { color: var(--outline); border-color: var(--border-hover); }
+  .day-btns button:hover { color: var(--on-surface); border-color: var(--border-hover); }
   .day-btns button.active {
     background: var(--accent);
-    color: white;
+    color: var(--on-primary);
     border-color: var(--accent);
   }
 
+  /* Light: Airbnb-style pill period selector */
+  :global(body.light) .day-btns button {
+    border-radius: var(--radius-pill);
+  }
+
   select {
-    background: var(--surface-lowest);
+    background: var(--surface-high);
     color: var(--on-surface);
     border: 1px solid var(--border);
     padding: 4px 8px;
     font-family: var(--font-data);
     font-size: 10px;
     cursor: pointer;
-    border-radius: 0;
+    border-radius: var(--radius-md);
     min-width: 120px;
     text-transform: uppercase;
+    outline: none;
+    transition: border-color 75ms ease-out;
+  }
+
+  select:focus { border-color: var(--accent); }
+
+  :global(body.light) select {
+    background: var(--surface-lowest);
+    border-radius: var(--radius-pill);
   }
 
   .icon-btn {
     background: transparent;
     border: none;
-    color: var(--outline-variant);
+    color: var(--outline);
     cursor: pointer;
     padding: 4px;
     display: flex;
@@ -1514,31 +1572,51 @@
   .ingest-badge {
     font-family: var(--font-data);
     font-size: 10px;
+    font-weight: 600;
     color: var(--positive);
+    background: rgba(14, 203, 129, 0.08);
+    border: 1px solid rgba(14, 203, 129, 0.25);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
   }
 
-  /* Main Content */
+  :global(body.light) .ingest-badge {
+    background: rgba(0, 138, 5, 0.06);
+    border-color: rgba(0, 138, 5, 0.2);
+    border-radius: var(--radius-pill);
+  }
+
+  /* ============================================================
+   * Main Content
+   * ============================================================ */
   .content {
     grid-row: 2;
     grid-column: 2;
     overflow-y: auto;
     overflow-x: hidden;
+    background: var(--bg);
   }
 
   .content::-webkit-scrollbar { width: 6px; }
   .content::-webkit-scrollbar-track { background: var(--bg); }
-  .content::-webkit-scrollbar-thumb { background: var(--border); }
+  .content::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-xs); }
 
-  /* Status Bar */
+  /* ============================================================
+   * Status Bar
+   * ============================================================ */
   .status-bar {
     grid-row: 3;
     grid-column: 2;
-    background: var(--surface-lowest);
+    background: var(--surface-mid);
     border-top: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 16px;
+  }
+
+  :global(body.light) .status-bar {
+    background: var(--surface-lowest);
   }
 
   .status-left, .status-right {
@@ -1557,23 +1635,25 @@
 
   @keyframes pulse {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+    50% { opacity: 0.3; }
   }
 
   .status-text {
     font-family: var(--font-data);
     font-size: 10px;
-    color: var(--outline-variant);
+    color: var(--outline);
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
 
   .status-sep {
-    color: var(--border);
+    color: var(--border-strong);
     font-size: 10px;
   }
 
-  /* Loading */
+  /* ============================================================
+   * Loading — CRT scan-line
+   * ============================================================ */
   .loading {
     height: 100%;
     display: flex;
@@ -1582,6 +1662,7 @@
     justify-content: center;
     position: relative;
     overflow: hidden;
+    background: var(--bg);
   }
 
   .scan-line {
@@ -1589,8 +1670,8 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: var(--accent);
-    opacity: 0.4;
+    background: linear-gradient(to right, transparent, var(--accent), transparent);
+    opacity: 0.5;
     animation: scan 1.5s ease-in-out infinite;
   }
 
@@ -1602,12 +1683,14 @@
   .loading-text {
     font-family: var(--font-data);
     font-size: 12px;
-    color: var(--outline-variant);
+    color: var(--outline);
     letter-spacing: 0.1em;
     margin-top: 80px;
   }
 
-  /* Grid-line technique */
+  /* ============================================================
+   * Grid-line technique
+   * ============================================================ */
   .grid-line-container {
     display: grid;
     gap: 1px;
@@ -1619,45 +1702,63 @@
     background-color: var(--bg);
   }
 
-  /* Data Ribbon */
+  /* ============================================================
+   * Data Ribbon — 4-tile KPI strip
+   * Dark:  surface-mid (#1e2329) tiles — Binance card surface
+   * Light: surface-lowest (#ffffff) tiles — Airbnb pure white
+   * ============================================================ */
   .ribbon {
     grid-template-columns: repeat(4, 1fr);
   }
 
   .ribbon-tile {
-    padding: 16px;
+    padding: 16px 20px;
+    background: var(--surface-mid);
+  }
+
+  :global(body.light) .ribbon-tile {
+    background: var(--surface-lowest);
   }
 
   .tile-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
 
+  /* data-label: JetBrains Mono 11px 500 uppercase 0.05em */
   .tile-label {
     font-family: var(--font-data);
     font-size: 11px;
     font-weight: 500;
     letter-spacing: 0.05em;
-    color: var(--outline-variant);
+    color: var(--outline);
     text-transform: uppercase;
   }
 
   .tile-trend {
     font-family: var(--font-data);
     font-size: 10px;
-    color: var(--primary);
+    font-weight: 600;
+    color: var(--trading-up);
   }
 
+  /* data-lg: JetBrains Mono 28px 700 (dark) / 24px 600 (light) */
   .tile-value {
     font-family: var(--font-data);
-    font-size: 24px;
+    font-size: 28px;
     font-weight: 700;
     letter-spacing: -0.02em;
     color: var(--on-surface);
-    margin-bottom: 8px;
+    margin-bottom: 10px;
     font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+
+  :global(body.light) .tile-value {
+    font-size: 24px;
+    font-weight: 600;
   }
 
   .sparkline {
@@ -1669,15 +1770,17 @@
 
   .sparkline .bar {
     flex: 1;
-    background: rgba(255, 181, 150, 0.3);
+    background: rgba(232, 93, 4, 0.25);
     min-height: 2px;
     transition: height 300ms ease-out;
   }
 
-  .sparkline .bar.accent { background: rgba(232, 93, 4, 0.4); }
-  .sparkline .bar.dim { background: rgba(255, 181, 150, 0.15); }
+  .sparkline .bar.accent { background: rgba(232, 93, 4, 0.55); }
+  .sparkline .bar.dim    { background: rgba(232, 93, 4, 0.12); }
 
-  /* 60/40 Split */
+  /* ============================================================
+   * 60/40 Split
+   * ============================================================ */
   .split-row {
     display: grid;
     grid-template-columns: 6fr 4fr;
@@ -1694,15 +1797,24 @@
     flex-direction: column;
   }
 
+  /* ============================================================
+   * Panels
+   * Dark:  surface-mid bg, radius-xs — Binance flat card
+   * Light: surface-lowest bg, radius-sm — Airbnb white card
+   * ============================================================ */
   .panel {
-    background: var(--bg);
+    background: var(--surface-mid);
     border: 1px solid var(--border);
     margin-top: 4px;
+    border-radius: var(--radius-xs);
   }
 
-  .full-panel {
-    margin-top: 4px;
+  :global(body.light) .panel {
+    background: var(--surface-lowest);
+    border-radius: var(--radius-sm);
   }
+
+  .full-panel { margin-top: 4px; }
 
   .panel-header {
     display: flex;
@@ -1716,33 +1828,20 @@
     font-size: 11px;
     font-weight: 500;
     letter-spacing: 0.05em;
-    color: var(--outline-variant);
+    color: var(--outline);
     text-transform: uppercase;
   }
 
   .panel-count {
     font-family: var(--font-data);
     font-size: 10px;
-    color: var(--outline-variant);
+    color: var(--outline);
+    font-variant-numeric: tabular-nums;
   }
 
-  .chart-wrap {
-    position: relative;
-    height: 240px;
-    padding: 0 16px 16px;
-  }
-
-  .chart-wrap-sm {
-    position: relative;
-    height: 200px;
-    padding: 0 16px 16px;
-  }
-
-  .chart-wrap-tall {
-    position: relative;
-    height: 320px;
-    padding: 0 16px 16px;
-  }
+  .chart-wrap      { position: relative; height: 240px; padding: 0 16px 16px; }
+  .chart-wrap-sm   { position: relative; height: 200px; padding: 0 16px 16px; }
+  .chart-wrap-tall { position: relative; height: 320px; padding: 0 16px 16px; }
 
   .model-info {
     padding: 12px 16px;
@@ -1760,10 +1859,10 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Page layouts */
-  .page {
-    padding: 16px;
-  }
+  /* ============================================================
+   * Page layouts
+   * ============================================================ */
+  .page { padding: 16px; }
 
   .page-header {
     display: flex;
@@ -1772,34 +1871,45 @@
     margin-bottom: 12px;
   }
 
-  /* KPI Row */
+  /* ============================================================
+   * KPI Row
+   * ============================================================ */
   .kpi-row {
     grid-template-columns: repeat(4, 1fr);
     margin-bottom: 4px;
   }
 
   .kpi-tile {
-    padding: 16px;
+    padding: 16px 20px;
+    background: var(--surface-mid);
   }
 
+  :global(body.light) .kpi-tile {
+    background: var(--surface-lowest);
+  }
+
+  /* display-lg: 22px 700 (dark) / 600 (light) */
   .kpi-value {
     display: block;
     font-family: var(--font-data);
-    font-size: 20px;
+    font-size: 22px;
     font-weight: 700;
     color: var(--on-surface);
     margin-top: 4px;
     font-variant-numeric: tabular-nums;
+    line-height: 1.1;
   }
 
-  /* Ledger Table */
-  .ledger-section {
-    margin-top: 4px;
-  }
+  :global(body.light) .kpi-value { font-weight: 600; }
 
-  .ledger-wrap {
-    overflow-x: auto;
-  }
+  /* ============================================================
+   * Ledger Table
+   * Dark:  Binance markets-row — dark surface, muted headers
+   * Light: Airbnb-style — white bg, hairline dividers
+   * ============================================================ */
+  .ledger-section { margin-top: 4px; }
+
+  .ledger-wrap { overflow-x: auto; }
 
   .ledger-wrap.full {
     max-height: calc(100vh - var(--top-bar-height) - var(--status-bar-height) - 80px);
@@ -1817,22 +1927,27 @@
     font-family: var(--font-data);
     font-size: 11px;
     font-weight: 500;
-    color: var(--outline-variant);
+    color: var(--outline);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
-    background: var(--bg);
+    background: var(--surface-high);
     z-index: 1;
   }
 
+  :global(body.light) table.ledger th {
+    background: var(--surface-low);
+  }
+
   table.ledger td {
-    padding: 6px 12px;
-    font-family: var(--font-display);
+    padding: 8px 12px;
+    font-family: var(--font-data);
     font-size: 13px;
-    border-bottom: 1px solid rgba(42, 42, 46, 0.4);
+    border-bottom: 1px solid var(--border);
     color: var(--on-surface-variant);
+    font-variant-numeric: tabular-nums;
   }
 
   table.ledger tr:hover td {
@@ -1840,8 +1955,13 @@
     cursor: crosshair;
   }
 
+  /* Zebra striping — 30% opacity as per DESIGN.md */
   table.ledger tr:nth-child(even) td {
-    background: rgba(15, 14, 10, 0.3);
+    background: rgba(43, 49, 57, 0.4);
+  }
+
+  :global(body.light) table.ledger tr:nth-child(even) td {
+    background: rgba(247, 247, 247, 0.7);
   }
 
   table.ledger tr:nth-child(even):hover td {
@@ -1861,19 +1981,33 @@
     white-space: nowrap;
   }
 
+  /* ============================================================
+   * Tags / Status chips
+   * Dark:  radius-sm (4px) flat rectangle — Binance style
+   * Light: radius-pill — Airbnb rounded pill
+   * ============================================================ */
   .tag {
     display: inline-block;
     background: rgba(232, 93, 4, 0.1);
-    border: 1px solid rgba(232, 93, 4, 0.3);
-    padding: 1px 6px;
+    border: 1px solid rgba(232, 93, 4, 0.35);
+    padding: 2px 7px;
     font-family: var(--font-data);
     font-size: 11px;
+    font-weight: 600;
     color: var(--accent);
-    border-radius: 0;
+    border-radius: var(--radius-sm);
     font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
   }
 
-  /* Tool Grid */
+  :global(body.light) .tag {
+    border-radius: var(--radius-pill);
+    padding: 2px 10px;
+  }
+
+  /* ============================================================
+   * Tool Grid
+   * ============================================================ */
   .tool-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -1883,9 +2017,11 @@
   }
 
   .tool-card {
-    background: var(--bg);
+    background: var(--surface-mid);
     padding: 16px;
   }
+
+  :global(body.light) .tool-card { background: var(--surface-lowest); }
 
   .tool-top {
     display: flex;
@@ -1905,6 +2041,7 @@
     font-family: var(--font-data);
     font-size: 11px;
     color: var(--outline);
+    font-variant-numeric: tabular-nums;
   }
 
   .tool-meta {
@@ -1912,16 +2049,17 @@
     justify-content: space-between;
     font-family: var(--font-data);
     font-size: 11px;
-    color: var(--outline-variant);
+    color: var(--outline);
     margin-bottom: 10px;
   }
 
   .tool-meta .error { color: var(--critical); }
 
   .progress-track {
-    height: 4px;
-    background: var(--border);
+    height: 3px;
+    background: var(--border-strong);
     overflow: hidden;
+    border-radius: var(--radius-xs);
   }
 
   .progress-fill {
@@ -1930,19 +2068,31 @@
     transition: width 300ms ease-out;
   }
 
-  /* Cache Card */
+  /* ============================================================
+   * Cache Savings Card
+   * Dark:  surface-mid, green border-left — Binance trust badge style
+   * Light: white, shadow-sm, green border-left — Airbnb rec card style
+   * ============================================================ */
   .cache-card {
-    background: rgba(96, 168, 64, 0.06);
-    border: 1px solid rgba(96, 168, 64, 0.2);
-    padding: 16px;
+    background: var(--surface-mid);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--positive);
+    padding: 16px 20px;
     text-align: center;
     margin-top: 4px;
+    border-radius: var(--radius-xs);
+  }
+
+  :global(body.light) .cache-card {
+    background: var(--surface-lowest);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   }
 
   .cache-value {
     display: block;
     font-family: var(--font-data);
-    font-size: 20px;
+    font-size: 22px;
     font-weight: 700;
     color: var(--positive);
     font-variant-numeric: tabular-nums;
@@ -1952,13 +2102,15 @@
     display: block;
     font-family: var(--font-data);
     font-size: 11px;
-    color: var(--outline-variant);
+    color: var(--outline);
     margin-top: 4px;
     letter-spacing: 0.05em;
     text-transform: uppercase;
   }
 
-  /* Expensive Session */
+  /* ============================================================
+   * Most Expensive Session
+   * ============================================================ */
   .expensive-row {
     display: flex;
     align-items: center;
@@ -1968,7 +2120,7 @@
 
   .cost-highlight {
     font-family: var(--font-data);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
     color: var(--critical);
     font-variant-numeric: tabular-nums;
@@ -1977,81 +2129,128 @@
   .meta {
     font-family: var(--font-data);
     font-size: 11px;
-    color: var(--outline-variant);
+    color: var(--outline);
   }
 
-  /* Recommendation Cards */
+  /* ============================================================
+   * Recommendation Cards
+   * Dark:  flat surface-mid, border-left severity — Binance FAQ-row
+   * Light: white, shadow-sm, border-left severity — Airbnb opt card
+   * ============================================================ */
   .rec-card {
-    background: var(--bg);
+    background: var(--surface-mid);
     border: 1px solid var(--border);
     padding: 14px 18px;
     margin-bottom: 1px;
     transition: background 75ms ease-out;
+    border-radius: var(--radius-xs);
   }
 
-  .rec-card:hover { background: rgba(20, 19, 15, 0.8); }
-  .rec-card.critical { border-left: 2px solid var(--critical); }
-  .rec-card.warning { border-left: 2px solid var(--warning); }
-  .rec-card.info { border-left: 2px solid var(--border); }
+  :global(body.light) .rec-card {
+    background: var(--surface-lowest);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    margin-bottom: 8px;
+  }
+
+  .rec-card:hover { background: var(--surface-high); }
+  :global(body.light) .rec-card:hover { background: var(--surface-low); }
+
+  .rec-card.critical { border-left: 3px solid var(--critical); }
+  .rec-card.warning  { border-left: 3px solid var(--warning); }
+  .rec-card.info     { border-left: 3px solid var(--border-strong); }
 
   .rec-header {
     display: flex;
     gap: 8px;
     margin-bottom: 6px;
+    align-items: center;
   }
 
   .rec-sev {
     font-family: var(--font-data);
     font-size: 10px;
+    font-weight: 600;
     letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
   }
 
-  .rec-sev.critical { color: var(--critical); }
-  .rec-sev.warning { color: var(--warning); }
-  .rec-sev.info { color: #555; }
+  .rec-sev.critical {
+    color: var(--critical);
+    background: rgba(246, 70, 93, 0.1);
+    border: 1px solid rgba(246, 70, 93, 0.3);
+  }
+
+  .rec-sev.warning {
+    color: var(--warning);
+    background: rgba(242, 185, 75, 0.1);
+    border: 1px solid rgba(242, 185, 75, 0.3);
+  }
+
+  .rec-sev.info {
+    color: var(--outline);
+    background: var(--surface-high);
+    border: 1px solid var(--border);
+  }
 
   .rec-cat {
     font-family: var(--font-data);
     font-size: 10px;
-    color: var(--outline-variant);
+    color: var(--outline);
     letter-spacing: 0.05em;
+    text-transform: uppercase;
   }
 
   .rec-title {
+    display: block;
     font-family: var(--font-display);
     font-size: 14px;
     font-weight: 600;
     color: var(--on-surface);
+    margin-bottom: 4px;
   }
 
   .rec-desc {
     font-family: var(--font-display);
     font-size: 13px;
-    color: var(--outline);
-    margin-top: 4px;
-    line-height: 1.4;
+    color: var(--on-surface-variant);
+    line-height: 1.5;
   }
 
   .rec-action {
     font-family: var(--font-data);
-    font-size: 12px;
+    font-size: 11px;
     color: var(--accent);
     margin-top: 8px;
+    letter-spacing: 0.02em;
   }
 
   .empty {
     font-family: var(--font-data);
     font-size: 12px;
-    color: var(--border);
+    color: var(--border-strong);
     letter-spacing: 0.05em;
     text-align: center;
     padding: 80px 0;
   }
 
-  /* Settings */
+  /* ============================================================
+   * Settings
+   * ============================================================ */
   .settings-section {
+    background: var(--surface-mid);
     border: 1px solid var(--border);
     margin-bottom: 4px;
+    border-radius: var(--radius-xs);
+    overflow: hidden;
+  }
+
+  :global(body.light) .settings-section {
+    background: var(--surface-lowest);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
   }
 
   .settings-header {
@@ -2060,7 +2259,11 @@
     align-items: center;
     padding: 12px 16px;
     border-bottom: 1px solid var(--border);
-    background: var(--surface-lowest);
+    background: var(--surface-high);
+  }
+
+  :global(body.light) .settings-header {
+    background: var(--surface-low);
   }
 
   .settings-fields {
@@ -2093,22 +2296,27 @@
     font-weight: 700;
   }
 
+  /* Dark: radius-md (6px) — Binance input style */
   .field-input {
     flex: 1;
-    background: var(--surface-lowest);
+    background: var(--surface-high);
     border: 1px solid var(--border);
     color: var(--on-surface);
     font-family: var(--font-data);
     font-size: 12px;
     padding: 6px 10px;
-    border-radius: 0;
+    border-radius: var(--radius-md);
     outline: none;
     transition: border-color 75ms ease-out;
   }
 
-  .field-input:focus {
-    border-color: var(--accent);
+  /* Light: radius-sm (8px) — Airbnb input style */
+  :global(body.light) .field-input {
+    background: var(--surface-lowest);
+    border-radius: var(--radius-sm);
   }
+
+  .field-input:focus { border-color: var(--accent); }
 
   input[type="checkbox"] {
     width: 16px;
@@ -2125,9 +2333,7 @@
     gap: 8px;
   }
 
-  .field-group:last-child {
-    border-bottom: none;
-  }
+  .field-group:last-child { border-bottom: none; }
 
   .field-row {
     display: flex;
@@ -2138,40 +2344,44 @@
     color: var(--on-surface-variant);
   }
 
-  .field-sep {
-    color: var(--outline-variant);
-  }
+  .field-sep { color: var(--outline); }
 
   .settings-note {
     padding: 12px 16px;
     font-family: var(--font-data);
     font-size: 11px;
-    color: var(--outline-variant);
+    color: var(--outline);
     letter-spacing: 0.03em;
   }
 
+  /* Save button — dark: radius-md, light: radius-xl (Airbnb pill) */
   .save-btn {
     font-family: var(--font-data);
     font-size: 10px;
+    font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     background: var(--accent);
-    color: white;
+    color: var(--on-primary);
     border: none;
-    padding: 4px 16px;
+    padding: 5px 16px;
     cursor: pointer;
-    border-radius: 0;
-    transition: opacity 75ms ease-out;
+    border-radius: var(--radius-md);
+    transition: background 75ms ease-out;
   }
 
-  .save-btn:hover { opacity: 0.85; }
+  .save-btn:hover { background: var(--accent-hover); }
+  .save-btn:active { transform: scale(0.97); }
   .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  :global(body.light) .save-btn { border-radius: var(--radius-xl); }
 
   .config-msg {
     font-family: var(--font-data);
     font-size: 11px;
     color: var(--positive);
     letter-spacing: 0.03em;
+    font-weight: 600;
   }
 
   .settings-table {
@@ -2185,29 +2395,31 @@
     font-family: var(--font-data);
     font-size: 11px;
     font-weight: 500;
-    color: var(--outline-variant);
+    color: var(--outline);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     border-bottom: 1px solid var(--border);
+    background: var(--surface-high);
   }
 
   .settings-table td {
     padding: 6px 12px;
     border-bottom: 1px solid var(--border);
     vertical-align: middle;
+    font-family: var(--font-data);
+    font-size: 12px;
+    color: var(--on-surface-variant);
   }
 
-  .settings-table tr:hover td {
-    background: var(--accent-dim);
-  }
+  .settings-table tr:hover td { background: var(--accent-dim); }
 
   .field-input.small { max-width: 160px; }
-  .field-input.tiny { max-width: 200px; }
+  .field-input.tiny  { max-width: 200px; }
 
   .remove-btn {
     background: transparent;
     border: 1px solid var(--border);
-    color: var(--outline-variant);
+    color: var(--outline);
     font-size: 14px;
     width: 24px;
     height: 24px;
@@ -2215,7 +2427,7 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    border-radius: 0;
+    border-radius: var(--radius-sm);
     transition: all 75ms ease-out;
     flex-shrink: 0;
     padding: 0;
@@ -2224,7 +2436,7 @@
   .remove-btn:hover {
     border-color: var(--critical);
     color: var(--critical);
-    background: rgba(220, 47, 2, 0.06);
+    background: rgba(246, 70, 93, 0.08);
   }
 
   .add-row {
@@ -2240,25 +2452,29 @@
     padding: 4px 16px 12px;
   }
 
+  /* Add button — dark: radius-md, light: radius-xl (Airbnb pill) */
   .add-btn {
     font-family: var(--font-data);
     font-size: 10px;
+    font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     background: transparent;
     color: var(--accent);
     border: 1px solid var(--accent);
-    padding: 4px 12px;
+    padding: 5px 12px;
     cursor: pointer;
-    border-radius: 0;
+    border-radius: var(--radius-md);
     white-space: nowrap;
     transition: all 75ms ease-out;
   }
 
   .add-btn:hover {
     background: var(--accent);
-    color: white;
+    color: var(--on-primary);
   }
+
+  :global(body.light) .add-btn { border-radius: var(--radius-xl); }
 
   .field-group-header {
     display: flex;
@@ -2288,11 +2504,10 @@
     min-width: 140px;
     font-size: 11px;
     color: var(--accent);
+    font-weight: 600;
   }
 
-  .tier-list {
-    padding: 0 16px;
-  }
+  .tier-list { padding: 0 16px; }
 
   .tier-name {
     font-size: 10px;

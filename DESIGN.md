@@ -5,272 +5,167 @@
 - **Who it's for:** Developers who use Claude CLI regularly and want to understand their usage patterns and spending.
 - **Space/industry:** Developer tools, AI observability, CLI analytics.
 - **Project type:** Desktop application (Tauri) with web frontend (Svelte 5 + Chart.js)
-- **Memorable thing:** "Serious tool for serious work"
 
-## Aesthetic Direction
-- **Direction:** Industrial/Utilitarian
-- **Decoration level:** Minimal — typography does all the work. No gradients, no glassmorphism, no decorative blobs. Structure comes from tone blocks, thin 1px borders, and spacing.
-- **Mood:** The visual language of instruments, where decoration is a distraction from signal. Bloomberg Terminal meets Linear. Data-dense, monospace accents, function-first.
-- **Reference points:** Bloomberg Terminal, oscilloscope screens, Leica technical manuals, Unix tool seriousness.
+## Themes
+- **Dark theme:** Financial-platform dark design system — `DESIGN-dark.md`
+- **Light theme:** Consumer marketplace light design system — `DESIGN-light.md`
 
-## Typography
+---
 
-### Dark Theme
-- **Display/Labels:** Bricolage Grotesque — slightly irregular letterforms that feel hand-considered without being quirky. Weight range 200-800 for aggressive contrast between labels and headings.
-- **Data/Metrics/Tables:** JetBrains Mono — tabular-nums for aligned figures, slashed zero, distinguishable 1Il. Audit-grade numbers. All telemetry, logs, metrics, and code snippets must use `font-variant-numeric: tabular-nums`.
-- **UI/Controls:** Bricolage Grotesque (same as display)
-- **Loading:** Google Fonts CDN (`https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap`)
+## Dark Theme
 
-### Light Theme
-- **Display/Labels:** Space Grotesk — geometric, technical feel that pairs with the warmer light palette. Weight range 400-700.
-- **Data/Metrics/Tables:** JetBrains Mono — same as dark theme.
-- **UI/Controls:** Space Grotesk (same as display)
-- **Loading:** Add `&family=Space+Grotesk:wght@400;500;600;700` to the Google Fonts URL.
+### Colors
+- `primary` / accent: `#fcd535` — Yellow. Every primary CTA, active nav, brand moment.
+- `primary-active`: `#f0b90b`
+- `primary-disabled`: `#3a3a1f`
+- `on-primary`: `#181a20` — black text on yellow
+- `canvas-dark` / bg: `#0b0e11`
+- `surface-card-dark`: `#1e2329`
+- `surface-elevated-dark`: `#2b3139`
+- `on-surface` / body: `#eaecef`
+- `on-dark`: `#ffffff`
+- `muted`: `#707a8a`
+- `muted-strong`: `#929aa5`
+- `hairline-on-dark`: `#2b3139`
+- `trading-up` / positive: `#0ecb81`
+- `trading-down` / critical: `#f6465d`
+- `warning`: `#f2b94b`
+- `border`: `#2b3139`
+- `border-strong`: `#363d47`
 
-### Shared Scale
-- **Fallback chain:** `[Bricolage Grotesque | Space Grotesk], JetBrains Mono, ui-monospace, monospace`
-- **Scale:**
-  - 48px `display-xl`: Hero metrics (wght 800, line-height 1.1, letter-spacing -0.02em)
-  - 32px `display-lg`: KPI numerals (wght 700, line-height 1.2, letter-spacing -0.01em)
-  - 24px `data-lg`: Large values (wght 700, line-height 1, letter-spacing -0.02em, JetBrains Mono)
-  - 20px `heading-md`: Section headings (wght 600, line-height 1.4)
-  - 15px: Section labels (uppercase, letter-spacing 0.06em)
-  - 14px `ui-medium`: Body text (wght 500, line-height 1.2)
-  - 13px `data-mono`: Table body, code (wght 400, line-height 1.5, JetBrains Mono)
-  - 12px `ui-small`: Navigation labels (wght 500, line-height 1)
-  - 11px `data-label`: Micro labels, axis labels, timestamps (wght 500, letter-spacing 0.05em, JetBrains Mono, uppercase)
-  - 10px: Filter labels (uppercase, letter-spacing 0.08em)
-- **Rule:** Data labels must use uppercase with increased tracking to mimic technical blueprints. All numeric columns must use JetBrains Mono with tabular-nums.
+### Typography
+- Display: **Bricolage Grotesque**
+- Numbers/data: **JetBrains Mono**
+- `hero-display`: 64px / 700 / line-height 1.1 / letter-spacing -1px
+- `display-lg`: 48px / 700 / 1.1 / -0.5px
+- `display-md`: 40px / 600 / 1.15 / -0.3px
+- `display-sm`: 32px / 600 / 1.2
+- `title-lg`: 24px / 600 / 1.3
+- `title-md`: 20px / 600 / 1.35
+- `title-sm`: 16px / 600 / 1.4
+- `number-display`: 40px / 700 / 1.1 / -0.3px — JetBrains Mono
+- `number-md`: 16px / 500 / 1.4 — JetBrains Mono
+- `number-sm`: 14px / 500 / 1.4 — JetBrains Mono
+- `body-md`: 14px / 400 / 1.5
+- `body-sm`: 13px / 400 / 1.5
+- `caption`: 12px / 500 / 1.4
+- `button`: 14px / 600 / 1
+- `nav-link`: 14px / 500 / 1.4
 
-## Color — Dark Theme
-- **Approach:** Restrained — one accent, meaningful neutrals. Material You Fidelity variant with custom overrides (primary `#e85d04`, neutral `#7a7872`).
-- **System tokens (from Stitch):**
-  - `background` / `surface` / `surface-dim`: `#14130f`
-  - `surface-container-lowest`: `#0f0e0a`
-  - `surface-container-low`: `#1c1c17`
-  - `surface-container`: `#20201b`
-  - `surface-container-high`: `#2b2a25`
-  - `surface-container-highest`: `#363530`
-  - `surface-bright`: `#3a3934`
-  - `surface-variant`: `#363530`
-- **Text:**
-  - `on-surface` (primary text): `#e6e2db` — warm white
-  - `on-surface-variant`: `#e1bfb2` — warm muted
-  - `outline`: `#a98a7e` — muted text, secondary info
-  - `outline-variant`: `#594137` — dim text, placeholders
-- **Accent (primary):**
-  - `primary`: `#ffb596` — Material You primary tone
-  - `primary-container`: `#f26411` — Accent for interactive elements, buttons
-  - Override accent: `#e85d04` — burnt orange. Reads as heat, fuel gauge, energy.
-  - Accent hover: `#f48c06`
-  - Accent glow: `rgba(232, 93, 4, 0.12)`
-  - Accent dim: `rgba(232, 93, 4, 0.06)`
-- **Secondary/tertiary:**
-  - `secondary`: `#c8c6c3`
-  - `secondary-container`: `#494947`
-  - `tertiary`: `#c8c6c9`
-- **Semantic:**
-  - Critical: `#dc2f02` — cost overruns, alerts, errors
-  - Positive: `#60a840` — savings, success states (slightly desaturated)
-  - Warning: `#f2b94b`
-  - Error: `#ffb4ab` on `#93000a` container
-- **Borders:**
-  - Structural: `#2a2a2e` — grid-line borders, 1px solid. This is the canonical value.
-  - Tailwind approximation: `zinc-800` (`#27272a`) — some Stitch files use this utility class. Acceptable in implementation but `#2a2a2e` is preferred for custom CSS.
-  - Hover: `#3a3a3e`
-- **Chart palette:** `#e85d04` (primary), `#6b6459` (secondary), `#3d3a35` (tertiary), `#8a8477` (quaternary)
+### Border Radius
+- `xs`: 2px
+- `sm`: 4px
+- `md`: 6px — standard CTA buttons, inputs
+- `lg`: 8px — content cards, trust badges
+- `xl`: 12px — elevated card containers
+- `pill`: 9999px — prominent feature CTAs only
 
-## Color — Light Theme
-- **Approach:** Warm neutral base with burnt orange accent. Inverts the dark theme's tonal layering — surfaces move from lightest background to slightly darker as they gain elevation.
-- **System tokens (from Stitch Token & Cost Analysis v2):**
-  - `background`: `#fbfaf8`
-  - `surface`: `#fff8f2`
-  - `surface-container-lowest`: `#ffffff`
-  - `surface-container-low`: `#fdf2e4`
-  - `surface-container`: `#f7ecde`
-  - `surface-container-high`: `#f1e7d9`
-  - `surface-container-highest`: `#ebe1d3`
-  - `surface-dim`: `#e3d9cb`
-  - `surface-bright`: `#fff8f2`
-  - `surface-variant`: `#ebe1d3`
-- **Text:**
-  - `on-surface` (primary text): `#14130f`
-  - `on-surface-variant`: `#6b6459`
-  - `outline`: `#7a776f` — muted text
-  - `outline-variant`: `#cbc6bd` — borders, dividers
-- **Accent:**
-  - `primary`: `#000000` — Material You primary (used for strong text, not accent)
-  - `secondary`: `#e85d04` — carries the burnt orange accent role (same color as dark theme)
-  - `secondary-container`: `#e85d04` — used for side nav active state, button backgrounds
-  - `on-secondary`: `#ffffff`
-  - Note: The light theme inverts the Material You primary/secondary roles — `secondary` is the accent color, not `primary`.
-- **Semantic:**
-  - Error: `#ba1a1a`
-  - Positive: `#2e7d32` / `bg-green-50` with `border-green-200`
-- **Borders:**
-  - Structural: `#cbc6bd`
-  - Grid lines: `#ebe1d3` (1px CSS background-image pattern at 20px intervals)
+### Spacing
+- section: 80px
+- xxl: 48px / xl: 32px / lg: 24px / md: 16px / sm: 12px / xs: 8px / xxs: 4px
 
-## Spacing
-- **Base unit:** 4px
-- **Density:** Compact — data-dense, not spacious
-- **Scale:** xs(4px) sm(8px) md(16px) lg(24px) xl(40px) gutter(1px)
-- **Grid approach:** 1px structural borders (`gutter: 1px`). Panels share borders rather than having independent margins. Use CSS grid with `gap: 1px; background-color: <border-color>` for the grid-line technique.
+### Components
+- `button-primary`: bg `#fcd535`, text `#181a20`, radius `md` (6px), padding 12px 24px, height 40px, font `button` 14px/600
+- `button-primary-active`: bg `#f0b90b`
+- `button-primary-disabled`: bg `#3a3a1f`, text `#707a8a`
+- `button-secondary-on-dark`: bg `#1e2329`, text `#ffffff`, radius `md`
+- `button-tertiary-text`: transparent, text `#eaecef`
+- `top-nav-dark`: bg `#0b0e11`, text `#ffffff`, height 64px
+- `markets-table-card`: bg `#1e2329`, radius `xl` (12px), padding 24px
+- `markets-row`: transparent bg, padding 12px 0, hairline divider
+- `price-up-cell`: text `#0ecb81`
+- `price-down-cell`: text `#f6465d`
+- `stat-callout-card`: transparent bg, text `#fcd535`, font `number-display`
+- `trust-badge`: bg `#1e2329`, radius `lg` (8px), padding 16px 20px
+- `faq-row`: transparent, padding 20px 0, font `title-sm`
+- `cta-band-dark`: bg `#1e2329`, radius `xl`, padding 48px
+- `text-link`: text `#fcd535`
 
-## Layout
+---
 
-### Shell Structure (Fixed)
-All screens share a common shell:
-- **Side navigation rail:** 64px wide, fixed left, full viewport height. Contains: logo, icon-only nav buttons (Dashboard, Tokens, Tools, Logs), settings at bottom. Active state: orange border-left 2px + orange text + orange/5% background.
-- **Top app bar:** 48px tall, fixed top (offset `left: 64px`). Contains: app title (`CLAUDY_ANALYTICS`, JetBrains Mono 11px uppercase), tab navigation (LIVE_FEED / METRICS / ALERTS), search input, utility icons. Active tab: orange underline + orange text.
-- **Status bar:** 24px tall, fixed bottom (offset `left: 64px`). Contains: system status (API: NOMINAL), throughput, latency, region (left), live sync indicator (right).
-- **Main content:** `margin-left: 64px; margin-top: 48px; height: calc(100vh - 48px - 24px)`.
-- **Note:** The Token & Cost Analysis screens (Screens 2-3) use `h-[calc(100vh-3rem)]` for the main area with a `fixed` status bar instead of the offset height. Other screens use the standard offset. Both approaches are valid; the implementation should pick one.
+## Light Theme
 
-### Content Layout
-- **Approach:** Hybrid — sparkline ribbon + asymmetric editorial paneling
-- **First viewport:** Full-width data ribbon (4 sparkline tiles with KPIs), then asymmetric 60/40 split below
-- **Left 60%:** Dominant chart area (usage line chart, stacked bar chart, etc.)
-- **Right 40%:** Compressed intelligence rail (model distribution, top tool metrics, optimization recommendations)
-- **Below fold:** Session history as a dense ledger, not a card gallery
-- **Title block:** Top-left, not centered
-- **Grid:** 4px modular grid with thin structural borders (grid-line technique)
-- **Max content width:** 1280px
-- **Border radius:** Sharp — max 4px on interactive elements, 2px on dashboard tiles, 0px on data containers/panels. Rounded corners signal "friendly consumer app." Sharp corners signal "instrument."
+### Colors
+- `primary` / accent: `#ff385c` — Red. Every primary CTA, search orb, active state.
+- `primary-active`: `#e00b41`
+- `primary-disabled`: `#ffd1da`
+- `on-primary`: `#ffffff`
+- `canvas` / bg: `#ffffff`
+- `surface-soft`: `#f7f7f7`
+- `surface-strong`: `#f2f2f2`
+- `ink` / on-surface: `#222222`
+- `body` / on-surface-variant: `#3f3f3f`
+- `muted` / outline: `#6a6a6a`
+- `muted-soft` / outline-variant: `#929292`
+- `hairline` / border: `#dddddd`
+- `hairline-soft`: `#ebebeb`
+- `border-strong`: `#c1c1c1`
+- `positive`: `#008a05`
+- `critical` / error: `#c13515`
 
-## Components
+### Typography
+- Display/UI: **Space Grotesk**
+- Data/Numbers: **JetBrains Mono** (shared)
+- `display-xl`: 28px / 700 / 1.43
+- `display-lg`: 22px / 500 / 1.18 / -0.44px
+- `display-md`: 21px / 700 / 1.43
+- `display-sm`: 20px / 600 / 1.20 / -0.18px
+- `title-md`: 16px / 600 / 1.25
+- `title-sm`: 16px / 500 / 1.25
+- `body-md`: 16px / 400 / 1.5
+- `body-sm`: 14px / 400 / 1.43
+- `caption`: 14px / 500 / 1.29
+- `caption-sm`: 13px / 400 / 1.23
+- `badge`: 11px / 600 / 1.18
+- `button-md`: 16px / 500 / 1.25
+- `button-sm`: 14px / 500 / 1.29
+- `nav-link`: 16px / 600 / 1.25
 
-### Buttons
-- **Primary:** Accent background (`#e85d04`), white text. No rounded corners (0-4px max). On hover: slightly lighter tint. No glow, no shadow.
-- **Secondary:** Transparent background, 1px border (`border-technical`). On hover: fill with slightly lighter tint.
-- **Active state:** Scale 95% on press (`active:scale-95`).
-- **Font:** `data-label` (JetBrains Mono 11px, uppercase, tracked).
+### Border Radius
+- `none`: 0px
+- `xs`: 4px
+- `sm`: 8px — buttons
+- `md`: 14px — property cards
+- `lg`: 20px
+- `xl`: 32px — category strip
+- `full` / `pill`: 9999px — search bar, pill buttons, tags
 
-### Data Grids / Tables
-- **Row height:** 32px (dense) or 40px (default).
-- **Dividers:** 1px horizontal dividers only (`border-technical`).
-- **Column headers:** `data-label` typography, uppercase, pinned sticky top during scroll.
-- **Zebra striping:** Subtle — alternate rows use `surface-container-lowest` at 30% opacity.
-- **Hover:** `bg-orange-500/5` with `cursor: crosshair`.
-- **Cell padding:** `px-4 py-2` (dense), `p-3` (default).
+### Spacing
+- section: 64px
+- xxl: 48px / xl: 32px / lg: 24px / base: 16px / md: 12px / sm: 8px / xs: 4px / xxs: 2px
 
-### Metrics / KPIs
-- **Large numbers:** `data-lg` (JetBrains Mono 24px, wght 700).
-- **Trend indicators:** Arrows using Positive/Critical colors. Inline next to value in smaller `data-mono` font.
-- **Charts:** No smooth Bezier curves — stepped lines or sharp angles only. This emphasizes raw data points over interpolated trends.
-- **Sparklines:** Minimal bars in a horizontal strip, using accent color at varying opacities.
+### Components
+- `button-primary`: bg `#ff385c`, text `#ffffff`, radius `sm` (8px), padding 14px 24px, height 48px
+- `button-primary-active`: bg `#e00b41`
+- `button-primary-disabled`: bg `#ffd1da`
+- `button-secondary`: bg `#ffffff`, text `#222222`, radius `sm`, border 1px `#222222`
+- `button-pill`: bg `#ff385c`, text `#ffffff`, radius `full`, padding 10px 20px
+- `search-bar-pill`: bg `#ffffff`, radius `full`, height 64px, border 1px `#dddddd`
+- `search-orb`: bg `#ff385c`, text `#ffffff`, radius `full`, height 48px
+- `top-nav`: bg `#ffffff`, text `#222222`, height 80px, border-bottom 1px `#dddddd`
+- `property-card`: bg `#ffffff`, text `#222222`, radius `md` (14px)
+- `reservation-card`: bg `#ffffff`, radius `md`, border 1px `#dddddd`, padding 24px
+- `text-input`: bg `#ffffff`, border 1px `#dddddd`, radius `sm` (8px), height 56px
+- `footer-light`: bg `#ffffff`, padding 48px 80px
 
-### Status Tags
-- **Shape:** Small rectangular chips, 0px border-radius.
-- **Style:** Subtle background (10% opacity of status color) + solid 1px border of same color.
-- **Text:** `data-label` typography, always uppercase.
-- **Variants:**
-  - Active: `border-orange-500/50 bg-orange-500/10 text-orange-500`
-  - Closed: `border-zinc-700 bg-zinc-800 text-zinc-400`
-  - Success: `bg-emerald-500` LED indicator + `text-emerald-500` label
-  - Fail: `bg-rose-600` LED indicator + `text-rose-600` label
-  - Critical: `bg-rose-500/10 text-rose-500 border-rose-500/20`
-  - Optimized: `text-green-500 bg-green-500/10 border-green-500/20`
+---
 
-### Inputs
-- **Search/command bars:** 1px border, no outer glow. Focus state: 1px accent border.
-- **Font:** Monospace (`data-mono`) for all text input to maintain character alignment.
-- **Select dropdowns:** `surface-container-lowest` background, `border-technical`, no custom styling beyond native.
+## Elevation
+- **Dark:** No shadows. Depth from `#0b0e11` → `#1e2329` → `#2b3139` surface steps.
+- **Light:** One shadow tier only — `box-shadow: rgba(0,0,0,0.02) 0 0 0 1px, rgba(0,0,0,0.04) 0 2px 6px, rgba(0,0,0,0.1) 0 4px 8px` — used on hover cards and dropdowns only.
 
-### Filter Bars
-- **Layout:** Horizontal bar between top app bar and content area, `h-14`, `surface-container-low` background.
-- **Contents:** Tool filter (select), status toggle (segmented buttons: ALL/SUCCESS/FAIL), date range picker, action button (Export).
-- **Segmented buttons:** Container with `border-technical`, inner buttons with no border. Active: accent background + white text.
-
-### FAB (Floating Action Button)
-- **Only on:** Tool Inspector screen (for adding new tool configurations).
-- **Style:** Square (0px radius), accent background, white icon, 1px border.
-- **Position:** Fixed bottom-right, above status bar.
-
-## Screen Specifications
-
-### Screen 1: Claudy Dashboard
-- **Layout:** Data ribbon → 60/40 split → session ledger → footer
-- **Data ribbon:** 4-column grid (`grid-cols-4`), each tile shows: label (`data-label`), value (`data-lg`), trend indicator, sparkline bars.
-  - Tiles: TOTAL_TOKENS, EST_COST, TOOL_CALLS, AVG_LATENCY
-- **60/40 split:**
-  - Left (60%, `col-span-6`): SVG line chart (sharp angles, no Bezier). Time range toggle (1H/24H/7D). Tooltip with dashed vertical line.
-  - Right (40%, `col-span-4`): MODEL_DISTRIBUTION (progress bars) + TOP_TOOL_METRICS (list items with icons).
-- **Session ledger table:** Columns: SESSION_ID, START_TIME, TOKENS, COST, TOOLS, STATUS. Status tags: Active (orange) / Closed (zinc).
-- **Footer:** System status line with live sync pulse indicator.
-
-### Screen 2: Token & Cost Analysis (Dark)
-- **Layout:** KPI header → stacked bar chart → model cost table + optimization panel
-- **KPI header:** 2-column grid. Left: Current Month Spend + progress bar. Right: Projected Spend + segmented progress.
-- **Stacked bar chart:** Daily token cost (Input + Output). CSS-based bars with hover tooltips. X-axis: dates. Legend: OUTPUT (accent) / INPUT (muted).
-- **Model cost table:** Columns: Model Identifier (with color dot), Tokens (In), Tokens (Out), Total Cost, Efficiency (tag). Sortable.
-- **Optimization panel (right, `col-span-3`):** Recommendation cards with priority tag (HIGH SAVINGS / EFFICIENCY / CONTEXT), estimated savings, description, action button.
-- **Bottom visual:** Server rack image with gradient overlay + system pulse label.
-
-### Screen 3: Token & Cost Analysis (Light)
-- **Same layout as Screen 2** but with light theme tokens and Space Grotesk typography.
-- **Font tokens (differ from dark theme):** The light theme uses different token names:
-  - `h1` (48px, wght 700) instead of `display-xl`
-  - `h2` (32px, wght 600) instead of `display-lg`
-  - `body-lg` (18px) and `body-md` (16px) instead of `ui-medium`
-  - `label-caps` (12px, wght 700, uppercase) instead of `data-label`
-  - `label-mono` (14px, letter-spacing 0.05em, wght 500) for navigation
-  - `data-mono` and `data-label` are shared with the dark theme (JetBrains Mono)
-- **Grid lines:** CSS `background-image` pattern at 20px intervals using `#ebe1d3` (not the grid-line-container technique):
-  ```css
-  background-size: 20px 20px;
-  background-image: linear-gradient(to right, #ebe1d3 1px, transparent 1px),
-                    linear-gradient(to bottom, #ebe1d3 1px, transparent 1px);
-  ```
-- **Background:** `#fbfaf8`, panels use `#ffffff` with `border-outline-variant`.
-- **Recommendation cards:** White background with subtle shadow (`shadow-sm`) — the only exception to the "no shadows" rule (see Anti-Patterns).
-
-### Screen 4: Session History
-- **Layout:** Filter header → ledger table → pagination bar
-- **Filter header:** Search input (full-width with icon), filter/calendar buttons, Export CSV button.
-- **Ledger table:** Columns: checkbox, SESSION_ID, START_TIME, DURATION, TOTAL_TOKENS, TOTAL_COST, PRIMARY_MODEL (tag), TOOL_COUNT. Font: `data-mono`. Rows alternate background.
-- **Pagination bar:** Entry count, page size selector (25/50/100), page navigation (first/prev/1/2/3/4/next/last). Active page: orange highlight.
-- **Floating widget:** Session Insights panel (bottom-right) showing AVG_LATENCY, TOTAL_BURN, PEAK_CONCURRENCY.
-
-### Screen 5: Tool Inspector
-- **Layout:** Split view — tool call ledger (left, `flex-1`) + detail pane (right, `w-[450px]`)
-- **Tool call ledger:** Columns: TIMESTAMP_UTC, TOOL_ID, ARGUMENTS_SNAPSHOT, STATUS (LED + label), LAT_MS, TOKENS. Active row highlighted with `bg-orange-500/10`.
-- **Detail pane (Execution Inspector):**
-  - Header: title + close button
-  - Metadata grid (2-col): Execution_Time, Total_Latency
-  - Input Arguments: code block (`bg-zinc-950`, monospace, syntax-highlighted JSON)
-  - Stack Trace / Error Log: code block with error in rose, trace in dim text. Critical badge.
-  - Visual context: Server image with gradient overlay + Node_Cluster_ID label
-  - Footer actions: Retry_Call, Copy_JSON (full-width buttons)
-
-## Motion
-- **Approach:** Minimal-functional — only animations that aid comprehension
-- **Easing:** ease-out for enter, ease-in for exit
-- **Duration:** Chart trace reveal on load (400ms), subtle count-up for spend numbers, row highlight sweep on hover (150ms)
-- **Loading state:** Single horizontal scan line moving left-to-right (CRT feel), 1.5s cycle
-- **Transition:** All transitions use `transition-colors duration-75` for snappy, industrial feel. No slow fades.
-
-## Anti-Patterns (never do these)
-- No purple/violet gradients as default accent
-- No 3-column feature grid with icons in colored circles
-- No centered everything with uniform spacing
-- No uniform bubbly border-radius on all elements
-- No gradient buttons as primary CTA
-- No glassmorphism or frosted glass effects
-- No system-ui / -apple-system as primary display or body font
-- No floating stat cards with rounded corners and shadows (exception: light theme recommendation cards may use `shadow-sm` for subtle depth on white backgrounds)
-- No decorative background shapes or blobs
-- No smooth Bezier curves on data charts — stepped or sharp angles only
-- No backdrop blurs or ambient shadows — flat, physical, mechanically assembled
+## Anti-Patterns
+- Dark: No yellow body text or large fills — yellow is focal-point CTAs only
+- Dark: No atmospheric gradients — flat color-block contrast only
+- Dark: Never white text on yellow (always `#181a20` on `#fcd535`)
+- Light: No hard corners — every interactive element is rounded
+- Light: No dark mode on public/light surfaces
+- Both: No glassmorphism, no backdrop blur, no decorative blobs
+- Both: No smooth Bezier curves on charts — `tension: 0` always
 
 ## Decisions Log
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2026-05-05 | Initial design system created | Created by /design-consultation. Industrial/Utilitarian aesthetic, burnt orange accent, Bricolage Grotesque + JetBrains Mono. Synthesized from competitive research (Vercel, Linear, Langfuse, Mintlify), Codex design voice, and independent Claude subagent. |
-| 2026-05-05 | Burnt orange over acid-lime or blue/purple | Maps to resource tracking (heat, fuel gauge). Distinct from category norm of purple/blue AI dashboards. Codex recommended lime, subagent recommended orange. Orange chosen for "instrument" reading over "developer tool" reading. |
-| 2026-05-05 | No stat cards, sparkline ribbon instead | Every AI dashboard shows 4 stat cards in a grid. Replacing with a data ribbon makes the first viewport a landscape, not a widget gallery. Risk accepted for visual distinction. |
-| 2026-05-05 | Monospace-first typography | No sans-serif body font. UI is either labels (Bricolage Grotesque) or data (JetBrains Mono). Immediately reads as precision instrument. |
-| 2026-05-05 | Stitch screen import — background #14130f | Stitch screens use warmer near-black (#14130f) over original DESIGN.md (#0a0a0b). Adopted for Material You Fidelity variant consistency across all tokens. |
-| 2026-05-05 | Dual-theme support (dark + light) | Light theme added based on Token & Cost Analysis v2 Stitch screen. Space Grotesk chosen as light theme display font for its geometric, technical character. Dark theme retains Bricolage Grotesque. |
-| 2026-05-05 | Material You surface tier system | 5-tier surface layering (lowest → low → → high → highest) replaces the original 3-tier system. Provides finer tonal control for elevation without shadows. |
-| 2026-05-05 | Grid-line technique for borders | CSS grid with `gap: 1px; background-color: <border>` creates shared structural borders without double-border artifacts. Panels use `background-color: <surface>` to fill cells. |
+| 2026-05-06 | Dark = financial-platform dark tokens, Light = consumer marketplace light tokens | User directive: use DESIGN-dark.md and DESIGN-light.md as-is |
+| 2026-05-06 | Dark accent `#fcd535` Yellow, Light accent `#ff385c` Red | Exact brand colors from each reference |
+| 2026-05-06 | `on-primary` dark = `#181a20` (black on yellow) | Dark theme signature — white on yellow loses contrast |
