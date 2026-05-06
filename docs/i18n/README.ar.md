@@ -74,7 +74,38 @@
 
 ## التثبيت
 
-### التثبيت من crates.io
+### macOS / Linux (سطر واحد)
+
+</div>
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.sh | sh
+```
+
+<div dir="rtl">
+
+### macOS Homebrew
+
+</div>
+
+```bash
+brew tap epicsagas/tap
+brew install claudy
+```
+
+<div dir="rtl">
+
+### Windows PowerShell
+
+</div>
+
+```powershell
+irm https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.ps1 | iex
+```
+
+<div dir="rtl">
+
+### crates.io
 
 **ملف ثنائي جاهز (سريع، لا حاجة للتصريف)**
 
@@ -97,18 +128,7 @@ cargo install claudy
 
 <div dir="rtl">
 
-**MacOS homebrew**
-
-</div>
-
-```bash
-brew tap epicsagas/tap
-brew install claudy
-```
-
-<div dir="rtl">
-
-### التثبيت من مصدر محلي
+### التثبيت من مصدر Git
 
 </div>
 
@@ -120,13 +140,15 @@ cargo install --path .
 
 <div dir="rtl">
 
-### التحقق
+## الإعداد / التهيئة
 
 </div>
 
 ```bash
-claudy --help
+claudy install
+echo 'ZAI_API_KEY=your-key-here' >> ~/.claudy/secrets.env
 claudy --version
+claudy zai
 ```
 
 <div dir="rtl">

@@ -62,35 +62,44 @@ Claudy는 하나의 일관된 명령어 인터페이스로 여러 Provider에서
 
 ## 요구 사항
 
-- macOS 또는 Linux
-- 소스에서 빌드/설치하려면 Rust 툴체인(`cargo`) 필요
+- macOS, Linux 또는 Windows
+- 소스에서 빌드하려면 Rust 툴체인(`cargo`) 필요
 - Claude CLI가 설치되어 있고 `PATH`에서 사용 가능해야 함
 
 ## 설치
 
-### crates.io에서 설치
+플랫폼에 맞는 방법을 선택하세요:
 
-**사전 빌드된 바이너리 (빠름, 컴파일 불필요)**
+**macOS / Linux (원라인 설치)**
 
-```
-cargo install cargo-binstall
-cargo binstall claudy
-```
-
-**모든 플랫폼 — 소스에서 빌드**
-
-```
-cargo install claudy
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.sh | sh
 ```
 
-**macOS Homebrew**
+**macOS (Homebrew)**
 
 ```bash
 brew tap epicsagas/tap
 brew install claudy
 ```
 
-### 로컬 소스에서 설치
+**Windows (PowerShell)**
+
+```powershell
+irm https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.ps1 | iex
+```
+
+**Cargo (모든 플랫폼)**
+
+```bash
+# 사전 빌드된 바이너리 (빠름, 컴파일 불필요)
+cargo binstall claudy
+
+# 또는 소스에서 빌드
+cargo install claudy
+```
+
+**Git에서 빌드**
 
 ```bash
 git clone https://github.com/epicsagas/claudy.git
@@ -98,11 +107,20 @@ cd claudy
 cargo install --path .
 ```
 
-### 확인
+## 설정 & 실행
 
 ```bash
-claudy --help
+# 초기화 — 디렉터리 생성, config.yaml/secrets.env(0600) 시드, MCP 등록
+claudy install
+
+# Provider API 키 설정
+echo 'ZAI_API_KEY=your-key-here' >> ~/.claudy/secrets.env
+
+# 확인
 claudy --version
+
+# 실행
+claudy zai
 ```
 
 ## 빠른 시작

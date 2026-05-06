@@ -68,7 +68,26 @@ Claudy vous permet d'exécuter Claude avec plusieurs providers via une interface
 
 ## Installation
 
-### Installer depuis crates.io
+### macOS / Linux (une seule ligne)
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.sh | sh
+```
+
+### macOS Homebrew
+
+```bash
+brew tap epicsagas/tap
+brew install claudy
+```
+
+### Windows PowerShell
+
+```powershell
+irm https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.ps1 | iex
+```
+
+### crates.io
 
 **Binaire pré-compilé (rapide, sans compilation)**
 
@@ -83,14 +102,7 @@ cargo binstall claudy
 cargo install claudy
 ```
 
-**MacOS homebrew**
-
-```bash
-brew tap epicsagas/tap
-brew install claudy
-```
-
-### Installer depuis le code source local
+### Installer depuis le code source Git
 
 ```bash
 git clone https://github.com/epicsagas/claudy.git
@@ -98,11 +110,13 @@ cd claudy
 cargo install --path .
 ```
 
-### Vérifier
+## Configuration initiale
 
 ```bash
-claudy --help
+claudy install
+echo 'ZAI_API_KEY=your-key-here' >> ~/.claudy/secrets.env
 claudy --version
+claudy zai
 ```
 
 ## Démarrage Rapide

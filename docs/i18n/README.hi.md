@@ -68,7 +68,26 @@ Claudy आपको एक सुसंगत कमांड इंटरफे
 
 ## इंस्टॉलेशन
 
-### crates.io से इंस्टॉल करें
+### macOS / Linux (एक लाइन)
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.sh | sh
+```
+
+### macOS Homebrew
+
+```bash
+brew tap epicsagas/tap
+brew install claudy
+```
+
+### Windows PowerShell
+
+```powershell
+irm https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.ps1 | iex
+```
+
+### crates.io
 
 **Pre-built binary (तेज़, कोई compilation नहीं)**
 
@@ -83,14 +102,7 @@ cargo binstall claudy
 cargo install claudy
 ```
 
-**MacOS homebrew**
-
-```bash
-brew tap epicsagas/tap
-brew install claudy
-```
-
-### लोकल सोर्स से इंस्टॉल करें
+### Git सोर्स से इंस्टॉल करें
 
 ```bash
 git clone https://github.com/epicsagas/claudy.git
@@ -98,11 +110,13 @@ cd claudy
 cargo install --path .
 ```
 
-### सत्यापित करें
+## सेटअप / कॉन्फ़िगरेशन
 
 ```bash
-claudy --help
+claudy install
+echo 'ZAI_API_KEY=your-key-here' >> ~/.claudy/secrets.env
 claudy --version
+claudy zai
 ```
 
 ## Quick Start

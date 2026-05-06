@@ -63,23 +63,64 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
 | Ollama | ⚠️ Experimental | Not fully tested — report issues on GitHub |
 | Custom endpoint | ⚠️ Experimental | Not fully tested — report issues on GitHub |
 
-## Install & Configure
+<img src="docs/assets/demo.gif" alt="demo" width="100%" />
+
+## Install
+
+Pick your platform:
+
+**macOS / Linux (one-liner)**
 
 ```bash
-# Install
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.sh | sh
+```
+
+**macOS (Homebrew)**
+
+```bash
+brew tap epicsagas/tap
+brew install claudy
+```
+
+**Windows (PowerShell)**
+
+```powershell
+irm https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.ps1 | iex
+```
+
+**Cargo (all platforms)**
+
+```bash
+# Pre-built binary (fast, no compilation)
 cargo binstall claudy
 
-# Sync — auto-creates dirs, seeds config.yaml, secrets.env (0600), registers MCP
-claudy sync
+# Or build from source
+cargo install claudy
+```
+
+**Build from Git**
+
+```bash
+git clone https://github.com/epicsagas/claudy.git
+cd claudy
+cargo install --path .
+```
+
+## Setup & Launch
+
+```bash
+# Initialize — auto-creates dirs, seeds config.yaml, secrets.env (0600), registers MCP
+claudy install
 
 # Set your provider API key
 echo 'ZAI_API_KEY=your-key-here' >> ~/.claudy/secrets.env
 
+# Verify
+claudy --version
+
 # Launch
 claudy zai
 ```
-
-Other install methods: `cargo install claudy` (source) | `brew tap epicsagas/tap && brew install claudy` (macOS)
 
 <details>
 <summary>Provider credentials</summary>

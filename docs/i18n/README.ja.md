@@ -68,41 +68,50 @@ Claudy は、統一されたコマンドインターフェースで複数の Pro
 
 ## インストール
 
-### crates.io からインストール
+プラットフォームを選択してください:
 
-**ビルド済みバイナリ（高速、コンパイル不要）**
-
-```
-cargo install cargo-binstall
-cargo binstall claudy
+**macOS / Linux (ワンライナー)**
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.sh | sh
 ```
 
-**すべてのプラットフォーム — ソースからビルド**
-
-```
-cargo install claudy
-```
-
-**macOS Homebrew**
-
+**macOS (Homebrew)**
 ```bash
 brew tap epicsagas/tap
 brew install claudy
 ```
 
-### ローカルソースからインストール
+**Windows (PowerShell)**
+```powershell
+irm https://github.com/epicsagas/tools/releases/latest/download/claudy-installer.ps1 | iex
+```
 
+**Cargo (全プラットフォーム)**
+```bash
+# ビルド済みバイナリ
+cargo binstall claudy
+# またはソースからビルド
+cargo install claudy
+```
+
+**Gitからビルド**
 ```bash
 git clone https://github.com/epicsagas/claudy.git
 cd claudy
 cargo install --path .
 ```
 
-### 確認
+## セットアップ＆起動
 
 ```bash
-claudy --help
+# 初期化
+claudy install
+# APIキーの設定
+echo 'ZAI_API_KEY=your-key-here' >> ~/.claudy/secrets.env
+# 確認
 claudy --version
+# 起動
+claudy zai
 ```
 
 ## クイックスタート
