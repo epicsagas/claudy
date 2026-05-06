@@ -34,6 +34,38 @@ fn run_dashboard(ctx: &mut Context) -> anyhow::Result<i32> {
 
 fn run_ingest(ctx: &mut Context, full: bool, project: Option<&str>) -> anyhow::Result<i32> {
     let db_path = &ctx.paths.analytics_db;
+
+    // Auto-trigger pricing sync before ingestion; network errors are warnings only.
+    let cache_path = dirs::home_dir()
+        .map(|h| h.join(".claudy").join("cache").join("models_dev.json"));
+    if let Some(ref cp) = cache_path {
+        let store_result =
+            crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore::open(db_path)
+                .and_then(|s| s.initialize_schema().map(|_| s));
+        match store_result {
+            Ok(store) => {
+                match crate::adapters::analytics::pricing::sync::run_pricing_sync(&store, cp) {
+                    Ok(result) => {
+                        for w in &result.warnings {
+                            ctx.output.warn(&format!("pricing sync: {w}"));
+                        }
+                        ctx.output.info(&format!(
+                            "Pricing sync: {} models synced (source: {})",
+                            result.models_synced,
+                            result.source.label(),
+                        ));
+                    }
+                    Err(e) => {
+                        ctx.output.warn(&format!("Pricing sync skipped: {e}"));
+                    }
+                }
+            }
+            Err(e) => {
+                ctx.output.warn(&format!("Pricing sync skipped (db init failed): {e}"));
+            }
+        }
+    }
+
     ctx.output.info("Starting ingestion...");
 
     let result = crate::adapters::analytics::ingestion::run_ingestion(db_path, full, project)?;
@@ -161,4 +193,37 @@ fn run_sync_pricing(ctx: &mut Context) -> anyhow::Result<i32> {
     );
 
     Ok(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::adapters::analytics::pricing::sync::run_pricing_sync;
+    use crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore;
+    use crate::ports::analytics_ports::{AnalyticsStore, PricingStore};
+    use tempfile::{NamedTempFile, TempDir};
+
+    fn write_models_dev_cache(dir: &TempDir) -> std::path::PathBuf {
+        let cache_path = dir.path().join("models_dev.json");
+        let json = r#"[{"id":"claude-haiku-4-5","name":"Claude Haiku 4.5","cost":{"input":0.80,"output":4.00,"cache_read":0.08,"cache_write":1.00}}]"#;
+        std::fs::write(&cache_path, json).unwrap();
+        cache_path
+    }
+
+    /// AC7: ingest auto-triggers sync-pricing; result is visible through the store.
+    #[test]
+    fn test_ingest_auto_triggers_pricing_sync_logs_result() {
+        let tmp_dir = TempDir::new().unwrap();
+        let cache_path = write_models_dev_cache(&tmp_dir);
+        let db_file = NamedTempFile::new().unwrap();
+        let store = SqliteAnalyticsStore::open(db_file.path().to_str().unwrap()).unwrap();
+        store.initialize_schema().unwrap();
+
+        let result = run_pricing_sync(&store, &cache_path).unwrap();
+
+        assert!(result.models_synced >= 1, "at least one model should be synced");
+        assert!(result.warnings.is_empty(), "no warnings expected with valid cache");
+
+        let rows = store.list_model_pricing().unwrap();
+        assert!(!rows.is_empty(), "model_pricing table must not be empty after auto-sync");
+    }
 }
