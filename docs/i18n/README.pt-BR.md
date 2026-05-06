@@ -60,6 +60,8 @@ O Claudy permite que você execute o Claude com múltiplos providers por meio de
 | Ollama | ⚠️ Experimental | Ainda não totalmente testado — reporte problemas no GitHub |
 | Custom endpoint | ⚠️ Experimental | Ainda não totalmente testado — reporte problemas no GitHub |
 
+<img src="../assets/demo.gif" alt="demo" width="100%" />
+
 ## Requisitos
 
 - macOS ou Linux

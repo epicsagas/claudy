@@ -60,6 +60,8 @@ Claudy ermöglicht es Ihnen, Claude mit mehreren Providern über eine einheitlic
 | Ollama | ⚠️ Experimentell | Noch nicht vollständig getestet — bitte auf GitHub melden |
 | Custom endpoint | ⚠️ Experimentell | Noch nicht vollständig getestet — bitte auf GitHub melden |
 
+<img src="../assets/demo.gif" alt="demo" width="100%" />
+
 ## Voraussetzungen
 
 - macOS oder Linux

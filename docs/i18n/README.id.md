@@ -60,6 +60,8 @@ Claudy membantu Anda menjalankan Claude terhadap berbagai provider dengan satu a
 | Ollama | ⚠️ Eksperimental | Belum sepenuhnya diuji — laporkan masalah di GitHub |
 | Custom endpoint | ⚠️ Eksperimental | Belum sepenuhnya diuji — laporkan masalah di GitHub |
 
+<img src="../assets/demo.gif" alt="demo" width="100%" />
+
 ## Persyaratan
 
 - macOS atau Linux

@@ -60,6 +60,8 @@ Claudy は、統一されたコマンドインターフェースで複数の Pro
 | Ollama | ⚠️ 実験的 | 十分にテストされていません — GitHub で Issue を報告してください |
 | カスタムエンドポイント | ⚠️ 実験的 | 十分にテストされていません — GitHub で Issue を報告してください |
 
+<img src="../assets/demo.gif" alt="demo" width="100%" />
+
 ## 要件
 
 - macOS または Linux

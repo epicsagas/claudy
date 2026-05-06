@@ -60,6 +60,8 @@ Claudy vous permet d'exécuter Claude avec plusieurs providers via une interface
 | Ollama | ⚠️ Expérimental | Pas encore entièrement testé — signalez les problèmes sur GitHub |
 | Custom endpoint | ⚠️ Expérimental | Pas encore entièrement testé — signalez les problèmes sur GitHub |
 
+<img src="../assets/demo.gif" alt="Quick Start" width="100%" />
+
 ## Prérequis
 
 - macOS ou Linux

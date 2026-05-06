@@ -60,6 +60,8 @@ Claudy는 하나의 일관된 명령어 인터페이스로 여러 Provider에서
 | Ollama | ⚠️ 실험적 | 아직 완전히 테스트되지 않음 — GitHub에 이슈를 등록해 주세요 |
 | 커스텀 엔드포인트 | ⚠️ 실험적 | 아직 완전히 테스트되지 않음 — GitHub에 이슈를 등록해 주세요 |
 
+<img src="../assets/demo.gif" alt="demo" width="100%" />
+
 ## 요구 사항
 
 - macOS, Linux 또는 Windows

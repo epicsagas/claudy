@@ -64,6 +64,8 @@
 | Ollama | ⚠️ تجريبي | لم يُختبر بالكامل بعد — أبلغ عن المشكلات على GitHub |
 | Custom endpoint | ⚠️ تجريبي | لم يُختبر بالكامل بعد — أبلغ عن المشكلات على GitHub |
 
+<img src="../assets/demo.gif" alt="Quick Start" width="100%" />
+
 <div dir="rtl">
 
 ## المتطلبات
@@ -156,8 +158,6 @@ claudy zai
 ## البدء السريع
 
 </div>
-
-<img src="docs/assets/demo.gif" alt="Quick Start" width="100%" />
 
 ```bash
 # 1) عرض قائمة الـ profiles المتاحة/المحلولة
