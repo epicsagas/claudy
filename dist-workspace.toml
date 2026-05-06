@@ -15,11 +15,13 @@ targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-da
 install-path = "CARGO_HOME"
 # Whether to install an updater program
 install-updater = false
-# Allow extra jobs added to release.yml without dist regenerating the file
+# macOS code signing
+macos-sign = true
+# Skip checking whether the specified configuration files are up to date
 allow-dirty = ["ci"]
-# Do not include source tarball in releases (private source)
+# Generate and dist a source tarball
 source-tarball = false
-# Build with analytics-ui (tauri dashboard)
+# Features to pass to cargo build
 features = ["analytics", "analytics-ui"]
 
 # Linux GTK system dependencies for Tauri
