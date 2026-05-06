@@ -415,6 +415,7 @@ pub(super) async fn handle_interaction(
             action: inter.action_id.clone(),
             data: inter.message_ref.clone(),
             callback_message_id: inter.callback_message_id,
+            original_text: inter.original_text,
             scope,
             channel_state: state.channel_state.clone(),
             app_state: state.clone(),

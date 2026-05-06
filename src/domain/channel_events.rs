@@ -110,6 +110,9 @@ pub struct InteractionEvent {
     /// The platform's callback query ID (e.g. Telegram callback_query ID).
     /// Used for answerCallbackQuery to dismiss the loading spinner.
     pub callback_query_id: Option<String>,
+    /// Original text of the message that contained the buttons.
+    /// Used to preserve the question text when dismissing the keyboard.
+    pub original_text: Option<String>,
 }
 
 #[derive(Debug, Clone)]

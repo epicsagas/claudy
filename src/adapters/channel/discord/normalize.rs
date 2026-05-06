@@ -69,6 +69,7 @@ pub fn normalize_interaction(interaction: &DiscordInteraction) -> Option<Incomin
                 message_ref,
                 callback_message_id,
                 callback_query_id: None,
+                original_text: None,
             }))
         }
     }

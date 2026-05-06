@@ -17,6 +17,7 @@ pub struct CallbackContext {
     pub action: String,
     pub data: String,
     pub callback_message_id: Option<String>,
+    pub original_text: Option<String>,
     pub scope: String,
     pub channel_state: Arc<tokio::sync::RwLock<ChannelState>>,
     pub app_state: Arc<AppState>,
@@ -30,6 +31,7 @@ pub async fn handle_callback(ctx: CallbackContext) -> anyhow::Result<()> {
         action,
         data,
         callback_message_id,
+        original_text,
         scope,
         channel_state,
         app_state,
@@ -41,6 +43,7 @@ pub async fn handle_callback(ctx: CallbackContext) -> anyhow::Result<()> {
                 &channel_id,
                 &data,
                 callback_message_id,
+                original_text,
                 &scope,
                 &channel_state,
             )
@@ -55,18 +58,28 @@ pub async fn handle_callback(ctx: CallbackContext) -> anyhow::Result<()> {
                 &channel_id,
                 &data,
                 callback_message_id,
+                original_text,
                 &scope,
                 &channel_state,
             )
             .await
         }
-        "reply" => handle_reply_callback(channel.as_ref(), &channel_id, callback_message_id).await,
+        "reply" => {
+            handle_reply_callback(
+                channel.as_ref(),
+                &channel_id,
+                callback_message_id,
+                original_text,
+            )
+            .await
+        }
         "choice" => {
             handle_choice_callback(
                 channel.as_ref(),
                 &channel_id,
                 &data,
                 callback_message_id,
+                original_text,
                 app_state,
             )
             .await
@@ -83,6 +96,7 @@ async fn handle_session_callback(
     channel_id: &ChannelIdentity,
     data: &str,
     callback_message_id: Option<String>,
+    original_text: Option<String>,
     scope: &str,
     state: &Arc<tokio::sync::RwLock<ChannelState>>,
 ) -> anyhow::Result<()> {
@@ -94,6 +108,7 @@ async fn handle_session_callback(
                 channel,
                 channel_id,
                 callback_message_id,
+                original_text,
                 "Invalid session reference.",
             )
             .await;
@@ -105,6 +120,7 @@ async fn handle_session_callback(
             channel,
             channel_id,
             callback_message_id,
+            original_text,
             "No projects found.",
         )
         .await;
@@ -122,6 +138,7 @@ async fn handle_session_callback(
             channel,
             channel_id,
             callback_message_id,
+            original_text,
             "Session not found.",
         )
         .await;
@@ -145,13 +162,13 @@ async fn handle_session_callback(
     }
 
     let preview = session.first_message.as_deref().unwrap_or("(no message)");
-    let text = format!(
+    let result = format!(
         "Switched to session {}...\nProject: {}\nFirst: {}",
         &session.session_id[..8],
         session.project_name,
         truncate_chars(preview, 80)
     );
-    dismiss_keyboard(channel, channel_id, callback_message_id, &text).await
+    dismiss_keyboard(channel, channel_id, callback_message_id, original_text, &result).await
 }
 
 async fn handle_project_callback(
@@ -161,7 +178,7 @@ async fn handle_project_callback(
     callback_message_id: Option<String>,
 ) -> anyhow::Result<()> {
     // Dismiss the project list keyboard
-    dismiss_keyboard(channel, channel_id, callback_message_id, "Loading...").await?;
+    dismiss_keyboard(channel, channel_id, callback_message_id, None, "Loading...").await?;
 
     // Show sessions for this project
     handle_project_sessions(channel, channel_id, encoded_dir).await
@@ -172,11 +189,19 @@ async fn handle_model_callback(
     channel_id: &ChannelIdentity,
     model: &str,
     callback_message_id: Option<String>,
+    original_text: Option<String>,
     scope: &str,
     state: &Arc<tokio::sync::RwLock<ChannelState>>,
 ) -> anyhow::Result<()> {
     if !["sonnet", "opus", "haiku"].contains(&model) {
-        return dismiss_keyboard(channel, channel_id, callback_message_id, "Unknown model.").await;
+        return dismiss_keyboard(
+            channel,
+            channel_id,
+            callback_message_id,
+            original_text,
+            "Unknown model.",
+        )
+        .await;
     }
     {
         with_write(state, |cs| cs.set_model(scope, model)).await;
@@ -185,27 +210,47 @@ async fn handle_model_callback(
         channel,
         channel_id,
         callback_message_id,
-        &format!("Model set to: {}", model),
+        original_text,
+        &format!("✅ Model set to: {model}"),
     )
     .await
 }
 
-/// Edit the message to remove inline keyboard buttons (dismiss animation).
+/// Edit the message to remove inline keyboard buttons and append the result.
+///
+/// If `original_text` is provided the edited message will be:
+///
+/// ```text
+/// <original question>
+///
+/// <result>
+/// ```
+///
+/// This way the user can still see what they were asked before they tapped
+/// the button.  When `original_text` is absent (e.g. Slack/Discord which
+/// don't surface message text in interaction payloads yet) only `result` is
+/// shown, preserving the previous behaviour.
 async fn dismiss_keyboard(
     channel: &dyn ChannelPort,
     channel_id: &ChannelIdentity,
     callback_message_id: Option<String>,
-    text: &str,
+    original_text: Option<String>,
+    result: &str,
 ) -> anyhow::Result<()> {
+    let text = match original_text.as_deref().filter(|t| !t.is_empty()) {
+        Some(question) => format!("{question}\n\n{result}"),
+        None => result.to_string(),
+    };
+
     let Some(msg_id) = callback_message_id else {
         // Fallback: just send a new message
-        return reply(channel, channel_id, text).await;
+        return reply(channel, channel_id, &text).await;
     };
     channel
         .edit_message(&OutboundMessage {
             conversation_id: ConversationId::new(),
             channel: channel_id.clone(),
-            text: text.to_string(),
+            text,
             message_ref: Some(msg_id),
             interaction: None,
         })
@@ -216,11 +261,13 @@ async fn handle_reply_callback(
     channel: &dyn ChannelPort,
     channel_id: &ChannelIdentity,
     callback_message_id: Option<String>,
+    original_text: Option<String>,
 ) -> anyhow::Result<()> {
     dismiss_keyboard(
         channel,
         channel_id,
         callback_message_id,
+        original_text,
         "Type your response below.",
     )
     .await
@@ -231,6 +278,7 @@ async fn handle_choice_callback(
     channel_id: &ChannelIdentity,
     data: &str,
     callback_message_id: Option<String>,
+    original_text: Option<String>,
     app_state: Arc<AppState>,
 ) -> anyhow::Result<()> {
     // Reject if Claude is already running for this scope
@@ -247,6 +295,7 @@ async fn handle_choice_callback(
                     channel,
                     channel_id,
                     callback_message_id,
+                    original_text,
                     "Claude is busy — wait for the current response to finish.",
                 )
                 .await;
@@ -256,6 +305,7 @@ async fn handle_choice_callback(
                     channel,
                     channel_id,
                     callback_message_id,
+                    original_text,
                     "Claude is busy — wait for the current response to finish.",
                 )
                 .await;
@@ -267,7 +317,8 @@ async fn handle_choice_callback(
         channel,
         channel_id,
         callback_message_id,
-        &format!("> {}", data),
+        original_text,
+        &format!("> {data}"),
     )
     .await?;
     let synthetic = IncomingEvent::TextMessage(TextMessage {

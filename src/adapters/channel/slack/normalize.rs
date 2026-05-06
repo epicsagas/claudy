@@ -161,6 +161,7 @@ pub fn normalize_interaction(payload: &SlackInteractionPayload) -> Option<Incomi
         message_ref,
         callback_message_id,
         callback_query_id: None,
+        original_text: None,
     }))
 }
 

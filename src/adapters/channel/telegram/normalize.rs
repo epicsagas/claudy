@@ -126,6 +126,7 @@ fn normalize_callback(callback: TelegramCallbackQuery) -> Option<IncomingEvent> 
 
     let chat_id = message.chat.id.to_string();
     let user_id = callback.from.id.to_string();
+    let original_text = message.text.clone();
 
     let conversation_id = ConversationId::from_platform(Platform::Telegram, &chat_id);
 
@@ -142,6 +143,7 @@ fn normalize_callback(callback: TelegramCallbackQuery) -> Option<IncomingEvent> 
         message_ref,
         callback_message_id: Some(message._message_id.to_string()),
         callback_query_id: Some(callback.id),
+        original_text,
     }))
 }
 
