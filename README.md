@@ -32,6 +32,7 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
     <a href="https://crates.io/crates/claudy"><img src="https://img.shields.io/crates/d/claudy.svg" alt="Downloads" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
     <a href="https://buymeacoffee.com/epicsaga"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee" /></a>
+    <a href="https://github.com/epicsagas/claudy/actions/workflows/ci.yml"><img src="https://github.com/epicsagas/claudy/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
 </p>
 
 ---
@@ -70,62 +71,41 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
   <img alt="demo" src="docs/assets/demo.gif" width="100%">
 </picture>
 
-## Install
+## Quick Start
 
-Pick your platform:
-
-**macOS / Linux (one-liner)**
+**1. Install** (pick one)
 
 ```bash
+# macOS / Linux
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
-```
 
-**macOS (Homebrew)**
+# macOS (Homebrew)
+brew tap epicsagas/tap && brew install claudy
 
-```bash
-brew tap epicsagas/tap
-brew install claudy
-```
-
-**Windows (PowerShell)**
-
-```powershell
+# Windows (PowerShell)
 irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
-```
 
-**Cargo (all platforms)**
-
-```bash
-# Pre-built binary (fast, no compilation)
+# Cargo (all platforms)
 cargo binstall claudy
-
-# Or build from source
-cargo install claudy
 ```
 
-**Build from Git**
+**2. Configure**
 
 ```bash
-git clone https://github.com/epicsagas/claudy.git
-cd claudy
-cargo install --path .
+claudy install                        # initialize dirs, config, secrets
+echo 'ANTHROPIC_API_KEY=your-key' >> ~/.claudy/secrets.env
 ```
 
-## Setup & Launch
+**3. Launch**
 
 ```bash
-# Initialize — auto-creates dirs, seeds config.yaml, secrets.env (0600), registers MCP
-claudy install
-
-# Set your provider API key
-echo 'ZAI_API_KEY=your-key-here' >> ~/.claudy/secrets.env
-
-# Verify
-claudy --version
-
-# Launch
-claudy zai
+claudy                                # default provider
+claudy zai                            # Z.AI provider
+claudy openrouter sonnet              # OpenRouter alias
 ```
+
+<details>
+<summary>Configuration reference</summary>
 
 <details>
 <summary>Provider credentials</summary>
@@ -210,6 +190,8 @@ agents:
 
 </details>
 
+</details>
+
 ---
 
 ## Core Concepts
@@ -250,6 +232,9 @@ claudy <profile> gstack
 ```
 
 Each mode directory is a self-contained `CLAUDE_CONFIG_DIR`, so frameworks never conflict with each other or with your default setup.
+
+<details>
+<summary>Command Reference</summary>
 
 ## Command Reference
 
@@ -336,6 +321,9 @@ DISCORD_BOT_TOKEN=...
 DISCORD_APPLICATION_ID=...
 DISCORD_PUBLIC_KEY=...
 ```
+
+<details>
+<summary>Agent MCP Bridge</summary>
 
 ### Agent MCP bridge
 
@@ -430,6 +418,9 @@ agents:
 
 Same key as a built-in agent overrides its defaults. `{prompt}` in `args` is replaced with the actual task.
 
+<details>
+<summary>Usage Analytics</summary>
+
 ### Analytics commands
 
 > **Note**: The analytics feature is still a work in progress. Token counts, cost estimates, and other metrics may not be fully accurate. Expect refinements in upcoming releases.
@@ -494,7 +485,7 @@ No manual commands, no context switching. Ask Claude about your usage and get an
 
 Data is stored in a local SQLite database under `~/.claudy/analytics/`. The dashboard runs as a high-performance local Tauri 2 + Svelte app. Use the **[Sync]** button in the dashboard to instantly refresh data from your Claude CLI history.
 
-### Analytics Dashboard 
+### Analytics Dashboard
 ```bash
 claudy analytics dashboard
 ```
@@ -502,6 +493,12 @@ claudy analytics dashboard
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/analytics-dashboard.png">
   <img alt="Analytics Dashboard" src="docs/assets/analytics-dashboard.png" width="100%">
 </picture>
+
+</details>
+
+</details>
+
+</details>
 
 ## Files and Directory Layout
 
