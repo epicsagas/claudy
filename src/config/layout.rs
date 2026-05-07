@@ -109,6 +109,7 @@ impl AppPaths {
             &self.cache_dir,
             &self.session_patch_dir,
             &self.bin_dir,
+            &self.modes_dir,
             &self.channel_dir,
             &self.analytics_dir,
         ] {
@@ -119,23 +120,18 @@ impl AppPaths {
 }
 
 fn default_bin_dir(home: &str) -> String {
-    if let Some(dir) = claude_bin_dir() {
-        return dir;
+    // Prefer the directory where claudy is already installed (via which)
+    if let Ok(found) = which::which("claudy") {
+        let abs = std::fs::canonicalize(&found).unwrap_or(found);
+        if let Some(parent) = abs.parent() {
+            return parent.to_string_lossy().to_string();
+        }
     }
-    if cfg!(target_os = "macos") {
-        Path::new(home).join("bin").to_string_lossy().to_string()
-    } else {
-        Path::new(home)
-            .join(".local/bin")
-            .to_string_lossy()
-            .to_string()
-    }
-}
-
-fn claude_bin_dir() -> Option<String> {
-    let claude_path = which::which("claude").ok()?;
-    let abs = std::fs::canonicalize(&claude_path).unwrap_or(claude_path);
-    Some(abs.parent()?.to_string_lossy().to_string())
+    // Fallback to ~/.cargo/bin
+    Path::new(home)
+        .join(".cargo/bin")
+        .to_string_lossy()
+        .to_string()
 }
 
 fn getenv(key: &str, fallback: &str) -> String {

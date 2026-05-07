@@ -13,7 +13,7 @@ pub fn run_mode(ctx: &mut Context, action: &str, name: Option<&str>) -> anyhow::
     }
 }
 
-fn validate_mode_name(name: &str) -> anyhow::Result<()> {
+pub fn validate_mode_name(name: &str) -> anyhow::Result<()> {
     if name.is_empty() {
         anyhow::bail!("Mode name cannot be empty.");
     }
