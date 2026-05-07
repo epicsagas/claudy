@@ -272,13 +272,17 @@ pub fn update_config(partial: serde_json::Value) -> Result<serde_json::Value, St
             cfg.openrouter_aliases = aliases;
         }
         if let Some(v) = obj.get("custom_providers") {
-            let providers: std::collections::HashMap<String, crate::config::registry::UserEndpoint> =
-                serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+            let providers: std::collections::HashMap<
+                String,
+                crate::config::registry::UserEndpoint,
+            > = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
             cfg.custom_providers = providers;
         }
         if let Some(v) = obj.get("model_settings") {
-            let settings: std::collections::HashMap<String, crate::config::registry::PerModelOverrides> =
-                serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+            let settings: std::collections::HashMap<
+                String,
+                crate::config::registry::PerModelOverrides,
+            > = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
             cfg.model_settings = settings;
         }
         if let Some(v) = obj.get("agents") {

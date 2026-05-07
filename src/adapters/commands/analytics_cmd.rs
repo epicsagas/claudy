@@ -55,7 +55,8 @@ fn run_ingest(ctx: &mut Context, full: bool, project: Option<&str>) -> anyhow::R
     // Auto-trigger pricing sync before ingestion; network errors are warnings only.
     match dirs::home_dir() {
         None => {
-            ctx.output.warn("Pricing sync skipped: cannot determine home directory");
+            ctx.output
+                .warn("Pricing sync skipped: cannot determine home directory");
         }
         Some(home) => {
             let cp = home.join(".claudy").join("cache").join("models_dev.json");
@@ -64,8 +65,7 @@ fn run_ingest(ctx: &mut Context, full: bool, project: Option<&str>) -> anyhow::R
                     .and_then(|s| s.initialize_schema().map(|_| s));
             match store_result {
                 Ok(store) => {
-                    match crate::adapters::analytics::pricing::sync::run_pricing_sync(&store, &cp)
-                    {
+                    match crate::adapters::analytics::pricing::sync::run_pricing_sync(&store, &cp) {
                         Ok(result) => {
                             for w in &result.warnings {
                                 ctx.output.warn(&format!("Pricing sync: {w}"));
@@ -77,12 +77,14 @@ fn run_ingest(ctx: &mut Context, full: bool, project: Option<&str>) -> anyhow::R
                             ));
                         }
                         Err(_) => {
-                            ctx.output.warn("Pricing sync skipped: could not fetch pricing data");
+                            ctx.output
+                                .warn("Pricing sync skipped: could not fetch pricing data");
                         }
                     }
                 }
                 Err(_) => {
-                    ctx.output.warn("Pricing sync skipped: analytics store unavailable");
+                    ctx.output
+                        .warn("Pricing sync skipped: analytics store unavailable");
                 }
             }
         }
@@ -391,11 +393,20 @@ mod tests {
 
         let result = run_pricing_sync(&store, &cache_path).unwrap();
 
-        assert!(result.models_synced >= 1, "at least one model should be synced");
-        assert!(result.warnings.is_empty(), "no warnings expected with valid cache");
+        assert!(
+            result.models_synced >= 1,
+            "at least one model should be synced"
+        );
+        assert!(
+            result.warnings.is_empty(),
+            "no warnings expected with valid cache"
+        );
 
         let rows = store.list_model_pricing().unwrap();
-        assert!(!rows.is_empty(), "model_pricing table must not be empty after sync");
+        assert!(
+            !rows.is_empty(),
+            "model_pricing table must not be empty after sync"
+        );
     }
 
     /// AC7: when run_ingest's auto-sync path succeeds, the model_pricing table is populated.
@@ -411,7 +422,10 @@ mod tests {
         run_pricing_sync(&store, &cache_path).unwrap();
 
         let rows = store.list_model_pricing().unwrap();
-        assert!(!rows.is_empty(), "auto-sync must populate model_pricing (AC7)");
+        assert!(
+            !rows.is_empty(),
+            "auto-sync must populate model_pricing (AC7)"
+        );
         assert!(
             rows.iter().any(|r| r.model_id == "claude-haiku-4-5"),
             "synced model must appear in model_pricing table"

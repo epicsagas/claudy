@@ -168,7 +168,14 @@ async fn handle_session_callback(
         session.project_name,
         truncate_chars(preview, 80)
     );
-    dismiss_keyboard(channel, channel_id, callback_message_id, original_text, &result).await
+    dismiss_keyboard(
+        channel,
+        channel_id,
+        callback_message_id,
+        original_text,
+        &result,
+    )
+    .await
 }
 
 async fn handle_project_callback(
