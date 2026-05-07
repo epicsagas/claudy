@@ -35,18 +35,22 @@ Claudy आपको एक सुसंगत कमांड इंटरफे
 
 ---
 
-<img src="../assets/features-2048.png" alt="Why Claudy" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/features-2048.png">
+  <img alt="Claudy क्यों?" src="../assets/features-2048.png" width="100%">
+</picture>
 
 ## Claudy क्यों?
 
-- **मल्टी-provider लॉन्च**: built-in, Z.AI, OpenRouter alias, Ollama और कस्टम Anthropic-compatible endpoints के बीच स्विच करें।
-- **Config modes**: प्रत्येक mode के लिए Claude configuration (`CLAUDE.md`, `settings.json`, skills/plugins/agents) को अलग रखें।
-- **Provider Profile रिज़ॉल्यूशन**: built-in providers, कस्टम providers और OpenRouter aliases को एकीकृत करें।
-- **सुरक्षित process व्यवहार**: SIGINT/SIGTERM को चाइल्ड Claude process को फॉरवर्ड करता है।
-- **ऑपरेशनल UX**: install/update/uninstall कमांड, status चेक और connectivity टेस्ट।
-- **वैकल्पिक Channel bridge**: Telegram, Slack और Discord के लिए इंटरैक्टिव permission prompts के साथ एक लोकल बॉट bridge चलाएं।
-- **Agent MCP bridge**: MCP के ज़रिए Claude Code से अन्य लोकल AI agents (Gemini, Codex, Aider, आदि) को टास्क सौंपें।
-- **Usage analytics**: `~/.claude/projects/` से session डेटा इनजेस्ट करें, प्रति session/project टोकन उपयोग और लागत ट्रैक करें, recommendations के साथ एक लोकल dashboard देखें।
+| | सुविधा | यह क्यों मायने रखती है |
+|--|--------|----------------------|
+| 🔄 | मल्टी-Provider लॉन्च | Anthropic, Z.AI, OpenRouter, Ollama और कस्टम endpoints के बीच एक कमांड में स्विच करें |
+| 📦 | Config modes | `CLAUDE.md`, सेटिंग्स, skills और agents को प्रत्येक mode में अलग रखें — कोई क्रॉस-कंटैमिनेशन नहीं |
+| 🔗 | Agent MCP bridge | Claude Code से Gemini, Codex, Aider और 20+ अन्य agents को टास्क सौंपें |
+| 💬 | Channel bridge | Telegram, Slack और Discord बॉट्स को इंटरैक्टिव permission prompts के साथ चलाएं |
+| 📊 | Usage analytics | लोकल Tauri dashboard में टोकन उपयोग, लागत और टूल पैटर्न ट्रैक करें |
+| 🔐 | सुरक्षित process नियंत्रण | SIGINT/SIGTERM फॉरवर्डिंग, एटॉमिक config writes, 0600 credential storage |
+| 🛠️ | ऑपरेशनल UX | इंस्टॉल, अपडेट, अनइंस्टॉल, डायग्नोस्टिक्स, connectivity टेस्ट — एक ही बाइनरी में |
 
 ## समर्थित Providers
 
@@ -60,7 +64,10 @@ Claudy आपको एक सुसंगत कमांड इंटरफे
 | Ollama | ⚠️ प्रयोगात्मक | अभी पूरी तरह परीक्षित नहीं — GitHub पर समस्या रिपोर्ट करें |
 | Custom endpoint | ⚠️ प्रयोगात्मक | अभी पूरी तरह परीक्षित नहीं — GitHub पर समस्या रिपोर्ट करें |
 
-<img src="../assets/demo.gif" alt="demo" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/demo.gif">
+  <img alt="demo" src="../assets/demo.gif" width="100%">
+</picture>
 
 ## आवश्यकताएं
 
@@ -423,7 +430,10 @@ Analytics ट्रैक करता है:
 
 डेटा `~/.claudy/analytics/` के अंतर्गत एक लोकल SQLite डेटाबेस में संग्रहीत है। Dashboard एक high-performance लोकल Tauri 2 + Svelte ऐप के रूप में चलता है। अपने Claude CLI इतिहास से डेटा तुरंत रिफ्रेश करने के लिए dashboard में **[Sync]** बटन का उपयोग करें।
 
-<img src="../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/analytics-dashboard.png">
+  <img alt="Analytics Dashboard" src="../assets/analytics-dashboard.png" width="100%">
+</picture>
 
 ## फ़ाइलें और डायरेक्टरी लेआउट
 

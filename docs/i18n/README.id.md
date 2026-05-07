@@ -35,18 +35,22 @@ Claudy membantu Anda menjalankan Claude terhadap berbagai provider dengan satu a
 
 ---
 
-<img src="../assets/features-2048.png" alt="Why Claudy" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/features-2048.png">
+  <img alt="Mengapa Claudy?" src="../assets/features-2048.png" width="100%">
+</picture>
 
 ## Mengapa Claudy?
 
-- **Launch multi-provider**: beralih antara built-in, Z.AI, OpenRouter alias, Ollama, dan endpoint kustom yang kompatibel dengan Anthropic.
-- **Config modes**: isolasi konfigurasi Claude (`CLAUDE.md`, `settings.json`, skills/plugins/agents) per Mode.
-- **Resolusi Provider Profile**: menyatukan built-in providers, custom providers, dan OpenRouter aliases.
-- **Perilaku proses yang aman**: meneruskan SIGINT/SIGTERM ke proses Claude anak.
-- **UX operasional**: perintah install/update/uninstall, pemeriksaan status, dan uji konektivitas.
-- **Channel bridge opsional**: jalankan jembatan bot lokal untuk Telegram, Slack, dan Discord dengan prompt izin interaktif.
-- **Agent MCP bridge**: delegasikan tugas dari Claude Code ke agen AI lokal lainnya (Gemini, Codex, Aider, dll.) melalui MCP.
-- **Usage analytics**: serap data sesi dari `~/.claude/projects/`, lacak penggunaan token dan biaya per sesi/proyek, lihat dashboard lokal dengan rekomendasi.
+| | Fitur | Mengapa penting |
+|--|------|----------------|
+| 🔄 | Launch multi-provider | Beralih antara Anthropic, Z.AI, OpenRouter, Ollama, dan endpoint kustom dalam satu perintah |
+| 📦 | Config modes | Isolasi `CLAUDE.md`, pengaturan, skills, dan agents per mode — tanpa kontaminasi silang |
+| 🔗 | Agent MCP bridge | Delegasikan tugas dari Claude Code ke Gemini, Codex, Aider, dan 20+ agents lainnya |
+| 💬 | Channel bridge | Jalankan bot Telegram, Slack, dan Discord dengan prompt izin interaktif |
+| 📊 | Usage analytics | Lacak penggunaan token, biaya, dan pola alat di dashboard Tauri lokal |
+| 🔐 | Kontrol proses aman | Penerusan SIGINT/SIGTERM, penulisan config atomik, penyimpanan kredensial 0600 |
+| 🛠️ | UX operasional | Install, update, uninstall, diagnostik, tes konektivitas — satu biner saja |
 
 ## Provider yang Didukung
 
@@ -60,7 +64,10 @@ Claudy membantu Anda menjalankan Claude terhadap berbagai provider dengan satu a
 | Ollama | ⚠️ Eksperimental | Belum sepenuhnya diuji — laporkan masalah di GitHub |
 | Custom endpoint | ⚠️ Eksperimental | Belum sepenuhnya diuji — laporkan masalah di GitHub |
 
-<img src="../assets/demo.gif" alt="demo" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/demo.gif">
+  <img alt="demo" src="../assets/demo.gif" width="100%">
+</picture>
 
 ## Persyaratan
 
@@ -423,7 +430,10 @@ Analytics melacak:
 
 Data disimpan dalam database SQLite lokal di `~/.claudy/analytics/`. Dashboard berjalan sebagai aplikasi Tauri 2 + Svelte lokal berkinerja tinggi. Gunakan tombol **[Sync]** di dashboard untuk langsung menyegarkan data dari riwayat Claude CLI Anda.
 
-<img src="../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/analytics-dashboard.png">
+  <img alt="Analytics Dashboard" src="../assets/analytics-dashboard.png" width="100%">
+</picture>
 
 ## Tata Letak File dan Direktori
 

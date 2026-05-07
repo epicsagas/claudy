@@ -35,18 +35,22 @@ Claudy は、統一されたコマンドインターフェースで複数の Pro
 
 ---
 
-<img src="../assets/features-2048.png" alt="Why Claudy" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/features-2048.png">
+  <img alt="Claudy 機能紹介" src="../assets/features-2048.png" width="100%">
+</picture>
 
 ## Claudy を使う理由
 
-- **マルチ Provider 起動**: ビルトイン、Z.AI、OpenRouter エイリアス、Ollama、カスタム Anthropic 互換エンドポイント間を切り替え。
-- **Config Mode**: Mode ごとに Claude の設定（`CLAUDE.md`、`settings.json`、スキル/プラグイン/エージェント）を分離。
-- **Provider Profile の解決**: ビルトイン Provider、カスタム Provider、OpenRouter エイリアスを統合。
-- **安全なプロセス動作**: 子 Claude プロセスに SIGINT/SIGTERM を転送。
-- **運用 UX**: インストール/更新/アンインストールコマンド、ステータス確認、接続テスト。
-- **オプションの Channel ブリッジ**: インタラクティブな権限プロンプトを備えた Telegram、Slack、Discord 向けのローカルボットブリッジを実行。
-- **エージェント MCP ブリッジ**: MCP を通じて Claude Code から他のローカル AI エージェント（Gemini、Codex、Aider など）へタスクを委譲。
-- **使用状況の分析**: `~/.claude/projects/` からセッションデータを取り込み、セッション/プロジェクトごとのトークン使用量とコストを追跡し、推奨事項付きのローカルダッシュボードを表示。
+| | 機能 | なぜ重要か |
+|--|------|----------|
+| 🔄 | マルチ Provider 起動 | Anthropic、Z.AI、OpenRouter、Ollama、カスタムエンドポイントを1コマンドで切り替え |
+| 📦 | Config Mode | `CLAUDE.md`、設定、スキル、エージェントをモードごとに分離 — 相互汚染なし |
+| 🔗 | エージェント MCP ブリッジ | Claude CodeからGemini、Codex、Aiderなど20+のエージェントへタスク委譲 |
+| 💬 | Channel ブリッジ | インタラクティブな権限プロンプト付きでTelegram、Slack、Discordボットを実行 |
+| 📊 | 使用状況分析 | ローカルTauriダッシュボードでトークン使用量、コスト、ツールパターンを追跡 |
+| 🔐 | 安全なプロセス制御 | SIGINT/SIGTERM転送、アトミック設定書き込み、0600資格情報ストレージ |
+| 🛠️ | 運用 UX | インストール、更新、アンインストール、診断、接続テスト — 1つのバイナリで |
 
 ## 対応 Provider
 
@@ -60,7 +64,10 @@ Claudy は、統一されたコマンドインターフェースで複数の Pro
 | Ollama | ⚠️ 実験的 | 十分にテストされていません — GitHub で Issue を報告してください |
 | カスタムエンドポイント | ⚠️ 実験的 | 十分にテストされていません — GitHub で Issue を報告してください |
 
-<img src="../assets/demo.gif" alt="demo" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/demo.gif">
+  <img alt="demo" src="../assets/demo.gif" width="100%">
+</picture>
 
 ## 要件
 
@@ -418,7 +425,10 @@ sharply upward — last 3 weekdays averaged $97/day.
 
 データは `~/.claudy/analytics/` 配下のローカル SQLite データベースに保存されます。ダッシュボードは高性能なローカル Tauri 2 + Svelte アプリとして動作します。ダッシュボードの **[Sync]** ボタンを使用すると、Claude CLI の履歴からデータを即座に更新できます。
 
-<img src="../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/analytics-dashboard.png">
+  <img alt="分析ダッシュボード" src="../assets/analytics-dashboard.png" width="100%">
+</picture>
 
 ## ファイルとディレクトリ構成
 

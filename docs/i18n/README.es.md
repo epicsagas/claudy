@@ -35,18 +35,22 @@ Claudy te permite ejecutar Claude con múltiples providers a través de una inte
 
 ---
 
-<img src="../assets/features-2048.png" alt="Por qué Claudy" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/features-2048.png">
+  <img alt="Por qué Claudy" src="../assets/features-2048.png" width="100%">
+</picture>
 
 ## Por qué Claudy
 
-- **Lanzamiento multi-proveedor**: cambia entre el provider integrado, Z.AI, alias de OpenRouter, Ollama y endpoints personalizados compatibles con Anthropic.
-- **Config modes**: aísla la configuración de Claude (`CLAUDE.md`, `settings.json`, skills/plugins/agents) por Mode.
-- **Resolución de Profile de provider**: unifica providers integrados, providers personalizados y aliases de OpenRouter.
-- **Comportamiento seguro del proceso**: reenvía SIGINT/SIGTERM al proceso hijo de Claude.
-- **UX operacional**: comandos de instalación/actualización/desinstalación, verificaciones de estado y pruebas de conectividad.
-- **Channel bridge opcional**: ejecuta un bot bridge local para Telegram, Slack y Discord con solicitudes de permisos interactivas.
-- **Agent MCP bridge**: delega tareas desde Claude Code a otros agentes de IA locales (Gemini, Codex, Aider, etc.) a través de MCP.
-- **Analíticas de uso**: ingiere datos de sesión desde `~/.claude/projects/`, rastrea el uso de tokens y costos por sesión/proyecto, y muestra un dashboard local con recomendaciones.
+| | Característica | Por qué importa |
+|--|---------------|----------------|
+| 🔄 | Lanzamiento multi-proveedor | Cambia entre Anthropic, Z.AI, OpenRouter, Ollama y endpoints personalizados con un comando |
+| 📦 | Config modes | Aísla `CLAUDE.md`, configuración, skills y agents por modo — sin contaminación cruzada |
+| 🔗 | Agent MCP bridge | Delega tareas desde Claude Code a Gemini, Codex, Aider y 20+ agents más |
+| 💬 | Channel bridge | Ejecuta bots de Telegram, Slack y Discord con solicitudes de permisos interactivas |
+| 📊 | Analíticas de uso | Rastrea uso de tokens, costos y patrones de herramientas en un dashboard Tauri local |
+| 🔐 | Control de proceso seguro | Reenvío de SIGINT/SIGTERM, escrituras de config atómicas, almacenamiento de credenciales 0600 |
+| 🛠️ | UX operacional | Instalar, actualizar, desinstalar, diagnosticar, probar conexión — un solo binario |
 
 ## Providers compatibles
 
@@ -60,7 +64,10 @@ Claudy te permite ejecutar Claude con múltiples providers a través de una inte
 | Ollama | ⚠️ Experimental | Aún no completamente probado — reporta los problemas en GitHub |
 | Custom endpoint | ⚠️ Experimental | Aún no completamente probado — reporta los problemas en GitHub |
 
-<img src="../assets/demo.gif" alt="demo" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/demo.gif">
+  <img alt="demo" src="../assets/demo.gif" width="100%">
+</picture>
 
 ## Requisitos
 
@@ -423,7 +430,10 @@ Sin comandos manuales, sin cambiar de contexto. Pregunta a Claude sobre tu uso y
 
 Los datos se almacenan en una base de datos SQLite local bajo `~/.claudy/analytics/`. El dashboard se ejecuta como una aplicación local de alto rendimiento con Tauri 2 + Svelte. Usa el botón **[Sync]** en el dashboard para actualizar instantáneamente los datos desde tu historial de Claude CLI.
 
-<img src="../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/analytics-dashboard.png">
+  <img alt="Analytics Dashboard" src="../assets/analytics-dashboard.png" width="100%">
+</picture>
 
 ## Archivos y Estructura de Directorios
 

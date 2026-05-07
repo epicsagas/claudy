@@ -35,18 +35,22 @@ Claudy는 하나의 일관된 명령어 인터페이스로 여러 Provider에서
 
 ---
 
-<img src="../assets/features-2048.png" alt="Why Claudy" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/features-2048.png">
+  <img alt="Claudy 기능 소개" src="../assets/features-2048.png" width="100%">
+</picture>
 
 ## Claudy를 사용하는 이유
 
-- **멀티 Provider 실행**: 빌트인, Z.AI, OpenRouter 별칭, Ollama, 커스텀 Anthropic 호환 엔드포인트 간 전환.
-- **Config Mode**: Mode별로 Claude 설정(`CLAUDE.md`, `settings.json`, 스킬/플러그인/에이전트)을 격리.
-- **Provider Profile 해석**: 빌트인 Provider, 커스텀 Provider, OpenRouter 별칭을 통합.
-- **안전한 프로세스 동작**: 자식 Claude 프로세스에 SIGINT/SIGTERM을 전달.
-- **운영 UX**: 설치/업데이트/제거 명령어, 상태 확인, 연결 테스트.
-- **선택적 Channel 브릿지**: 대화형 권한 프롬프트와 함께 Telegram, Slack, Discord를 위한 로컬 봇 브릿지 실행.
-- **에이전트 MCP 브릿지**: MCP를 통해 Claude Code에서 다른 로컬 AI 에이전트(Gemini, Codex, Aider 등)로 작업 위임.
-- **사용량 분석**: `~/.claude/projects/`에서 세션 데이터를 수집하고, 세션/프로젝트별 토큰 사용량 및 비용을 추적하며, 권장 사항이 포함된 로컬 대시보드를 제공.
+| | 기능 | 왜 중요한가 |
+|--|------|------------|
+| 🔄 | 멀티 Provider 실행 | Anthropic, Z.AI, OpenRouter, Ollama, 커스텀 엔드포인트를 하나의 명령어로 전환 |
+| 📦 | Config Mode | `CLAUDE.md`, 설정, 스킬, 에이전트를 모드별로 격리 — 교차 오염 없음 |
+| 🔗 | 에이전트 MCP 브릿지 | Claude Code에서 Gemini, Codex, Aider 등 20+ 에이전트로 작업 위임 |
+| 💬 | Channel 브릿지 | Telegram, Slack, Discord 봇을 대화형 권한 프롬프트와 함께 실행 |
+| 📊 | 사용량 분석 | 토큰 사용량, 비용, 도구 패턴을 로컬 Tauri 대시보드에서 추적 |
+| 🔐 | 안전한 프로세스 제어 | SIGINT/SIGTERM 전달, 원자적 설정 쓰기, 0600 자격증명 저장 |
+| 🛠️ | 운영 UX | 설치, 업데이트, 제거, 진단, 연결 테스트 — 하나의 바이너리로 |
 
 ## 지원 Provider
 
@@ -60,7 +64,10 @@ Claudy는 하나의 일관된 명령어 인터페이스로 여러 Provider에서
 | Ollama | ⚠️ 실험적 | 아직 완전히 테스트되지 않음 — GitHub에 이슈를 등록해 주세요 |
 | 커스텀 엔드포인트 | ⚠️ 실험적 | 아직 완전히 테스트되지 않음 — GitHub에 이슈를 등록해 주세요 |
 
-<img src="../assets/demo.gif" alt="demo" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/demo.gif">
+  <img alt="demo" src="../assets/demo.gif" width="100%">
+</picture>
 
 ## 요구 사항
 
@@ -427,7 +434,10 @@ sharply upward — last 3 weekdays averaged $97/day.
 
 데이터는 `~/.claudy/analytics/` 아래 로컬 SQLite 데이터베이스에 저장됩니다. 대시보드는 고성능 로컬 Tauri 2 + Svelte 앱으로 실행됩니다. 대시보드의 **[Sync]** 버튼을 사용하여 Claude CLI 기록에서 데이터를 즉시 새로고침하세요.
 
-<img src="../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/analytics-dashboard.png">
+  <img alt="분석 대시보드" src="../assets/analytics-dashboard.png" width="100%">
+</picture>
 
 ## 파일 및 디렉터리 구조
 

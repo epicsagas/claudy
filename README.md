@@ -2,8 +2,6 @@
 
 <p align="center"><b>One command. Any provider. Full control over Claude CLI.</b></p>
 
----
-
 <p align="center">
 Stop juggling environment variables and config files.<br/>
 Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom endpoints with a single command — keeping credentials, config modes, and Claude frameworks cleanly isolated per profile.
@@ -38,18 +36,22 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
 
 ---
 
-<img src="docs/assets/features-2048.png" alt="Why Claudy" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/features-2048.png">
+  <img alt="Why Claudy" src="docs/assets/features-2048.png" width="100%">
+</picture>
 
 ## Why Claudy
 
-- **Multi-provider launch**: switch across built-in, Z.AI, OpenRouter alias, Ollama and custom Anthropic-compatible endpoints.
-- **Config modes**: isolate Claude configuration (`CLAUDE.md`, `settings.json`, skills/plugins/agents) per mode.
-- **Provider profile resolution**: unify built-in providers, custom providers, and OpenRouter aliases.
-- **Safe process behavior**: forwards SIGINT/SIGTERM to child Claude process.
-- **Operational UX**: install/update/uninstall commands, status checks, and connectivity tests.
-- **Optional channel bridge**: run a local bot bridge for Telegram, Slack, and Discord with interactive permission prompts.
-- **Agent MCP bridge**: delegate tasks from Claude Code to other local AI agents (Gemini, Codex, Aider, etc.) via MCP.
-- **Usage analytics**: ingest session data from `~/.claude/projects/`, track token usage and costs per session/project, view a local dashboard with recommendations.
+| | Feature | Why it matters |
+|--|---------|----------------|
+| 🔄 | Multi-provider launch | Switch across Anthropic, Z.AI, OpenRouter, Ollama, and custom endpoints in one command |
+| 📦 | Config modes | Isolate `CLAUDE.md`, settings, skills, and agents per mode — no cross-contamination |
+| 🔗 | Agent MCP bridge | Delegate tasks from Claude Code to Gemini, Codex, Aider, and 20+ other agents |
+| 💬 | Channel bridge | Run Telegram, Slack, and Discord bots with interactive permission prompts |
+| 📊 | Usage analytics | Track token usage, costs, and tool patterns with a local Tauri dashboard |
+| 🔐 | Safe process control | SIGINT/SIGTERM forwarding, atomic config writes, 0600 credential storage |
+| 🛠️ | Operational UX | Install, update, uninstall, doctor, ping — everything from one binary |
 
 ## Supported Providers
 
@@ -63,7 +65,10 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
 | Ollama | ⚠️ Experimental | Not fully tested — report issues on GitHub |
 | Custom endpoint | ⚠️ Experimental | Not fully tested — report issues on GitHub |
 
-<img src="docs/assets/demo.gif" alt="demo" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/demo.gif">
+  <img alt="demo" src="docs/assets/demo.gif" width="100%">
+</picture>
 
 ## Install
 
@@ -491,9 +496,12 @@ Data is stored in a local SQLite database under `~/.claudy/analytics/`. The dash
 
 ### Analytics Dashboard 
 ```bash
-claudy analytics dashbord
+claudy analytics dashboard
 ```
-<img src="docs/assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/analytics-dashboard.png">
+  <img alt="Analytics Dashboard" src="docs/assets/analytics-dashboard.png" width="100%">
+</picture>
 
 ## Files and Directory Layout
 

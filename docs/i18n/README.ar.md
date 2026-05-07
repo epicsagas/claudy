@@ -35,20 +35,24 @@
 
 ---
 
-<img src="../assets/features-2048.png" alt="Why Claudy" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/features-2048.png">
+  <img alt="لماذا Claudy؟" src="../assets/features-2048.png" width="100%">
+</picture>
 
 <div dir="rtl">
 
 ## لماذا Claudy؟
 
-- **تشغيل متعدد الـ providers**: التبديل بين built-in و Z.AI و OpenRouter alias و Ollama ونقاط النهاية المتوافقة مع Anthropic المخصصة.
-- **Config modes**: عزل إعدادات Claude (`CLAUDE.md` و `settings.json` والـ skills/plugins/agents) لكل Mode.
-- **دقة Provider Profile**: توحيد built-in providers والـ providers المخصصة وأسماء OpenRouter aliases.
-- **سلوك آمن للعملية**: إعادة توجيه SIGINT/SIGTERM إلى عملية Claude الفرعية.
-- **تجربة مستخدم تشغيلية**: أوامر install/update/uninstall، وفحوصات الحالة، واختبارات الاتصال.
-- **Channel bridge اختياري**: تشغيل جسر بوت محلي لـ Telegram و Slack و Discord مع نوافذ إذن تفاعلية.
-- **Agent MCP bridge**: تفويض المهام من Claude Code إلى وكلاء AI محليين آخرين (Gemini و Codex و Aider وغيرها) عبر MCP.
-- **تحليلات الاستخدام**: استيعاب بيانات الجلسة من `~/.claude/projects/`، وتتبع استخدام الرموز (tokens) والتكاليف لكل جلسة/مشروع، وعرض لوحة تحكم محلية مع توصيات.
+| | الميزة | لماذا تهم |
+|--|-------|----------|
+| 🔄 | تشغيل متعدد الـ providers | التبديل بين Anthropic و Z.AI و OpenRouter و Ollama والـ endpoints المخصصة بأمر واحد |
+| 📦 | Config modes | عزل `CLAUDE.md` والإعدادات والـ skills والـ agents لكل mode — بدون تلوث متبادل |
+| 🔗 | Agent MCP bridge | تفويض المهام من Claude Code إلى Gemini و Codex و Aider و20+ وكيل آخر |
+| 💬 | Channel bridge | تشغيل بوتات Telegram و Slack و Discord مع نوافذ إذن تفاعلية |
+| 📊 | تحليلات الاستخدام | تتبع استخدام الرموز والتكاليف وأنماط الأدوات في لوحة تحكم Tauri محلية |
+| 🔐 | تحكم آمن في العملية | إعادة توجيه SIGINT/SIGTERM، كتابات config ذرية، تخزين بيانات الاعتماد 0600 |
+| 🛠️ | تجربة مستخدم تشغيلية | تثبيت، تحديث، إلغاء تثبيت، تشخيص، اختبار اتصال — ملف ثنائي واحد |
 
 ## الـ Providers المدعومة
 
@@ -64,7 +68,10 @@
 | Ollama | ⚠️ تجريبي | لم يُختبر بالكامل بعد — أبلغ عن المشكلات على GitHub |
 | Custom endpoint | ⚠️ تجريبي | لم يُختبر بالكامل بعد — أبلغ عن المشكلات على GitHub |
 
-<img src="../assets/demo.gif" alt="Quick Start" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/demo.gif">
+  <img alt="demo" src="../assets/demo.gif" width="100%">
+</picture>
 
 <div dir="rtl">
 
@@ -521,7 +528,10 @@ sharply upward — last 3 weekdays averaged $97/day.
 
 </div>
 
-<img src="../assets/analytics-dashboard.png" alt="Analytics Dashboard" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/analytics-dashboard.png">
+  <img alt="Analytics Dashboard" src="../assets/analytics-dashboard.png" width="100%">
+</picture>
 
 <div dir="rtl">
 
