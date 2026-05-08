@@ -17,6 +17,9 @@ exclude = [
     "scripts/",
     "wix/",
     "docs/i18n/",
+    "docs/assets/",
+    "docs/demo_record.sh",
+    "icons/",
     ".github/",
     ".claude/",
 ]
