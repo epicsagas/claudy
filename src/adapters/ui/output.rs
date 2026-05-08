@@ -112,7 +112,7 @@ impl Output {
     }
 }
 
-pub fn banner(name: &str, mode: Option<&str>) -> String {
+pub fn banner(target: &crate::domain::launch_blueprint::LaunchTarget, mode: Option<&str>) -> String {
     use std::time::SystemTime;
 
     let tip = random_tip();
@@ -128,16 +128,91 @@ pub fn banner(name: &str, mode: Option<&str>) -> String {
     let bright = "\x1b[1m";
     let reset = "\x1b[0m";
     let dim = "\x1b[2m";
+    let label_color = "\x1b[38;5;245m";   // muted (#707a8a)
+    let accent_color = "\x1b[38;5;220m";  // yellow (#fcd535)
     let palette_accent = palette[0];
 
-    let mode_line = match mode {
-        Some(m) => format!("\n  {dim}mode: {bright}{m}{reset}"),
-        None => String::new(),
-    };
+    // Title line
+    let version = crate::adapters::version::VALUE;
+    let title = format!(
+        "  {palette_accent}{bright}Claudy{reset} with {bright}{}{reset} {dim}·{reset} {dim}v{version}{reset}",
+        target.display_name,
+    );
+
+    // Info line 1: Profile, Provider, Mode
+    let mode_val = mode.unwrap_or("default");
+    let info1 = format!(
+        "  {label_color}Profile{reset}   {bright}{:<10}{reset}{label_color}Provider{reset}   {bright}{:<10}{reset}{label_color}Mode{reset}   {bright}{}{reset}",
+        target.profile,
+        target.display_name,
+        mode_val,
+    );
+
+    // Info line 2: Models
+    let models = format_model_tiers(&target.model, &target.model_tiers);
+    let info2 = format!(
+        "  {label_color}Models{reset}    {bright}{}{reset}",
+        models,
+    );
+
+    // Commands line
+    let commands = format!(
+        "  {accent_color}COMMANDS{reset}  {bright}ls{reset} · {bright}doctor{reset} · {bright}mode{reset} · {bright}mcp{reset} · {bright}channel{reset} · {bright}update{reset} · {bright}setup{reset} · {bright}ping{reset}"
+    );
+
+    // Tip line
+    let tip_line = format!(
+        "  {label_color}TIP{reset}       {dim}{}{reset}",
+        tip,
+    );
 
     format!(
-        "{art}  {palette_accent}{bright}Claudy{reset} with {bright}{name}{reset}{mode_line}\n\n  {dim}{tip}{reset}\n\n"
+        "\n{art}{title}\n\n{info1}\n{info2}\n\n{commands}\n{tip_line}\n\n"
     )
+}
+
+fn format_model_tiers(default: &str, tiers: &std::collections::HashMap<String, String>) -> String {
+    if tiers.is_empty() {
+        return default.to_string();
+    }
+    let mut entries: Vec<_> = tiers.iter().collect();
+    entries.sort_by_key(|(k, _)| *k);
+    let mut parts: Vec<String> = entries
+        .iter()
+        .map(|(tier, model)| {
+            let short = shorten_model_name(model);
+            format!("{} ({})", short, tier)
+        })
+        .collect();
+    // Ensure the default model is included even if not in tiers
+    if !tiers.values().any(|v| v == default) && !default.is_empty() {
+        let short = shorten_model_name(default);
+        parts.insert(0, format!("{} (default)", short));
+    }
+    parts.join(", ")
+}
+
+fn shorten_model_name(model: &str) -> &str {
+    // Extract short name from full model IDs like "claude-sonnet-4-6-20250514"
+    if let Some(rest) = model.strip_prefix("claude-") {
+        // Keep up to the tier name: "sonnet-4.6", "opus-4.7", "haiku-4.5"
+        let mut parts: Vec<&str> = rest.split('-').collect();
+        if parts.len() >= 3 {
+            // Remove the date suffix (e.g., "20250514")
+            while parts.len() > 2 {
+                if parts.last().map(|p| p.starts_with(char::is_numeric)).unwrap_or(false) && parts.last().map(|p| p.len() == 8).unwrap_or(false) {
+                    parts.pop();
+                } else {
+                    break;
+                }
+            }
+            let tier = parts[0];
+            let version = parts[1..].join(".");
+            return Box::leak(format!("{}.{}", tier, version).into_boxed_str());
+        }
+        return rest;
+    }
+    model
 }
 
 const PALETTES: &[&[&str]] = &[
@@ -194,7 +269,7 @@ const PALETTES: &[&[&str]] = &[
 const TIPS: &[&str] = &[
     "Use --yolo instead of --dangerously-skip-permissions",
     "use 'claudy ls' to see all available profiles",
-    "symlink a profile name to launch it directly, e.g. claudy-ollama",
+    "symlink a profile name to launch it directly, e.g. claudy ollama",
     "run 'claudy update' to check for a newer version",
     "set NO_COLOR=1 to disable colored output",
     "use -q or --quiet to suppress the banner and tips",

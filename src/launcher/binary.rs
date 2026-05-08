@@ -54,7 +54,7 @@ pub fn run_session(
     if !policy.suppress_banner && is_tty_stdout() {
         print!(
             "{}",
-            crate::adapters::ui::output::banner(&target.display_name, mode)
+            crate::adapters::ui::output::banner(target, mode)
         );
     }
 

@@ -105,9 +105,6 @@ claudy openrouter sonnet              # OpenRouter alias
 ```
 
 <details>
-<summary>Configuration reference</summary>
-
-<details>
 <summary>Provider credentials</summary>
 
 | Variable | Provider |
@@ -187,8 +184,6 @@ agents:
     args: ["--message", "{prompt}"]
     timeout: 300
 ```
-
-</details>
 
 </details>
 
