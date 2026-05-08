@@ -21,6 +21,10 @@ exclude = [
     ".claude/",
 ]
 
+[[bin]]
+name = "claudy"
+path = "src/main.rs"
+
 [package.metadata.wix]
 upgrade-guid = "D995884F-247F-4EA1-B756-FD4B02F7CD4B"
 path-guid = "4EE36F0E-4C9B-4D51-9765-57B8AB64706E"
