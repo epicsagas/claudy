@@ -1,36 +1,38 @@
-[← English](../../README.md)
-
 <h1 align="center">claudy</h1>
 
-<p align="center"><b>Ein Befehl. Jeder Provider. Volle Kontrolle über das Claude CLI.</b></p>
-
----
+<p align="center"><b>Ein Befehl. Jeder Anbieter. Volle Kontrolle über die Claude CLI.</b></p>
 
 <p align="center">
 Schluss mit dem Jonglieren von Umgebungsvariablen und Konfigurationsdateien.<br/>
-Mit Claudy wechseln Sie mit einem einzigen Befehl zwischen Anthropic, Z.AI, OpenRouter, Ollama und benutzerdefinierten Endpoints — Zugangsdaten, Konfigurationsmodi und Claude-Frameworks bleiben sauber pro Profil isoliert.
+Mit Claudy wechseln Sie zwischen Anthropic, Z.AI, OpenRouter, Ollama und benutzerdefinierten Endpunkten mit einem einzigen Befehl — Zugangsdaten, Konfigurationsmodi und Claude-Frameworks bleiben sauber pro Profil isoliert.
 </p>
 
 <p align="center">
-<b>Multi-Provider · Konfigurations-Isolation · Channel-Bridge · Lokale Agent-Bridge · Nutzungsanalyse</b>
+<b>Mehrere Anbieter · Konfigurationsisolation · Channel-Bridge · Lokale Agent-Bridge · Nutzungsanalyse</b>
 </p>
 
 ---
 
-<p align="center"><b>Moderner Multi-Provider-Launcher für das Claude CLI.</b></p>
-
----
-
 <p align="center">
-Claudy ermöglicht es Ihnen, Claude mit mehreren Providern über eine einheitliche Befehlsoberfläche auszuführen, während die Provider-Anmeldeinformationen und Claude-Konfigurations-Overlays in einem einzigen Hauptverzeichnis organisiert bleiben.
+  <a href="../../README.md">🇺🇸 English</a> •
+  <a href="README.ko.md">🇰🇷 한국어</a> •
+  <a href="README.zh-Hans.md">🇨🇳 中文</a> •
+  <a href="README.ja.md">🇯🇵 日本語</a> •
+  <a href="README.fr.md">🇫🇷 Français</a> •
+  <a href="README.es.md">🇪🇸 Español</a> •
+  <a href="README.hi.md">🇮🇳 हिन्दी</a> •
+  <a href="README.pt-BR.md">🇧🇷 Português</a> •
+  <a href="README.id.md">🇮🇩 Bahasa</a> •
+  <a href="README.ar.md">🇸🇦 العربية</a>
 </p>
 
 <p align="center">
     <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-1.92%2B-orange.svg" alt="rust-lang" /></a>
     <a href="https://crates.io/crates/claudy"><img src="https://img.shields.io/crates/v/claudy.svg" alt="crates.io" /></a>
     <a href="https://crates.io/crates/claudy"><img src="https://img.shields.io/crates/d/claudy.svg" alt="Downloads" /></a>
-    <a href="../../LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
     <a href="https://buymeacoffee.com/epicsaga"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee" /></a>
+    <a href="https://github.com/epicsagas/claudy/actions/workflows/ci.yml"><img src="https://github.com/epicsagas/claudy/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
 </p>
 
 ---
@@ -43,120 +45,161 @@ Claudy ermöglicht es Ihnen, Claude mit mehreren Providern über eine einheitlic
 ## Warum Claudy
 
 | | Funktion | Warum es wichtig ist |
-|--|----------|---------------------|
-| 🔄 | Multi-Provider-Launch | Anthropic, Z.AI, OpenRouter, Ollama und benutzerdefinierte Endpoints mit einem Befehl wechseln |
-| 📦 | Config Modes | `CLAUDE.md`, Einstellungen, Skills und Agents pro Mode isolieren — keine Querbeeinflussung |
-| 🔗 | Agent MCP Bridge | Aufgaben von Claude Code an Gemini, Codex, Aider und 20+ weitere Agents delegieren |
-| 💬 | Channel Bridge | Telegram-, Slack- und Discord-Bots mit interaktiven Berechtigungsabfragen betreiben |
-| 📊 | Nutzungsanalysen | Token-Nutzung, Kosten und Tool-Muster im lokalen Tauri-Dashboard verfolgen |
-| 🔐 | Sichere Prozesssteuerung | SIGINT/SIGTERM-Weiterleitung, atomare Konfigurationsschreibvorgänge, 0600-Anmeldeinformationen |
-| 🛠️ | Operationelle UX | Installieren, Aktualisieren, Deinstallieren, Diagnose, Verbindungstest — alles in einer Binärdatei |
+|--|---------|----------------|
+| 🔄 | Multi-Anbieter-Start | Wechseln Sie zwischen Anthropic, Z.AI, OpenRouter, Ollama und benutzerdefinierten Endpunkten mit einem Befehl |
+| 📦 | Konfigurationsmodi | `CLAUDE.md`, Einstellungen, Skills und Agents pro Modus isolieren — keine Kreuzkontamination |
+| 🔗 | Agent-MCP-Bridge | Aufgaben von Claude Code an Gemini, Codex, Aider und 20+ weitere Agents delegieren |
+| 💬 | Channel-Bridge | Telegram-, Slack- und Discord-Bots mit interaktiven Berechtigungsabfragen betreiben |
+| 📊 | Nutzungsanalyse | Token-Verbrauch, Kosten und Tool-Muster mit einem lokalen Tauri-Dashboard verfolgen |
+| 🔐 | Sicherer Prozesskontrolle | SIGINT/SIGTERM-Weiterleitung, atomare Konfigurationsschreibvorgänge, 0600-Zugangsdatenspeicherung |
+| 🛠️ | Operationale UX | Installieren, Aktualisieren, Deinstallieren, Doctor, Ping — alles aus einer Binärdatei |
 
-## Unterstützte Provider
+## Unterstützte Anbieter
 
-> Claudy wurde von [Clother](https://github.com/jolehuit/clother) inspiriert, einem Go-basierten Multi-Provider-Launcher für das Claude CLI. Z.AI wurde am gründlichsten getestet. Wenn Sie bei anderen Providern auf Probleme stoßen, [öffnen Sie bitte ein Issue](https://github.com/epicsagas/claudy/issues).
+> Claudy wurde inspiriert von [Clother](https://github.com/jolehuit/clother), einem Go-basierten Multi-Anbieter-Launcher für die Claude CLI. Z.AI ist der am gründlichsten getestete Anbieter. Wenn Sie Probleme mit anderen Anbietern haben, bitte [ein Issue öffnen](https://github.com/epicsagas/claudy/issues).
 
-| Provider | Status | Hinweise |
+| Anbieter | Status | Hinweise |
 |---|---|---|
-| Built-in (Anthropic) | ✅ Getestet | Standard |
+| Eingebaut (Anthropic) | ✅ Getestet | Standard |
 | Z.AI | ✅ Getestet | |
-| OpenRouter alias | ⚠️ Experimentell | Noch nicht vollständig getestet — bitte auf GitHub melden |
-| Ollama | ⚠️ Experimentell | Noch nicht vollständig getestet — bitte auf GitHub melden |
-| Custom endpoint | ⚠️ Experimentell | Noch nicht vollständig getestet — bitte auf GitHub melden |
+| OpenRouter-Alias | ⚠️ Experimentell | Nicht vollständig getestet — Probleme auf GitHub melden |
+| Ollama | ⚠️ Experimentell | Nicht vollständig getestet — Probleme auf GitHub melden |
+| Benutzerdefinierter Endpunkt | ⚠️ Experimentell | Nicht vollständig getestet — Probleme auf GitHub melden |
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../assets/demo.gif">
-  <img alt="demo" src="../assets/demo.gif" width="100%">
+  <img alt="Demo" src="../assets/demo.gif" width="100%">
 </picture>
-
-## Voraussetzungen
-
-- macOS oder Linux
-- Rust-Toolchain (`cargo`) für die Kompilierung/Installation aus dem Quellcode
-- Claude CLI installiert und im `PATH` verfügbar
-
-## Installation
-
-### macOS / Linux (One-Liner)
-
-```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
-```
-
-### macOS Homebrew
-
-```bash
-brew tap epicsagas/tap
-brew install claudy
-```
-
-### Windows PowerShell
-
-```powershell
-irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
-```
-
-### crates.io
-
-**Vorkompiliertes Binär (schnell, keine Kompilierung)**
-
-```
-cargo install cargo-binstall
-cargo binstall claudy
-```
-
-**Jede Plattform — aus dem Quellcode kompilieren**
-
-```
-cargo install claudy
-```
-
-### Aus Git-Quellcode installieren
-
-```bash
-git clone https://github.com/epicsagas/claudy.git
-cd claudy
-cargo install --path .
-```
-
-## Einrichtung / Konfiguration
-
-```bash
-claudy install
-echo 'ZAI_API_KEY=your-key-here' >> ~/.claudy/secrets.env
-claudy --version
-claudy zai
-```
 
 ## Schnellstart
 
-<img src="docs/assets/demo.gif" alt="Quick Start" width="100%" />
+**1. Installieren** (eines wählen)
 
 ```bash
-# 1) Verfügbare/aufgelöste Profiles auflisten
-claudy ls
+# macOS / Linux
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
 
-# 2) Anmeldeinformationen interaktiv konfigurieren
-claudy setup
+# macOS (Homebrew)
+brew tap epicsagas/tap && brew install claudy
 
-# 3) Details eines Profiles anzeigen
-claudy show <profile>
+# Windows (PowerShell)
+irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
 
-# 4) Claude mit einem Profile ausführen
-claudy <profile> [claude-args...]
+# Cargo (alle Plattformen)
+cargo binstall claudy
 ```
 
-## Grundlegende Konzepte
+**2. Konfigurieren**
 
-### Profile
+```bash
+claudy install                        # Verzeichnisse, Konfiguration, Zugangsdaten initialisieren
+echo 'ANTHROPIC_API_KEY=your-key' >> ~/.claudy/secrets.env
+```
 
-Ein Startziel, das Provider-Metadaten und die Authentifizierungsstrategie auflöst (integrierter Provider, OpenRouter-Alias oder benutzerdefinierter Provider).
+**3. Starten**
 
-### Mode
+```bash
+claudy                                # Standardanbieter
+claudy zai                            # Z.AI-Anbieter
+claudy openrouter sonnet              # OpenRouter-Alias
+```
+
+<details>
+<summary>Anbieter-Anmeldeinformationen</summary>
+
+| Variable | Anbieter |
+|---|---|
+| `ANTHROPIC_API_KEY` | Anthropic (nativ) |
+| `ZAI_API_KEY` | Z.AI |
+| `ZAI_CN_API_KEY` | Z.AI China |
+| `MINIMAX_API_KEY` | MiniMax |
+| `MINIMAX_CN_API_KEY` | MiniMax China |
+| `KIMI_API_KEY` | Kimi K2 |
+| `MOONSHOT_API_KEY` | Moonshot AI |
+| `ARK_API_KEY` | VolcEngine |
+| `DEEPSEEK_API_KEY` | DeepSeek |
+| `MIMO_API_KEY` | Xiaomi MiMo |
+| `ALIBABA_API_KEY` | Alibaba Coding Plan |
+| `OPENROUTER_API_KEY` | OpenRouter (alle Aliase) |
+
+Benutzerdefinierte Anbieter verwenden die `api_key_env`-Variable, die in ihrem `custom_providers`-Eintrag definiert ist.
+
+</details>
+
+<details>
+<summary>config.yaml-Schema</summary>
+
+Die gesamte Konfiguration befindet sich in `~/.claudy/config.yaml`. Nur die benötigten Abschnitte hinzufügen — für alles Ausgelassene werden Standardwerte verwendet.
+
+```yaml
+# Anbieter-Overrides — Standardmodell und Modell-Tiers pro Anbieter überschreiben
+provider_overrides:
+  zai:
+    model: "glm-5.1"
+    model_tiers:
+      haiku: "glm-4.7"                # → ANTHROPIC_DEFAULT_HAIKU_MODEL
+      sonnet: "glm-5.1"               # → ANTHROPIC_DEFAULT_SONNET_MODEL
+      opus: "glm-5"                   # → ANTHROPIC_DEFAULT_OPUS_MODEL
+
+# OpenRouter-Aliase — aufrufen als: claudy or <alias>
+openrouter_aliases:
+  kimi: "moonshotai/kimi-k2.5"
+  sonnet: "anthropic/claude-sonnet-4"
+
+# Benutzerdefinierte Anthropic-kompatible Anbieter — aufrufen als: claudy <slug>
+custom_providers:
+  my-llm:
+    name: "my-llm"
+    display_name: "My Custom LLM"
+    base_url: "https://my-llm.com/api/anthropic"
+    api_key_env: "MY_LLM_API_KEY"
+    default_model: "my-model-v1"
+
+# Kompaktierungsrichtlinie
+compaction:
+  auto_compact: true                   # Standard: true
+  threshold: 0.8                       # 0.0–1.0, Standard: 0.8
+
+# Kontextfenster-Overrides pro Modell
+model_settings:
+  deepseek-chat:
+    max_context_tokens: 64000
+
+# Channel-Bridge — nicht-interaktive Alternative zu `claudy channel add`
+channel:
+  enabled_platforms: ["telegram"]
+  listen_addr: "127.0.0.1:3456"
+  default_profile: "zai"
+  platform_profiles:
+    telegram: "zai"
+  platform_allowed_users:
+    telegram: ["user_id_1"]
+  max_concurrent_sessions: 0           # 0 = unbegrenzt
+  stream_timeout_secs: 1800
+
+# Agent-Overrides
+agents:
+  aider:
+    binary: "aider"
+    args: ["--message", "{prompt}"]
+    timeout: 300
+```
+
+</details>
+
+---
+
+## Grundkonzepte
+
+### Profil
+
+Ein Startziel, das Anbieter-Metadaten und Authentifizierungsstrategie auflöst (eingebauter Anbieter, OpenRouter-Alias oder benutzerdefinierter Anbieter).
+
+### Modus
 
 Ein benanntes Claude-Konfigurationsverzeichnis unter `~/.claudy/modes/<name>/`.
 
-Wenn Sie ausführen:
+Beim Ausführen von:
 
 ```bash
 claudy <profile> <mode> [args...]
@@ -168,41 +211,44 @@ setzt Claudy:
 CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 ```
 
-damit Claude Mode-spezifische Konfigurationsdateien liest.
+sodass Claude modusspezifische Konfigurationsdateien liest.
 
-Modes eignen sich auch ideal für **dedizierte Claude-Frameworks und Toolkits**, die eigene `CLAUDE.md`-, Skills-, Agenten- oder Settings-Dateien mitbringen — wie [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code) oder eigene Harnesses. Statt die Standard-Konfiguration zu verschmutzen, kann jedes Framework in einem eigenen Mode isoliert werden:
+Modi eignen sich auch hervorragend für **dedizierte Claude-Frameworks und Toolkits**, die eine eigene `CLAUDE.md`, Skills, Agents oder Einstellungen mitliefern — wie [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code) oder ein beliebiges eigenes Harness. Anstatt die Standardkonfiguration zu verunreinigen, wird jedes Framework in seinem eigenen Modus isoliert:
 
 ```bash
-# Dedizierten Mode für das Framework erstellen
+# Einen dedizierten Modus für das Framework erstellen
 claudy mode create gstack
 
-# Framework-Konfiguration in das Mode-Verzeichnis kopieren oder verlinken
+# Die Framework-Konfiguration in das Modus-Verzeichnis kopieren oder verlinken
 cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
 
-# Claude mit diesem Framework starten
+# Claude mit aktivem Framework starten
 claudy <profile> gstack
 ```
 
-Jedes Mode-Verzeichnis ist ein eigenständiges `CLAUDE_CONFIG_DIR`, sodass Frameworks sich gegenseitig und die Standard-Konfiguration nicht beeinflussen.
+Jedes Modus-Verzeichnis ist ein in sich geschlossenes `CLAUDE_CONFIG_DIR`, sodass Frameworks weder miteinander noch mit der Standardkonfiguration kollidieren.
+
+<details>
+<summary>Befehlsreferenz</summary>
 
 ## Befehlsreferenz
 
 ### Hauptbefehle
 
-- `claudy ls` (Alias: `list`): listet konfigurierte/aufgelöste Profiles auf.
-- `claudy setup [provider]` (Alias: `config`): interaktive Provider-Einrichtung.
-- `claudy show <profile>` (Alias: `info`): zeigt aufgelöste Provider-Details an.
-- `claudy ping [profile]` (Alias: `test`): testet die Provider-Konnektivität.
-- `claudy doctor` (Alias: `status`): zeigt Version, Pfade und Profile-Anzahl an.
-- `claudy sync` (Alias: `install`): installiert/synchronisiert das claudy-Binär.
-- `claudy update`: aktualisiert claudy.
-- `claudy uninstall`: entfernt installierte Dateien.
-- `claudy mode <action> [name]`: verwaltet Claude Config Modes.
-- `claudy channel <subcommand>`: verwaltet die Channel Bridge.
-- `claudy mcp`: läuft als MCP-Server für die Agent Bridge.
-- `claudy analytics <subcommand>`: Nutzungsanalysen-Dashboard.
+- `claudy ls` (Alias: `list`): konfigurierte/aufgelöste Profile auflisten.
+- `claudy setup [provider]` (Alias: `config`): interaktive Anbieter-Einrichtung.
+- `claudy show <profile>` (Alias: `info`): aufgelöste Anbieter-Details anzeigen.
+- `claudy ping [profile]` (Alias: `test`): Anbieter-Konnektivität testen.
+- `claudy doctor` (Alias: `status`): Version, Pfade und Profilanzahl anzeigen.
+- `claudy sync` (Alias: `install`): Claudy-Binärdatei installieren/synchronisieren.
+- `claudy update`: Claudy aktualisieren.
+- `claudy uninstall`: installierte Dateien entfernen.
+- `claudy mode <action> [name]`: Claude-Konfigurationsmodi verwalten.
+- `claudy channel <subcommand>`: Channel-Bridge verwalten.
+- `claudy mcp`: als MCP-Server für Agent-Bridge ausführen.
+- `claudy analytics <subcommand>`: Nutzungsanalyse-Dashboard.
 
-### Mode-Befehle
+### Modusbefehle
 
 ```bash
 claudy mode create <name>
@@ -210,7 +256,7 @@ claudy mode ls
 claudy mode rm <name>
 ```
 
-Benennungsregel für Mode: `[a-z0-9][a-z0-9_-]*` (`mode` ist reserviert).
+Modusnamensregel: `[a-z0-9][a-z0-9_-]*` (`mode` ist reserviert).
 
 ### Channel-Befehle (optionale Bridge)
 
@@ -226,39 +272,41 @@ claudy channel enable
 claudy channel disable
 ```
 
-`channel add` führt Sie durch Bot-Token, erlaubte Benutzer, Profile und Mode-Zuordnung.
+`channel add` führt durch Bot-Token, erlaubte Benutzer, Profil- und Moduszuordnung.
 
 #### Unterstützte Plattformen
 
-| Plattform | Aufnahme | Interaktive Schaltflächen | Hinweise |
+| Plattform | Erfassung | Interaktive Schaltflächen | Hinweise |
 |----------|-----------|-------------------|-------|
 | Telegram | Long-Polling + Webhook | Inline-Tastatur | Am vollständigsten |
-| Slack | Event-Abonnement-Webhook | Block Kit-Aktionen | HMAC-SHA256 verifiziert |
-| Discord | Interaktions-Webhook | Action-Row-Komponenten | Ed25519 verifiziert |
+| Slack | Event-Subscription-Webhook | Block-Kit-Aktionen | HMAC-SHA256-verifiziert |
+| Discord | Interaktions-Webhook | Action-Row-Komponenten | Ed25519-verifiziert |
 
-#### Bot-Befehle für Channel
+#### Channel-Bot-Befehle
 
-Sobald der Bot läuft, reagiert er auf diese Befehle im Chat:
+Sobald der Bot läuft, antwortet er auf diese Befehle im Chat:
 
 - `/help` — Verfügbare Befehle anzeigen
 - `/cancel` — Aktuelle Aufgabe abbrechen
-- `/model` — Claude-Modell wechseln (interaktive Schaltflächen)
-- `/yolo` — Auto-Erlauben von Berechtigungen umschalten
-- `/status` — Sitzungsstatus, Profile, Mode, Git-Branch und Token-Nutzung anzeigen
-- `/sessions` — Aktuelle Claude-Sitzungen auflisten (mit Wechselschaltflächen)
-- `/projects` — Projekte auflisten (mit Navigationsschaltflächen)
+- `/model` — Claude-Modell ändern (interaktive Schaltflächen)
+- `/yolo` — Auto-Allow-Berechtigungen umschalten
+- `/status` — Sitzungsstatus, Profil, Modus, Git-Branch und Token-Verbrauch anzeigen
+- `/sessions` — Letzte Claude-Sitzungen auflisten (mit Wechsel-Schaltflächen)
+- `/projects` — Projekte auflisten (mit Navigations-Schaltflächen)
 - `/new` — Neue Sitzung starten
-- `/history` — Verlauf der letzten Sitzungen anzeigen
+- `/history` — Letzte Sitzungshistorie anzeigen
 
-Senden Sie beliebigen anderen Text, um direkt mit Claude zu sprechen.
+Senden Sie einen beliebigen anderen Text, um direkt mit Claude zu sprechen.
 
 #### Berechtigungsabfragen
 
-Wenn Claude die Genehmigung zur Verwendung eines Tools anfordert (einen Befehl ausführen, eine Datei bearbeiten usw.), sendet der Bot eine interaktive Erlauben/Ablehnen-Anfrage in Ihren Chat. Durch Tippen auf eine Schaltfläche wird die Antwort an Claude zurückgesendet und die Verarbeitung wird automatisch fortgesetzt.
+Wenn Claude die Genehmigung zur Nutzung eines Tools anfordert (Befehl ausführen, Datei bearbeiten usw.),
+sendet der Bot eine interaktive Zulassen/Ablehnen-Abfrage in Ihren Chat. Durch Antippen einer Schaltfläche
+wird die Antwort an Claude zurückgesendet und die Verarbeitung wird automatisch fortgesetzt.
 
-#### Geheimnisse
+#### Zugangsdaten
 
-Speichern Sie Anmeldeinformationen in `~/.claudy/secrets.env`:
+Channel-Zugangsdaten in `~/.claudy/secrets.env` speichern (siehe [Anbieter-Anmeldeinformationen](#anbieter-anmeldeinformationen-secretsenv) für das vollständige Format):
 
 ```env
 TELEGRAM_BOT_TOKEN=...
@@ -269,19 +317,21 @@ DISCORD_APPLICATION_ID=...
 DISCORD_PUBLIC_KEY=...
 ```
 
-### Agent MCP Bridge
+</details>
 
-Führen Sie `claudy mcp` aus, um einen stdio-basierten MCP-Server zu starten, der es Claude Code ermöglicht, Aufgaben an andere lokal installierte KI-Coding-Agenten zu delegieren.
+## Agent-MCP-Bridge
+
+Führen Sie `claudy mcp` aus, um einen stdio-basierten MCP-Server zu starten, der es Claude Code ermöglicht, Aufgaben an andere lokal installierte KI-Coding-Agents zu delegieren.
 
 ```bash
 claudy mcp run        # MCP-Server starten (wird von Claude Code aufgerufen)
-claudy mcp install    # Claudy als MCP-Server in den Claude Code-Einstellungen registrieren
-claudy mcp uninstall  # Claudy aus den Claude Code MCP-Einstellungen entfernen
+claudy mcp install    # Claudy als MCP-Server in Claude Code-Einstellungen registrieren
+claudy mcp uninstall  # Claudy aus Claude Code MCP-Einstellungen entfernen
 ```
 
-`claudy mcp install` registriert sich automatisch in `~/.claude/settings.json`. Wenn Sie einen Mode mit `claudy mode create <name>` erstellen, registriert er sich auch in der Einstellungsdatei des Modes. Keine manuelle Konfiguration erforderlich.
+`claudy mcp install` registriert sich automatisch in `~/.claude/settings.json`. Beim Erstellen eines Modus mit `claudy mode create <name>` wird auch in der Einstellungsdatei des Modus registriert. Keine manuelle Konfiguration erforderlich.
 
-Für die manuelle Registrierung (oder in einer projektbezogenen `.claude/settings.json`):
+Zur manuellen Registrierung (oder in einer projekteigenen `.claude/settings.json`):
 
 ```json
 {
@@ -294,11 +344,11 @@ Für die manuelle Registrierung (oder in einer projektbezogenen `.claude/setting
 }
 ```
 
-Claude Code sieht ein `ask_agent`-Tool, das alle installierten Agenten bereitstellt.
+Claude Code sieht ein `ask_agent`-Tool, das alle installierten Agents verfügbar macht.
 
-#### Verwendungsbeispiel
+### Nutzungsbeispiel
 
-Nach der Registrierung kann Claude Code Aufgaben folgendermaßen delegieren:
+Sobald registriert, kann Claude Code Aufgaben wie folgt delegieren:
 
 ```
 > Ask gemini to review the error handling in src/api.rs
@@ -306,25 +356,25 @@ Nach der Registrierung kann Claude Code Aufgaben folgendermaßen delegieren:
 > Ask aider to refactor the database layer
 ```
 
-Claude Code wählt den geeigneten Agenten aus, übergibt den Prompt und gibt das Ergebnis zurück. Sie können auch ein Arbeitsverzeichnis angeben:
+Claude Code wählt den entsprechenden Agent aus, übergibt den Prompt und gibt das Ergebnis zurück. Sie können auch ein Arbeitsverzeichnis angeben:
 
 ```json
 { "agent": "gemini", "prompt": "Explain this module", "working_directory": "/path/to/project" }
 ```
 
-#### MCP-Registrierung überprüfen
+### MCP-Registrierung überprüfen
 
 ```bash
-# Prüfen ob claudy registriert ist
+# Prüfen, ob claudy registriert ist
 cat ~/.claude/settings.json | grep -A3 claudy
 
 # MCP-Server manuell testen
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp run
 ```
 
-#### Unterstützte Agenten (automatisch aus PATH erkannt)
+### Unterstützte Agents (automatisch aus PATH erkannt)
 
-| Agent | Binär | Headless-Befehl |
+| Agent | Binärdatei | Headless-Befehl |
 |-------|--------|-----------------|
 | Gemini CLI | `gemini` | `gemini -p "..." --output-format text` |
 | Codex CLI | `codex` | `codex exec "..."` |
@@ -347,40 +397,36 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp r
 | Kilo Code | `kilo` | `kilo "..."` |
 | OpenHands | `openhands` | `openhands "..."` |
 
-#### Benutzerdefinierte Agenten
+### Benutzerdefinierte Agents
 
-Fügen Sie Agenten in `~/.claudy/config.yaml` hinzu:
+Agents in `~/.claudy/config.yaml` unter dem Schlüssel `agents` hinzufügen (siehe [Konfiguration](#configyaml-schema) für das vollständige Schema):
 
-```json
-{
-  "agents": {
-    "my-agent": {
-      "binary": "my-agent",
-      "args": ["--prompt", "{prompt}", "--no-interactive"],
-      "description": "My custom agent",
-      "timeout": 180
-    }
-  }
-}
+```yaml
+agents:
+  my-agent:
+    binary: "my-agent"
+    args: ["--prompt", "{prompt}", "--no-interactive"]
+    description: "My custom agent"
+    timeout: 180
 ```
 
-Derselbe Schlüssel wie ein integrierter Agent überschreibt dessen Standardwerte. `{prompt}` in `args` wird durch die eigentliche Aufgabe ersetzt.
+Ein Schlüssel, der mit einem eingebauten Agent übereinstimmt, überschreibt dessen Standardwerte. `{prompt}` in `args` wird durch die tatsächliche Aufgabe ersetzt.
 
-### Analytics-Befehle
+## Nutzungsanalyse
 
-> **Hinweis**: Die Analytics-Funktion befindet sich noch in der Entwicklung. Token-Zählungen, Kostenschätzungen und andere Metriken sind möglicherweise nicht vollständig genau. Verbesserungen sind in kommenden Versionen zu erwarten.
+> **Hinweis**: Die Analysefunktion befindet sich noch in der Entwicklung. Token-Zählungen, Kostenschätzungen und andere Metriken sind möglicherweise nicht vollständig genau. Verbesserungen in kommenden Versionen sind zu erwarten.
 
 ```bash
-claudy analytics dashboard         # Lokales Analytics-Dashboard öffnen (Tauri 2)
-claudy analytics ingest            # Sitzungsdaten aus ~/.claude/projects/ einlesen
-claudy analytics ingest --full     # Alle Dateien neu einlesen (Checkpoints ignorieren)
-claudy analytics ingest --project my-project  # Bestimmtes Projekt einlesen
-claudy analytics recommend         # Nutzungsempfehlungen im CLI anzeigen
-claudy analytics export            # Analytics-Daten exportieren (JSON, Standard 30 Tage)
+claudy analytics dashboard         # Lokales Analyse-Dashboard öffnen (Tauri 2)
+claudy analytics ingest            # Sitzungsdaten aus ~/.claude/projects/ erfassen
+claudy analytics ingest --full     # Alle Dateien neu erfassen (Prüfpunkte ignorieren)
+claudy analytics ingest --project my-project  # Bestimmtes Projekt erfassen
+claudy analytics recommend         # Nutzungsempfehlungen in der CLI anzeigen
+claudy analytics export            # Analysedaten exportieren (JSON, Standard: 30 Tage)
 claudy analytics export --format csv --days 7  # Als CSV für die letzten 7 Tage exportieren
-claudy analytics sync-pricing      # Modellpreise synchronisieren
-claudy analytics recalculate       # Alle Kosten neu berechnen
-claudy analytics insights          # Kompakte JSON-Einblickszusammenfassung für LLM-Analyse (Standard: 7 Tage)
+claudy analytics sync-pricing      # Modellpreise von models.dev und Anthropic-Preisseite synchronisieren
+claudy analytics recalculate       # Alle Kosten mit den neuesten Preisdaten neu berechnen
+claudy analytics insights          # Kompakte JSON-Einblickzusammenfassung erstellen (Standard: 7 Tage)
 claudy analytics insights --days 14  # Letzte 14 Tage analysieren
 claudy analytics insights --from 2026-04-01 --to 2026-04-30  # Spezifischer Zeitraum
 claudy analytics insights --project my-project  # Nach Projekt filtern
@@ -388,7 +434,7 @@ claudy analytics insights --project my-project  # Nach Projekt filtern
 
 ### In Claude Code: `/analytics-insights`
 
-Der schnellste Weg zur Analyse Ihrer Nutzung ist direkt in Claude Code. Die `analytics-insights`-Fähigkeit ist automatisch verfügbar — fragen Sie einfach auf natürliche Weise:
+Der schnellste Weg zur Analyse der Nutzung ist direkt in Claude Code. Der Skill `analytics-insights` ist automatisch verfügbar — einfach natürlich fragen:
 
 ```
 > /analytics-insights
@@ -397,15 +443,15 @@ Der schnellste Weg zur Analyse Ihrer Nutzung ist direkt in Claude Code. Die `ana
 > 사용 패턴 분석해줘
 ```
 
-Claude führt `claudy analytics insights` aus, analysiert die JSON-Daten und gibt einen strukturierten Bericht zurück mit:
+Claude führt `claudy analytics insights` aus, analysiert das JSON und gibt einen strukturierten Bericht mit:
 
 - **Kostentrends** — tägliche/wöchentliche Ausgaben mit Spike-Erkennung
-- **Modellverteilung** — welche Modelle Sie verwenden und was sie pro Sitzung kosten
-- **Werkzeugmuster** — am häufigsten genutzte Tools, Fehlerraten, Effizienzbeobachtungen
+- **Modellverteilung** — welche Modelle Sie nutzen und was sie pro Sitzung kosten
+- **Tool-Muster** — meistgenutzte Tools, Fehlerraten, Effizienzbeobachtungen
 - **Cache-Leistung** — Trefferquote und geschätzte Einsparungen
-- **Umsetzbare Empfehlungen** — konkrete Vorschläge wie „einfache Aufgaben an turbo weiterleiten" mit geschätzten Dollar-Einsparungen
+- **Handlungsrelevante Empfehlungen** — konkrete Vorschläge wie „einfache Aufgaben an turbo weiterleiten" mit geschätzter Dollar-Einsparung
 
-Beispielausgabe (siehe `docs/examples/analytics-insights-sample.json` für Rohdaten):
+Beispielausgabe (siehe [`docs/examples/analytics-insights-sample.json`](../examples/analytics-insights-sample.json) für Rohdaten):
 
 ```
 #### Summary
@@ -420,20 +466,26 @@ sharply upward — last 3 weekdays averaged $97/day.
 
 Keine manuellen Befehle, kein Kontextwechsel. Fragen Sie Claude nach Ihrer Nutzung und erhalten Sie sofort Antworten.
 
-### Was Analytics verfolgt
+### Was die Analyse verfolgt
 
-- **Tokens**: Detaillierte Trends von Eingabe-, Ausgabe- und Cache-Tokens über die letzten 30 Tage, gruppiert nach Modell und Datum.
-- **Tools**: Verteilungsanalyse, die zeigt, welche Tools Claude am häufigsten verwendet, einschließlich Aufrufzählungen, Fehlerquoten und durchschnittlicher Ausführungszeit.
-- **Kosten**: Echtzeit-Schätzung der Nutzungskosten basierend auf tatsächlichen Token-Preisen, einschließlich täglicher/wöchentlicher/monatlicher Prognosen und Trendeerkennung (steigend/stabil/fallend).
-- **Tipps (Empfehlungen)**: Datengestützte Optimierungshinweise, wie die Erkennung von kostenintensiven Sitzungen, Empfehlung von Haiku für einfache Aufgaben und Identifizierung langer Gespräche, die von einer Kontextzusammenfassung profitieren könnten.
-- **Projekte**: Ordnet kryptische Sitzungs-UUIDs automatisch lesbaren Projektordnernamen zu für besseren Kontext.
+- **Tokens**: Detaillierte Trends von Eingabe-, Ausgabe- und Cache-Tokens der letzten 30 Tage, gruppiert nach Modell und Datum.
+- **Tools**: Verteilungsanalyse, die zeigt, welche Tools Claude am häufigsten verwendet, einschließlich Aufrufanzahl, Fehlerraten und durchschnittlicher Ausführungszeit.
+- **Kosten**: Echtzeit-Schätzung der Nutzungskosten basierend auf tatsächlichen Token-Preisen, einschließlich täglicher/wöchentlicher/monatlicher Prognosen und Trenderkennung (steigend/stabil/fallend).
+- **Tipps (Empfehlungen)**: Datengestützte Optimierungsratschläge, wie z.B. Erkennung teurer Sitzungen, Vorschlag von Haiku für einfache Aufgaben und Identifizierung langer Konversationen, die von einer Kontextzusammenfassung profitieren könnten.
+- **Projekte**: Automatische Zuordnung kryptischer Sitzungs-UUIDs zu lesbaren Projektordnernamen für besseren Kontext.
 
-Daten werden in einer lokalen SQLite-Datenbank unter `~/.claudy/analytics/` gespeichert. Das Dashboard läuft als hochperformante lokale Tauri 2 + Svelte-App. Verwenden Sie die **[Sync]**-Schaltfläche im Dashboard, um Daten aus Ihrem Claude CLI-Verlauf sofort zu aktualisieren.
+Daten werden in einer lokalen SQLite-Datenbank unter `~/.claudy/analytics/` gespeichert. Das Dashboard läuft als hochperformante lokale Tauri 2 + Svelte-App. Verwenden Sie die **[Sync]**-Schaltfläche im Dashboard, um Daten sofort aus Ihrem Claude CLI-Verlauf zu aktualisieren.
 
+### Analyse-Dashboard
+```bash
+claudy analytics dashboard
+```
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../assets/analytics-dashboard.png">
-  <img alt="Analytics Dashboard" src="../assets/analytics-dashboard.png" width="100%">
+  <img alt="Analyse-Dashboard" src="../assets/analytics-dashboard.png" width="100%">
 </picture>
+
+---
 
 ## Dateien und Verzeichnisstruktur
 
@@ -445,44 +497,44 @@ Standardmäßig speichert Claudy Daten unter:
 
 Wichtige Dateien/Verzeichnisse:
 
-- `config.yaml`: Provider-, Channel- und Agenten-Konfiguration.
-- `secrets.env`: Provider/Bot-Anmeldeinformationen.
+- `config.yaml`: Anbieter- + Channel- + Agent-Konfiguration.
+- `secrets.env`: Anbieter-/Bot-Zugangsdaten.
 - `launchers.json`: Launcher/Symlink-Manifest.
-- `modes/`: Claude Config Modes.
+- `modes/`: Claude-Konfigurationsmodi.
 - `session-patches/`: Sitzungs-Patch-Speicher.
 - `channel/`: Channel-Laufzeitstatus (`pid`, Sitzungen, Audit-Log).
-- `analytics/`: Analytics-SQLite-Datenbank und Checkpoints.
+- `analytics/`: Analyse-SQLite-Datenbank und Prüfpunkte.
 - `cache/update.json`: Update-Metadaten-Cache.
 
 ## Umgebungsvariablen
 
-- `CLAUDY_HOME`: überschreibt das Claudy-Hauptverzeichnis (Standard: `~/.claudy`).
-- `CLAUDE_CONFIG_DIR`: wird von Claudy beim Start mit einem Mode automatisch gesetzt.
+- `CLAUDY_HOME`: Claudy-Home-Verzeichnis überschreiben (Standard: `~/.claudy`).
+- `CLAUDE_CONFIG_DIR`: wird von Claudy beim Start mit einem Modus automatisch gesetzt.
 
-## Häufige Arbeitsabläufe
+## Häufige Workflows
 
-### Einen Provider konfigurieren und starten
+### Anbieter konfigurieren und starten
 
 ```bash
 claudy setup
 claudy <profile>
 ```
 
-### Einen Mode mit einem Provider verwenden
+### Modus mit einem Anbieter verwenden
 
 ```bash
 claudy mode create work
 claudy <profile> work --yolo
 ```
 
-> `--yolo` ist Claudys Kurzform für `--dangerously-skip-permissions`.
+> `--yolo` ist Claudys Abkürzung für `--dangerously-skip-permissions`.
 
-### Dediziertes Claude-Framework in einem eigenen Mode ausführen
+### Dediziertes Claude-Framework in eigenem Modus ausführen
 
-Frameworks wie gstack, superpowers oder ecc bringen eigene `CLAUDE.md`-, Skills- und Agenten-Dateien mit. Halten Sie sie isoliert:
+Frameworks wie gstack, superpowers oder ecc liefern eine eigene `CLAUDE.md`, Skills und Agents. Diese isoliert halten:
 
 ```bash
-# Einmalige Einrichtung: Mode erstellen und Framework-Konfiguration einbinden
+# Einmalige Einrichtung: Modus erstellen und mit Framework-Konfiguration befüllen
 claudy mode create gstack
 cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
 
@@ -490,21 +542,21 @@ cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
 claudy <profile> gstack
 ```
 
-Zwischen Frameworks wechseln, ohne die Standard-Konfiguration anzufassen:
+Zwischen Frameworks wechseln, ohne die Standardkonfiguration zu berühren:
 
 ```bash
 claudy <profile> gstack      # gstack-Framework aktiv
 claudy <profile> superpowers # superpowers-Framework aktiv
-claudy <profile>             # Standard-Konfiguration, unverändert
+claudy <profile>             # Ihre Standardkonfiguration, unverändert
 ```
 
-### Aufgaben über MCP an andere Agenten delegieren
+### Aufgaben über MCP an andere Agents delegieren
 
 ```bash
-# 1) Sicherstellen, dass MCP registriert ist (geschieht automatisch beim ersten `claudy mcp`)
+# 1) Sicherstellen, dass MCP registriert ist (passiert automatisch beim ersten `claudy mcp`)
 claudy mcp
 
-# 2) In Claude Code darum bitten, an einen installierten Agenten zu delegieren:
+# 2) In Claude Code, um die Delegation an einen installierten Agent bitten:
 #    "Ask gemini to analyze this error"
 #    "Ask aider to refactor the auth module"
 ```
@@ -518,17 +570,17 @@ claudy ping
 
 ## Fehlerbehebung
 
-- **`profile not recognized`**: Führen Sie `claudy ls` aus und wählen Sie eine aufgelistete Profile-ID.
-- **Profile `not configured`**: Führen Sie `claudy setup <provider>` aus, um Anmeldeinformationen hinzuzufügen.
-- **Channel-Status fehlerhaft**: Führen Sie `claudy channel status` aus und starten Sie dann mit `claudy channel stop` und `claudy channel start` neu.
-- **Channel-Bot antwortet nicht**: Überprüfen Sie `~/.claudy/channel/logs/server.log` auf Fehler. Überprüfen Sie das Bot-Token in `~/.claudy/secrets.env` und ob `allowed_users` Ihre Chat-Benutzer-ID enthält.
-- **Berechtigungsabfrage erscheint nicht**: Stellen Sie sicher, dass Claude CLI nicht mit `--dangerously-skip-permissions` ausgeführt wird. Die Abfrage wird nur ausgelöst, wenn Claude eine explizite Genehmigung für die Tool-Nutzung benötigt.
-- **Binär nach der Installation nicht gefunden**: Stellen Sie sicher, dass das bin-Verzeichnis von Claudy im `PATH` ist, und starten Sie dann Ihre Shell neu.
-- **Agent erscheint nicht in MCP**: Stellen Sie sicher, dass das Agent-Binär im `PATH` ist (`which gemini`). Nur installierte Agenten erscheinen in `tools/list`.
-- **Agent-Timeout**: Erhöhen Sie das Timeout im Agenten-Feld von `config.yaml` (Standard: 120s).
-- **MCP nicht registriert**: Führen Sie `claudy mcp` einmal manuell aus, oder überprüfen Sie `~/.claude/settings.json` auf den Eintrag `mcpServers.claudy`.
-- **Agentenausgabe abgeschnitten**: Die stdout-Ausgabe des Agenten ist auf 10 MB begrenzt. Bei großen Ausgaben leiten Sie den Agenten um, in eine Datei zu schreiben.
-- **Analytics-Daten fehlen**: Führen Sie `claudy analytics ingest` aus, um aus `~/.claude/projects/` zu befüllen. Verwenden Sie `--full`, um alles neu einzulesen.
+- **`profile not recognized`**: `claudy ls` ausführen und eine aufgelistete Profil-ID wählen.
+- **`not configured`-Profil**: `claudy setup <provider>` ausführen, um Zugangsdaten hinzuzufügen.
+- **Channel-Status fehlerhaft**: `claudy channel status` ausführen, dann mit `claudy channel stop` und `claudy channel start` neu starten.
+- **Channel-Bot antwortet nicht**: `~/.claudy/channel/logs/server.log` auf Fehler prüfen. Bot-Token in `~/.claudy/secrets.env` verifizieren und sicherstellen, dass `allowed_users` Ihre Chat-Benutzer-ID enthält.
+- **Berechtigungsabfrage erscheint nicht**: Sicherstellen, dass Claude CLI nicht mit `--dangerously-skip-permissions` ausgeführt wird. Die Abfrage wird nur ausgelöst, wenn Claude eine explizite Genehmigung für Tool-Nutzung benötigt.
+- **Binärdatei nach Installation nicht gefunden**: Siehe den PATH-Hinweis im Abschnitt [Überprüfen](#überprüfen).
+- **Agent wird in MCP nicht angezeigt**: Sicherstellen, dass sich die Agent-Binärdatei im `PATH` befindet (`which gemini`). Nur installierte Agents erscheinen in `tools/list`.
+- **Agent-Timeout**: Timeout in `config.yaml` im Feld `agents` erhöhen (Standard: 120s).
+- **MCP nicht registriert**: `claudy mcp` einmal manuell ausführen oder `~/.claude/settings.json` auf den Eintrag `mcpServers.claudy` prüfen.
+- **Agent-Ausgabe abgeschnitten**: Agent-stdout ist auf 10 MB begrenzt. Bei großen Ausgaben den Agent anweisen, stattdessen in eine Datei zu schreiben.
+- **Analyse-Daten fehlen**: `claudy analytics ingest` ausführen, um aus `~/.claude/projects/` zu befüllen. `--full` verwenden, um alles neu zu erfassen.
 
 ## Entwicklung
 
@@ -538,27 +590,27 @@ cargo test
 cargo fmt
 cargo clippy -- -D warnings
 
-# Analytics-Backend testen (verwendet lokale DB)
+# Analyse-Backend testen (verwendet lokale DB)
 cargo run --example test_dashboard --features analytics-ui
 
-# Analytics-Dashboard starten (erfordert das analytics-ui-Feature)
+# Analyse-Dashboard starten (erfordert analytics-ui-Feature)
 cargo run --features analytics-ui -- analytics dashboard
 ```
 
 ## Mitwirken
 
-Beiträge sind willkommen! So können Sie loslegen:
+Beiträge sind willkommen! So kommen SieStarted:
 
-1. Forken Sie das Repository und erstellen Sie einen Feature-Branch.
-2. Nehmen Sie Ihre Änderungen mit Tests vor, wo angemessen.
-3. Führen Sie `cargo test && cargo clippy -- -D warnings` vor dem Einreichen aus.
-4. Öffnen Sie einen Pull Request unter https://github.com/epicsagas/claudy.
+1. Repository forken und einen Feature-Branch erstellen.
+2. Änderungen mit entsprechenden Tests vornehmen.
+3. Vor dem Einreichen `cargo test && cargo clippy -- -D warnings` ausführen.
+4. Pull Request öffnen unter https://github.com/epicsagas/claudy.
 
-Fehlerberichte und Feature-Anfragen sind über [GitHub Issues](https://github.com/epicsagas/claudy/issues) willkommen.
+Fehlerberichte und Feature-Anfragen sind willkommen über [GitHub Issues](https://github.com/epicsagas/claudy/issues).
 
-## Danksagungen
+## Danksagung
 
-Dieses Projekt wurde von [Clother](https://github.com/jolehuit/clother) inspiriert, einem Go-basierten Multi-Provider-Launcher für das Claude CLI. Claudy ist eine unabhängige Rust-Implementierung, von Grund auf neu gestaltet mit RAII-basierten Sitzungswächtern, Signal-Weiterleitung, Launcher-Symlinks und tiefen Ökosystem-Integrationen, einschließlich einer **vollständigen Channel Bridge** (Telegram/Slack/Discord), der **Agent MCP Bridge** für agentenübergreifende Delegation und einem **hochperformanten Analytics-Dashboard** auf Basis von Tauri 2. Diese Ergänzungen spiegeln Claudys Übergang von einem einfachen Launcher zu einem umfassenden operativen Toolkit für Claude CLI-Nutzer wider.
+Dieses Projekt wurde inspiriert von [Clother](https://github.com/jolehuit/clother), einem Go-basierten Multi-Anbieter-Launcher für die Claude CLI. Claudy ist eine unabhängige Rust-Implementierung, von Grund auf neu gestaltet mit RAII-basierten Sitzungs-Guards, Signal-Weiterleitung, Launcher-Symlinks und tiefen Ökosystem-Integrationen einschließlich einer **voll ausgestatteten Channel-Bridge** (Telegram/Slack/Discord), der **Agent-MCP-Bridge** für cross-agent-Delegierung und eines **hochperformanten Analyse-Dashboards** basierend auf Tauri 2. Diese Erweiterungen spiegeln Claudys Entwicklung von einem einfachen Launcher zu einem umfassenden operativen Toolkit für Claude CLI-Benutzer wider.
 
 ## Lizenz
 

@@ -1,28 +1,29 @@
-[← English](../../README.md)
-
 <h1 align="center">claudy</h1>
 
-<p align="center"><b>أمر واحد. أي Provider. تحكم كامل في Claude CLI.</b></p>
-
----
+<p align="center"><b>أمر واحد. أي مزوّد. تحكّم كامل في Claude CLI.</b></p>
 
 <p align="center">
-توقف عن التنقل بين متغيرات البيئة وملفات الإعداد.<br/>
-يتيح لك Claudy التبديل بين Anthropic وZ.AI وOpenRouter وOllama ونقاط النهاية المخصصة بأمر واحد — مع إبقاء بيانات الاعتماد وأوضاع الإعداد وأُطر عمل Claude معزولة بشكل نظيف لكل Profile.
+توقف عن التعامل مع متغيرات البيئة وملفات الإعداد.<br/>
+يتيح لك Claudy التبديل بين Anthropic وZ.AI وOpenRouter وOllama والنقاط النهائية المخصصة بأمر واحد — مع الحفاظ على بيانات الاعتماد وأوضاع الإعداد وأُطر Claude معزولة نظيفًا لكل ملف شخصي.
 </p>
 
 <p align="center">
-<b>متعدد الـ Providers · عزل الإعدادات · Channel bridge · جسر الوكلاء المحليين · تحليلات الاستخدام</b>
+<b>مزوّدون متعددون · عزل الإعداد · جسر القنوات · جسر الوكلاء المحلي · تحليلات الاستخدام</b>
 </p>
 
 ---
 
-<p align="center"><b>مُشغِّل حديث متعدد الـ providers لـ Claude CLI.</b></p>
-
----
-
 <p align="center">
-يساعدك Claudy على تشغيل Claude مع providers متعددة من خلال واجهة أوامر موحدة، مع إبقاء بيانات اعتماد الـ provider وإعدادات Claude منظمة تحت دليل رئيسي واحد.
+  <a href="../../README.md">🇺🇸 English</a> •
+  <a href="README.ko.md">🇰🇷 한국어</a> •
+  <a href="README.zh-Hans.md">🇨🇳 中文</a> •
+  <a href="README.ja.md">🇯🇵 日本語</a> •
+  <a href="README.de.md">🇩🇪 Deutsch</a> •
+  <a href="README.fr.md">🇫🇷 Français</a> •
+  <a href="README.es.md">🇪🇸 Español</a> •
+  <a href="README.hi.md">🇮🇳 हिन्दी</a> •
+  <a href="README.pt-BR.md">🇧🇷 Português</a> •
+  <a href="README.id.md">🇮🇩 Bahasa</a>
 </p>
 
 <p align="center">
@@ -31,228 +32,223 @@
     <a href="https://crates.io/crates/claudy"><img src="https://img.shields.io/crates/d/claudy.svg" alt="Downloads" /></a>
     <a href="../../LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
     <a href="https://buymeacoffee.com/epicsaga"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee" /></a>
+    <a href="https://github.com/epicsagas/claudy/actions/workflows/ci.yml"><img src="https://github.com/epicsagas/claudy/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
 </p>
 
 ---
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../assets/features-2048.png">
-  <img alt="لماذا Claudy؟" src="../assets/features-2048.png" width="100%">
+  <img alt="لماذا Claudy" src="../assets/features-2048.png" width="100%">
 </picture>
 
-<div dir="rtl">
+## لماذا Claudy
 
-## لماذا Claudy؟
+| | الميزة | لماذا هي مهمة |
+|--|---------|---------------|
+| 🔄 | تشغيل متعدّد المزوّدين | التبديل بين Anthropic وZ.AI وOpenRouter وOllama والنقاط النهائية المخصصة بأمر واحد |
+| 📦 | أوضاع الإعداد | عزل `CLAUDE.md` والإعدادات والمهارات والوكلاء لكل وضع — بدون تلوث متبادل |
+| 🔗 | جسر الوكلاء MCP | تفويض المهام من Claude Code إلى Gemini وCodex وAider وأكثر من 20 وكيلاً آخر |
+| 💬 | جسر القنوات | تشغيل بوتات Telegram وSlack وDiscord مع مطالبات أذونات تفاعلية |
+| 📊 | تحليلات الاستخدام | تتبّع استخدام التوكنات والتكاليف وأنماط الأدوات عبر لوحة تحكم Tauri محلية |
+| 🔐 | تحكّم آمن بالعمليات | تمرير SIGINT/SIGTERM، كتابة إعدادات ذرية، تخزين بيانات اعتماد بصلاحية 0600 |
+| 🛠️ | تجربة تشغيلية | تثبيت، تحديث، إزالة، تشخيص، اختبار اتصال — كل شيء من ملف ثنائي واحد |
 
-| | الميزة | لماذا تهم |
-|--|-------|----------|
-| 🔄 | تشغيل متعدد الـ providers | التبديل بين Anthropic و Z.AI و OpenRouter و Ollama والـ endpoints المخصصة بأمر واحد |
-| 📦 | Config modes | عزل `CLAUDE.md` والإعدادات والـ skills والـ agents لكل mode — بدون تلوث متبادل |
-| 🔗 | Agent MCP bridge | تفويض المهام من Claude Code إلى Gemini و Codex و Aider و20+ وكيل آخر |
-| 💬 | Channel bridge | تشغيل بوتات Telegram و Slack و Discord مع نوافذ إذن تفاعلية |
-| 📊 | تحليلات الاستخدام | تتبع استخدام الرموز والتكاليف وأنماط الأدوات في لوحة تحكم Tauri محلية |
-| 🔐 | تحكم آمن في العملية | إعادة توجيه SIGINT/SIGTERM، كتابات config ذرية، تخزين بيانات الاعتماد 0600 |
-| 🛠️ | تجربة مستخدم تشغيلية | تثبيت، تحديث، إلغاء تثبيت، تشخيص، اختبار اتصال — ملف ثنائي واحد |
+## مزوّدو الخدمة المدعومون
 
-## الـ Providers المدعومة
+> استوحِي Claudy من [Clother](https://github.com/jolehuit/clother)، وهو مشغّل متعدّد المزوّدين مكتوب بلغة Go لـ Claude CLI. يعدّ Z.AI المزوّد الأكثر اختبارًا بشكل شامل. إذا واجهت أي مشاكل مع المزوّدين الآخرين، يُرجى [فتح مشكلة](https://github.com/epicsagas/claudy/issues).
 
-> استوحى Claudy الإلهام من [Clother](https://github.com/jolehuit/clother)، وهو مُشغِّل متعدد الـ providers لـ Claude CLI مبني بـ Go. Z.AI هو الـ provider الأكثر اختباراً. إذا واجهت أي مشكلة مع providers أخرى، يرجى [فتح issue](https://github.com/epicsagas/claudy/issues).
-
-</div>
-
-| Provider | الحالة | ملاحظات |
+| المزوّد | الحالة | ملاحظات |
 |---|---|---|
-| Built-in (Anthropic) | ✅ مختبر | الافتراضي |
-| Z.AI | ✅ مختبر | |
-| OpenRouter alias | ⚠️ تجريبي | لم يُختبر بالكامل بعد — أبلغ عن المشكلات على GitHub |
-| Ollama | ⚠️ تجريبي | لم يُختبر بالكامل بعد — أبلغ عن المشكلات على GitHub |
-| Custom endpoint | ⚠️ تجريبي | لم يُختبر بالكامل بعد — أبلغ عن المشكلات على GitHub |
+| مدمج (Anthropic) | ✅ مُختبر | الافتراضي |
+| Z.AI | ✅ مُختبر | |
+| اسم مستعار OpenRouter | ⚠️ تجريبي | غير مُختبر بالكامل — أبلغ عن المشاكل على GitHub |
+| Ollama | ⚠️ تجريبي | غير مُختبر بالكامل — أبلغ عن المشاكل على GitHub |
+| نقطة نهائية مخصصة | ⚠️ تجريبي | غير مُختبر بالكامل — أبلغ عن المشاكل على GitHub |
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../assets/demo.gif">
-  <img alt="demo" src="../assets/demo.gif" width="100%">
+  <img alt="عرض توضيحي" src="../assets/demo.gif" width="100%">
 </picture>
-
-<div dir="rtl">
-
-## المتطلبات
-
-- macOS أو Linux
-- Rust toolchain (`cargo`) للبناء/التثبيت من المصدر
-- Claude CLI مثبّت ومتاح في `PATH`
-
-## التثبيت
-
-### macOS / Linux (سطر واحد)
-
-</div>
-
-```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
-```
-
-<div dir="rtl">
-
-### macOS Homebrew
-
-</div>
-
-```bash
-brew tap epicsagas/tap
-brew install claudy
-```
-
-<div dir="rtl">
-
-### Windows PowerShell
-
-</div>
-
-```powershell
-irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
-```
-
-<div dir="rtl">
-
-### crates.io
-
-**ملف ثنائي جاهز (سريع، لا حاجة للتصريف)**
-
-</div>
-
-```
-cargo install cargo-binstall
-cargo binstall claudy
-```
-
-<div dir="rtl">
-
-**أي platform — البناء من المصدر**
-
-</div>
-
-```
-cargo install claudy
-```
-
-<div dir="rtl">
-
-### التثبيت من مصدر Git
-
-</div>
-
-```bash
-git clone https://github.com/epicsagas/claudy.git
-cd claudy
-cargo install --path .
-```
-
-<div dir="rtl">
-
-## الإعداد / التهيئة
-
-</div>
-
-```bash
-claudy install
-echo 'ZAI_API_KEY=your-key-here' >> ~/.claudy/secrets.env
-claudy --version
-claudy zai
-```
-
-<div dir="rtl">
 
 ## البدء السريع
 
-</div>
+**1. التثبيت** (اختر واحدًا)
 
 ```bash
-# 1) عرض قائمة الـ profiles المتاحة/المحلولة
-claudy ls
+# macOS / Linux
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
 
-# 2) إعداد بيانات الاعتماد بشكل تفاعلي
-claudy setup
+# macOS (Homebrew)
+brew tap epicsagas/tap && brew install claudy
 
-# 3) فحص تفاصيل Profile واحد
-claudy show <profile>
+# Windows (PowerShell)
+irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
 
-# 4) تشغيل Claude مع Profile
-claudy <profile> [claude-args...]
+# Cargo (جميع المنصات)
+cargo binstall claudy
 ```
 
-<div dir="rtl">
+**2. الإعداد**
+
+```bash
+claudy install                        # تهيئة الأدلة والإعداد وبيانات الاعتماد
+echo 'ANTHROPIC_API_KEY=your-key' >> ~/.claudy/secrets.env
+```
+
+**3. التشغيل**
+
+```bash
+claudy                                # المزوّد الافتراضي
+claudy zai                            # مزوّد Z.AI
+claudy openrouter sonnet              # اسم مستعار OpenRouter
+```
+
+<details>
+<summary>بيانات اعتماد المزوّدين</summary>
+
+| المتغيّر | المزوّد |
+|---|---|
+| `ANTHROPIC_API_KEY` | Anthropic (أصلي) |
+| `ZAI_API_KEY` | Z.AI |
+| `ZAI_CN_API_KEY` | Z.AI الصين |
+| `MINIMAX_API_KEY` | MiniMax |
+| `MINIMAX_CN_API_KEY` | MiniMax الصين |
+| `KIMI_API_KEY` | Kimi K2 |
+| `MOONSHOT_API_KEY` | Moonshot AI |
+| `ARK_API_KEY` | VolcEngine |
+| `DEEPSEEK_API_KEY` | DeepSeek |
+| `MIMO_API_KEY` | Xiaomi MiMo |
+| `ALIBABA_API_KEY` | Alibaba Coding Plan |
+| `OPENROUTER_API_KEY` | OpenRouter (جميع الأسماء المستعارة) |
+
+تستخدم المزوّدات المخصصة متغيّر `api_key_env` المعرّف في إدخال `custom_providers` الخاص بها.
+
+</details>
+
+<details>
+<summary>مخطط config.yaml</summary>
+
+جميع الإعدادات موجودة في `~/.claudy/config.yaml`. أضف فقط الأقسام التي تحتاجها — يتم استخدام القيم الافتراضية لأي شيء محذوف.
+
+```yaml
+# تجاوزات المزوّد — تجاوز النموذج الافتراضي ومستويات النماذج لكل مزوّد
+provider_overrides:
+  zai:
+    model: "glm-5.1"
+    model_tiers:
+      haiku: "glm-4.7"                # → ANTHROPIC_DEFAULT_HAIKU_MODEL
+      sonnet: "glm-5.1"               # → ANTHROPIC_DEFAULT_SONNET_MODEL
+      opus: "glm-5"                   # → ANTHROPIC_DEFAULT_OPUS_MODEL
+
+# أسماء OpenRouter المستعارة — الاستخدام: claudy or <alias>
+openrouter_aliases:
+  kimi: "moonshotai/kimi-k2.5"
+  sonnet: "anthropic/claude-sonnet-4"
+
+# مزوّدون مخصصون متوافقون مع Anthropic — الاستخدام: claudy <slug>
+custom_providers:
+  my-llm:
+    name: "my-llm"
+    display_name: "My Custom LLM"
+    base_url: "https://my-llm.com/api/anthropic"
+    api_key_env: "MY_LLM_API_KEY"
+    default_model: "my-model-v1"
+
+# سياسة الضغط
+compaction:
+  auto_compact: true                   # الافتراضي: true
+  threshold: 0.8                       # 0.0–1.0، الافتراضي: 0.8
+
+# تجاوزات نافذة السياق لكل نموذج
+model_settings:
+  deepseek-chat:
+    max_context_tokens: 64000
+
+# جسر القنوات — بديل غير تفاعلي لأمر `claudy channel add`
+channel:
+  enabled_platforms: ["telegram"]
+  listen_addr: "127.0.0.1:3456"
+  default_profile: "zai"
+  platform_profiles:
+    telegram: "zai"
+  platform_allowed_users:
+    telegram: ["user_id_1"]
+  max_concurrent_sessions: 0           # 0 = بلا حد
+  stream_timeout_secs: 1800
+
+# تجاوزات الوكلاء
+agents:
+  aider:
+    binary: "aider"
+    args: ["--message", "{prompt}"]
+    timeout: 300
+```
+
+</details>
+
+---
 
 ## المفاهيم الأساسية
 
-### Profile
+### الملف الشخصي
 
-هدف تشغيل يحل بيانات الـ provider الوصفية + استراتيجية المصادقة (built-in provider أو OpenRouter alias أو provider مخصص).
+هدف تشغيل يقوم بحل البيانات الوصفية للمزوّد + استراتيجية المصادقة (مزوّد مدمج، أو اسم مستعار OpenRouter، أو مزوّد مخصص).
 
-### Mode
+### الوضع
 
-دليل إعداد Claude مسمى في `~/.claudy/modes/<name>/`.
+دليل إعداد Claude مسمّى في `~/.claudy/modes/<name>/`.
 
 عند تشغيل:
-
-</div>
 
 ```bash
 claudy <profile> <mode> [args...]
 ```
 
-<div dir="rtl">
-
-يضبط Claudy:
-
-</div>
+يُعيّن Claudy:
 
 ```bash
 CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 ```
 
-<div dir="rtl">
+بحيث يقرأ Claude ملفات الإعداد الخاصة بالوضع.
 
-حتى يقرأ Claude ملفات الإعداد الخاصة بالـ Mode.
-
-تُعدّ Modes أيضاً خياراً مثالياً لتشغيل **أُطر عمل وأدوات Claude المتخصصة** التي تأتي بـ `CLAUDE.md` وskills وagents وإعدادات خاصة بها — مثل [gstack](https://github.com/garrytan/gstack) و[superpowers](https://github.com/obra/superpowers) و[ecc](https://github.com/affaan-m/everything-claude-code) أو أي harness مخصص. بدلاً من تلويث إعداداتك الافتراضية، عزل كل إطار عمل في Mode خاص به:
-
-</div>
+كما أن الأوضاع مناسبة بشكل طبيعي لـ **أُطر Claude وأدواته المخصصة** التي تأتي مع `CLAUDE.md` ومهارات ووكلاء وإعدادات خاصة بها — مثل [gstack](https://github.com/garrytan/gstack) و[superpowers](https://github.com/obra/superpowers) و[ecc](https://github.com/affaan-m/everything-claude-code) أو أي نظام مخصص. بدلاً من تلويث إعداداتك الافتراضية، اعزل كل إطار في وضعه الخاص:
 
 ```bash
-# إنشاء Mode مخصص لإطار العمل
+# إنشاء وضع مخصص للإطار
 claudy mode create gstack
 
-# نسخ أو ربط إعداد إطار العمل بدليل الـ Mode
+# نسخ أو ربط إعداد الإطار بدليل الوضع
 cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
 
-# تشغيل Claude مع تفعيل إطار العمل
+# تشغيل Claude مع تفعيل ذلك الإطار
 claudy <profile> gstack
 ```
 
-<div dir="rtl">
+كل دليل وضع هو `CLAUDE_CONFIG_DIR` مستقل بذاته، لذلك لن تتعارض الأُطر مع بعضها أو مع إعداداتك الافتراضية أبدًا.
 
-كل دليل Mode هو `CLAUDE_CONFIG_DIR` مستقل، لذا لن تتعارض أُطر العمل مع بعضها أو مع إعداداتك الافتراضية.
+<details>
+<summary>مرجع الأوامر</summary>
 
 ## مرجع الأوامر
 
 ### الأوامر الرئيسية
 
-- `claudy ls` (alias: `list`): عرض قائمة الـ profiles المُعدَّة/المحلولة.
-- `claudy setup [provider]` (alias: `config`): إعداد provider بشكل تفاعلي.
-- `claudy show <profile>` (alias: `info`): عرض تفاصيل الـ provider المحلول.
-- `claudy ping [profile]` (alias: `test`): اختبار اتصال الـ provider.
-- `claudy doctor` (alias: `status`): عرض الإصدار والمسارات وعدد الـ profiles.
-- `claudy sync` (alias: `install`): تثبيت/مزامنة الملف الثنائي claudy.
+- `claudy ls` (الاسم المستعار: `list`): عرض الملفات الشخصية المُعدّة/المحلولة.
+- `claudy setup [provider]` (الاسم المستعار: `config`): إعداد المزوّد بشكل تفاعلي.
+- `claudy show <profile>` (الاسم المستعار: `info`): عرض تفاصيل المزوّد المحلولة.
+- `claudy ping [profile]` (الاسم المستعار: `test`): اختبار اتصال المزوّد.
+- `claudy doctor` (الاسم المستعار: `status`): عرض الإصدار والمسارات وعدد الملفات الشخصية.
+- `claudy sync` (الاسم المستعار: `install`): تثبيت/مزامنة الملف الثنائي claudy.
 - `claudy update`: تحديث claudy.
 - `claudy uninstall`: إزالة الملفات المثبتة.
-- `claudy mode <action> [name]`: إدارة Claude config modes.
-- `claudy channel <subcommand>`: إدارة Channel bridge.
-- `claudy mcp`: التشغيل كخادم MCP لجسر الوكيل.
-- `claudy analytics <subcommand>`: لوحة تحكم تحليلات الاستخدام.
+- `claudy mode <action> [name]`: إدارة أوضاع إعداد Claude.
+- `claudy channel <subcommand>`: إدارة جسر القنوات.
+- `claudy mcp`: التشغيل كخادم MCP لجسر الوكلاء.
+- `claudy analytics <subcommand>`: لوحة تحليلات الاستخدام.
 
-### أوامر Mode
-
-</div>
+### أوامر الوضع
 
 ```bash
 claudy mode create <name>
@@ -260,13 +256,9 @@ claudy mode ls
 claudy mode rm <name>
 ```
 
-<div dir="rtl">
+قاعدة تسمية الوضع: `[a-z0-9][a-z0-9_-]*` (`mode` محجوز).
 
-قاعدة اسم Mode: `[a-z0-9][a-z0-9_-]*` (الكلمة `mode` محجوزة).
-
-### أوامر Channel (جسر اختياري)
-
-</div>
+### أوامر القنوات (جسر اختياري)
 
 ```bash
 claudy channel serve [--profile <profile>] [--listen <host:port>]
@@ -280,47 +272,41 @@ claudy channel enable
 claudy channel disable
 ```
 
-<div dir="rtl">
-
-`channel add` يرشدك خلال bot token والمستخدمين المسموح لهم وتعيين الـ Profile والـ Mode.
+يرشدك `channel add` خلال إعداد رمز البوت والمستخدمين المسموح لهم والملف الشخصي وتعيين الوضع.
 
 #### المنصات المدعومة
 
-</div>
+| المنصة | الاستيعاب | الأزرار التفاعلية | ملاحظات |
+|----------|-----------|-------------------|-------|
+| Telegram | استطلاع طويل + webhook | لوحة مفاتيح مضمّنة | الأكثر اكتمالاً |
+| Slack | اشتراك أحداث webhook | إجراءات Block Kit | مُتحقق منها عبر HMAC-SHA256 |
+| Discord | webhook التفاعلات | مكونات صف الإجراءات | مُتحقق منها عبر Ed25519 |
 
-| Platform | الاستيعاب | الأزرار التفاعلية | ملاحظات |
-|----------|-----------|------------------|---------|
-| Telegram | Long-polling + webhook | Inline keyboard | الأكثر اكتمالاً |
-| Slack | Event subscription webhook | Block Kit actions | HMAC-SHA256 موثَّق |
-| Discord | Interaction webhook | Action row components | Ed25519 موثَّق |
+#### أوامر بوت القناة
 
-<div dir="rtl">
-
-#### أوامر بوت Channel
-
-بمجرد التشغيل، يستجيب البوت لهذه الأوامر في الدردشة:
+عند التشغيل، يستجيب البوت لهذه الأوامر في الدردشة:
 
 - `/help` — عرض الأوامر المتاحة
 - `/cancel` — إلغاء المهمة الحالية
 - `/model` — تغيير نموذج Claude (أزرار تفاعلية)
-- `/yolo` — تبديل أذونات auto-allow
-- `/status` — عرض حالة الجلسة والـ Profile والـ Mode وفرع git واستخدام الرموز
-- `/sessions` — عرض جلسات Claude الأخيرة (مع أزرار التبديل)
+- `/yolo` — تبديل الموافقة التلقائية على الأذونات
+- `/status` — عرض حالة الجلسة والملف الشخصي والوضع وفرع git واستخدام التوكنات
+- `/sessions` — عرض الجلسات الأخيرة (مع أزرار التبديل)
 - `/projects` — عرض المشاريع (مع أزرار التصفح)
 - `/new` — بدء جلسة جديدة
 - `/history` — عرض سجل الجلسات الأخيرة
 
-أرسل أي نص آخر للتحدث مباشرةً مع Claude.
+أرسل أي نص آخر للتحدث مباشرة مع Claude.
 
-#### نوافذ الإذن (Permission prompts)
+#### مطالبات الأذونات
 
-عندما يطلب Claude الموافقة لاستخدام أداة (تشغيل أمر، تحرير ملف، إلخ)، يرسل البوت نافذة Allow/Deny تفاعلية إلى دردشتك. يؤدي النقر على زر إلى إرسال الرد إلى Claude وتستمر المعالجة تلقائياً.
+عندما يطلب Claude الموافقة على استخدام أداة (تشغيل أمر، تعديل ملف، إلخ)،
+يرسل البوت مطالبة تفاعلية بالسماح/الرفض إلى دردشتك. النقر على زر
+يرسل الرد إلى Claude وتستمر المعالجة تلقائيًا.
 
-#### الـ Secrets
+#### الأسرار
 
-احفظ بيانات الاعتماد في `~/.claudy/secrets.env`:
-
-</div>
+خزّن بيانات اعتماد القناة في `~/.claudy/secrets.env` (راجع [بيانات اعتماد المزوّدين](#provider-credentials-secretsenv) للتنسيق الكامل):
 
 ```env
 TELEGRAM_BOT_TOKEN=...
@@ -331,27 +317,21 @@ DISCORD_APPLICATION_ID=...
 DISCORD_PUBLIC_KEY=...
 ```
 
-<div dir="rtl">
+</details>
 
-### Agent MCP bridge
+## جسر MCP للوكلاء
 
-شغِّل `claudy mcp` لبدء خادم MCP قائم على stdio يتيح لـ Claude Code تفويض المهام إلى وكلاء AI برمجية محلية أخرى.
-
-</div>
+شغّل `claudy mcp` لبدء خادم MCP قائم على stdio يتيح لـ Claude Code تفويض المهام إلى وكلاء برمجة AI محليين مثبتين آخرين.
 
 ```bash
-claudy mcp run        # بدء خادم MCP (يُستدعى من Claude Code)
+claudy mcp run        # بدء خادم MCP (يُستدعى بواسطة Claude Code)
 claudy mcp install    # تسجيل claudy كخادم MCP في إعدادات Claude Code
-claudy mcp uninstall  # إزالة claudy من إعدادات MCP في Claude Code
+claudy mcp uninstall  # إزالة claudy من إعدادات MCP لـ Claude Code
 ```
 
-<div dir="rtl">
+يُسجّل `claudy mcp install` نفسه تلقائيًا في `~/.claude/settings.json`. عند إنشاء وضع باستخدام `claudy mode create <name>`، يُسجّل أيضًا في ملف إعدادات الوضع. لا حاجة إلى إعداد يدوي.
 
-يُسجِّل `claudy mcp install` نفسه تلقائياً في `~/.claude/settings.json`. عند إنشاء Mode بـ `claudy mode create <name>`، يسجّل أيضاً في ملف إعدادات الـ Mode. لا حاجة لأي إعداد يدوي.
-
-للتسجيل يدوياً (أو في `.claude/settings.json` على مستوى المشروع):
-
-</div>
+للتسجيل يدويًا (أو في ملف `.claude/settings.json` على مستوى المشروع):
 
 ```json
 {
@@ -364,15 +344,11 @@ claudy mcp uninstall  # إزالة claudy من إعدادات MCP في Claude Co
 }
 ```
 
-<div dir="rtl">
+سيرى Claude Code أداة `ask_agent` التي تعرض جميع الوكلاء المثبتين.
 
-سيرى Claude Code أداة `ask_agent` تعرض جميع الوكلاء المثبتين.
+### مثال على الاستخدام
 
-#### مثال على الاستخدام
-
-بمجرد التسجيل، يمكن لـ Claude Code تفويض المهام كالتالي:
-
-</div>
+بعد التسجيل، يمكن لـ Claude Code تفويض المهام مثل هذا:
 
 ```
 > Ask gemini to review the error handling in src/api.rs
@@ -380,35 +356,23 @@ claudy mcp uninstall  # إزالة claudy من إعدادات MCP في Claude Co
 > Ask aider to refactor the database layer
 ```
 
-<div dir="rtl">
-
-يختار Claude Code الوكيل المناسب، ويمرر الـ prompt، ويعيد النتيجة. يمكنك أيضاً تحديد دليل عمل:
-
-</div>
+يختار Claude Code الوكيل المناسب، ويمرّر الموجه، ويُعيد النتيجة. يمكنك أيضًا تحديد دليل عمل:
 
 ```json
 { "agent": "gemini", "prompt": "Explain this module", "working_directory": "/path/to/project" }
 ```
 
-<div dir="rtl">
-
-#### التحقق من تسجيل MCP
-
-</div>
+### التحقق من تسجيل MCP
 
 ```bash
 # التحقق من تسجيل claudy
 cat ~/.claude/settings.json | grep -A3 claudy
 
-# اختبار خادم MCP يدوياً
+# اختبار خادم MCP يدويًا
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp run
 ```
 
-<div dir="rtl">
-
-#### الوكلاء المدعومون (auto-detected من PATH)
-
-</div>
+### الوكلاء المدعومون (يُكتشفون تلقائيًا من PATH)
 
 | Agent | Binary | Headless command |
 |-------|--------|-----------------|
@@ -433,75 +397,61 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp r
 | Kilo Code | `kilo` | `kilo "..."` |
 | OpenHands | `openhands` | `openhands "..."` |
 
-<div dir="rtl">
+### وكلاء مخصصون
 
-#### الوكلاء المخصصون
+أضف وكلاء في `~/.claudy/config.yaml` تحت مفتاح `agents` (راجع [الإعداد](#configyaml-schema) للمخطط الكامل):
 
-أضف وكلاء في `~/.claudy/config.yaml`:
-
-</div>
-
-```json
-{
-  "agents": {
-    "my-agent": {
-      "binary": "my-agent",
-      "args": ["--prompt", "{prompt}", "--no-interactive"],
-      "description": "My custom agent",
-      "timeout": 180
-    }
-  }
-}
+```yaml
+agents:
+  my-agent:
+    binary: "my-agent"
+    args: ["--prompt", "{prompt}", "--no-interactive"]
+    description: "My custom agent"
+    timeout: 180
 ```
 
-<div dir="rtl">
+نفس المفتاح كوكيل مدمج يتجاوز إعداداته الافتراضية. يُستبدل `{prompt}` في `args` بالمهمة الفعلية.
 
-نفس مفتاح الوكيل المدمج يتجاوز إعداداته الافتراضية. `{prompt}` في `args` يُستبدل بالمهمة الفعلية.
+## تحليلات الاستخدام
 
-### أوامر Analytics
-
-> **ملاحظة**: ميزة analytics لا تزال قيد التطوير. قد لا تكون أعداد الرموز وتقديرات التكلفة والمقاييس الأخرى دقيقة تماماً. توقع تحسينات في الإصدارات القادمة.
-
-</div>
+> **ملاحظة**: ميزة التحليلات لا تزال قيد التطوير. قد لا تكون أعداد التوكنات وتقديرات التكاليف والمقاييس الأخرى دقيقة بالكامل. يُرجى توقع تحسينات في الإصدارات القادمة.
 
 ```bash
-claudy analytics dashboard         # فتح لوحة تحكم analytics المحلية (Tauri 2)
+claudy analytics dashboard         # فتح لوحة التحليلات المحلية (Tauri 2)
 claudy analytics ingest            # استيعاب بيانات الجلسة من ~/.claude/projects/
-claudy analytics ingest --full     # إعادة استيعاب جميع الملفات (تجاهل checkpoints)
+claudy analytics ingest --full     # إعادة استيعاب جميع الملفات (تجاهل نقاط الفحص)
 claudy analytics ingest --project my-project  # استيعاب مشروع محدد
-claudy analytics recommend         # عرض توصيات الاستخدام في CLI
-claudy analytics export            # تصدير بيانات analytics (JSON، افتراضي 30 يوماً)
-claudy analytics export --format csv --days 7  # تصدير CSV لآخر 7 أيام
-claudy analytics insights          # إنشاء ملخص JSON مضغوط لتحليل LLM (افتراضي: 7 أيام)
-claudy analytics insights --days 14  # تحليل آخر 14 يوماً
+claudy analytics recommend         # عرض توصيات الاستخدام في سطر الأوامر
+claudy analytics export            # تصدير بيانات التحليلات (JSON، الافتراضي 30 يومًا)
+claudy analytics export --format csv --days 7  # تصدير كـ CSV لآخر 7 أيام
+claudy analytics sync-pricing      # مزامنة تسعير النماذج من models.dev وصفحة تسعير Anthropic
+claudy analytics recalculate       # إعادة حساب جميع التكاليف باستخدام أحدث بيانات التسعير
+claudy analytics insights          # إنشاء ملخص رؤى JSON مختصر (الافتراضي: 7 أيام)
+claudy analytics insights --days 14  # تحليل آخر 14 يومًا
 claudy analytics insights --from 2026-04-01 --to 2026-04-30  # نطاق تاريخ محدد
 claudy analytics insights --project my-project  # تصفية حسب المشروع
-claudy analytics sync-pricing      # مزامنة أسعار النماذج من models.dev وصفحة أسعار Anthropic
-claudy analytics recalculate       # إعادة حساب جميع التكاليف باستخدام أحدث بيانات الأسعار
 ```
-
-<div dir="rtl">
 
 ### داخل Claude Code: `/analytics-insights`
 
-أسرع طريقة لتحليل استخدامك هي مباشرة داخل Claude Code. مهارة `analytics-insights` متاحة تلقائياً — فقط اسأل بلغة طبيعية:
+أسرع طريقة لتحليل استخدامك هي مباشرة داخل Claude Code. مهارة `analytics-insights` متاحة تلقائيًا — فقط اسأل بشكل طبيعي:
 
 ```
 > /analytics-insights
 > /analytics-insights last 2 weeks
 > analyze my usage patterns
-> 사용 패턴 분석해줘
+> تحليل أنماط استخدامي
 ```
 
-يشغّل Claude أمر `claudy analytics insights`، يحلل JSON، ويعيد تقريراً منظماً يتضمن:
+يشغّل Claude أمر `claudy analytics insights`، ويحلل JSON، ويُعيد تقريرًا مُنظّمًا يتضمن:
 
-- **اتجاهات التكاليف** — الإنفاق اليومي/الأسبوعي مع اكتشاف الارتفاعات المفاجئة
-- **توزيع النماذج** — أي النماذج تستخدم وكم تكلفتها لكل جلسة
-- **أنماط الأدوات** — الأدوات الأكثر استخداماً، معدلات الخطأ، ملاحظات الكفاءة
-- **أداء التخزين المؤقت** — نسبة الإصابات والتوفير المقدّر
-- **توصيات قابلة للتنفيذ** — اقتراحات محددة مثل "توجيه المهام البسيطة إلى turbo" مع توفير مقدّر بالدولار
+- **اتجاهات التكلفة** — الإنفاق اليومي/الأسبوعي مع كشف الارتفاعات المفاجئة
+- **توزيع النماذج** — النماذج التي تستخدمها وتكلفتها لكل جلسة
+- **أنماط الأدوات** — الأدوات الأكثر استخدامًا، ومعدلات الخطأ، وملاحظات الكفاءة
+- **أداء التخزين المؤقت** — نسبة الإصابة والتوفير المُقدّر
+- **توصيات قابلة للتنفيذ** — اقتراحات محددة مثل "وجّه المهام البسيطة إلى turbo" مع التوفير المُقدّر بالدولار
 
-مثال على المخرجات (راجع [`docs/examples/analytics-insights-sample.json`](docs/examples/analytics-insights-sample.json) للبيانات الخام):
+مثال على المخرجات (راجع [`docs/examples/analytics-insights-sample.json`](../examples/analytics-insights-sample.json) للبيانات الخام):
 
 ```
 #### Summary
@@ -514,153 +464,125 @@ sharply upward — last 3 weekdays averaged $97/day.
 3. Reduce harness overhead — TaskCreate/Update accounted for ~1,000 calls
 ```
 
-بدون أوامر يدوية، بدون تبديل السياق. اسأل Claude عن استخدامك واحصل على إجابات فورية.
+بدون أوامر يدوية، بدون تبديل السياق. اسأل Claude عن استخدامك واحصل على إجابات فورًا.
 
-تتبع Analytics:
+### ما تتبّعه التحليلات
 
-- **Tokens**: اتجاهات تفصيلية لرموز الإدخال والإخراج والذاكرة المؤقتة خلال آخر 30 يوماً، مجمّعة حسب النموذج والتاريخ.
-- **Tools**: تحليل توزيع يُظهر الأدوات التي يستخدمها Claude بأكثر تكرار، بما في ذلك أعداد الاستدعاء ومعدلات الخطأ ومتوسط وقت التنفيذ.
-- **Cost**: تقدير فوري لتكاليف الاستخدام بناءً على أسعار الرموز الفعلية، بما في ذلك توقعات يومية/أسبوعية/شهرية واكتشاف الاتجاهات (increasing/stable/decreasing).
-- **Tips (Recommendations)**: نصائح تحسين مدفوعة بالبيانات، كاكتشاف الجلسات عالية التكلفة، واقتراح Haiku للمهام البسيطة، وتحديد المحادثات الطويلة التي يمكن أن تستفيد من تلخيص السياق.
-- **Projects**: يُعيّن تلقائياً معرفات UUID الغامضة للجلسات إلى أسماء مجلدات المشاريع القابلة للقراءة لتوفير سياق أفضل.
+- **التوكنات**: اتجاهات تفصيلية لتوكنات الإدخال والإخراج والتخزين المؤقت خلال آخر 30 يومًا، مُجمّعة حسب النموذج والتاريخ.
+- **الأدوات**: تحليل التوزيع يُظهر الأدوات التي يستخدمها Claude بشكل متكرر، بما في ذلك أعداد الاستدعاءات ومعدلات الخطأ ومتوسط وقت التنفيذ.
+- **التكلفة**: تقدير فوري لتكاليف الاستخدام بناءً على تسعير التوكنات الفعلي، بما في ذلك التوقعات اليومية/الأسبوعية/الشهرية وكشف الاتجاهات (متزايد/مستقر/متناقص).
+- **نصائح (توصيات)**: نصائح تحسين مبنية على البيانات، مثل كشف الجلسات عالية التكلفة، واقتراح Haiku للمهام البسيطة، وتحديد المحادثات الطويلة التي قد تستفيد من تلخيص السياق.
+- **المشاريع**: تعيين معرّفات UUID الغامضة للجلسات تلقائيًا إلى أسماء مجلدات مشاريع مقروءة بشريًا لسياق أفضل.
 
-تُخزَّن البيانات في قاعدة بيانات SQLite محلية تحت `~/.claudy/analytics/`. تعمل لوحة التحكم كتطبيق Tauri 2 + Svelte محلي عالي الأداء. استخدم زر **[Sync]** في لوحة التحكم لتحديث البيانات فوراً من سجل Claude CLI.
+تُخزّن البيانات في قاعدة بيانات SQLite محلية تحت `~/.claudy/analytics/`. تعمل لوحة التحكم كتطبيق محلي عالي الأداء مبني بـ Tauri 2 + Svelte. استخدم زر **[Sync]** في لوحة التحكم لتحديث البيانات فورًا من سجل Claude CLI الخاص بك.
 
-</div>
-
+### لوحة تحكم التحليلات
+```bash
+claudy analytics dashboard
+```
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../assets/analytics-dashboard.png">
-  <img alt="Analytics Dashboard" src="../assets/analytics-dashboard.png" width="100%">
+  <img alt="لوحة تحكم التحليلات" src="../assets/analytics-dashboard.png" width="100%">
 </picture>
 
-<div dir="rtl">
+---
 
-## الملفات وتخطيط الدليل
+## الملفات وتخطيط الدلائل
 
-بشكل افتراضي، يخزن Claudy البيانات تحت:
-
-</div>
+بشكل افتراضي، يُخزّن Claudy البيانات تحت:
 
 ```text
 ~/.claudy/
 ```
 
-<div dir="rtl">
+الملفات/الدلائل المهمة:
 
-الملفات/الأدلة المهمة:
-
-- `config.yaml`: إعداد provider + channel + agent.
-- `secrets.env`: بيانات اعتماد provider/bot.
-- `launchers.json`: بيان launcher/symlink.
-- `modes/`: Claude config modes.
-- `session-patches/`: تخزين رقع الجلسة.
-- `channel/`: حالة تشغيل channel (`pid` والجلسات وسجل التدقيق).
-- `analytics/`: قاعدة بيانات SQLite للتحليلات والـ checkpoints.
-- `cache/update.json`: ذاكرة تخزين مؤقت لبيانات التحديث.
+- `config.yaml`: إعداد المزوّدين + القنوات + الوكلاء.
+- `secrets.env`: بيانات اعتماد المزوّدين/البوتات.
+- `launchers.json`: بيان المشغّلات/الروابط الرمزية.
+- `modes/`: أوضاع إعداد Claude.
+- `session-patches/`: تخزين تصحيحات الجلسات.
+- `channel/`: حالة تشغيل القنوات (`pid`، جلسات، سجل التدقيق).
+- `analytics/`: قاعدة بيانات SQLite للتحليلات ونقاط الفحص.
+- `cache/update.json`: ذاكرة التخزين المؤقت لبيانات التحديث.
 
 ## متغيرات البيئة
 
-- `CLAUDY_HOME`: تجاوز دليل Claudy الرئيسي (الافتراضي: `~/.claudy`).
-- `CLAUDE_CONFIG_DIR`: يُضبط تلقائياً بواسطة Claudy عند التشغيل مع Mode.
+- `CLAUDY_HOME`: تجاوز الدليل الرئيسي لـ Claudy (الافتراضي: `~/.claudy`).
+- `CLAUDE_CONFIG_DIR`: يُعيّن تلقائيًا بواسطة Claudy عند التشغيل مع وضع.
 
-## سير العمل الشائعة
+## سير العمل الشائع
 
-### إعداد provider وتشغيله
-
-</div>
+### إعداد وتشغيل مزوّد
 
 ```bash
 claudy setup
 claudy <profile>
 ```
 
-<div dir="rtl">
-
-### استخدام Mode مع provider
-
-</div>
+### استخدام وضع مع مزوّد
 
 ```bash
 claudy mode create work
 claudy <profile> work --yolo
 ```
 
-<div dir="rtl">
-
 > `--yolo` هو اختصار claudy لـ `--dangerously-skip-permissions`.
 
-### تشغيل إطار عمل Claude مخصص في Mode خاص به
+### تشغيل إطار Claude مخصص في وضعه الخاص
 
-أُطر العمل مثل gstack وsuperpowers وecc تأتي بـ `CLAUDE.md` وskills وagents خاصة بها. شغّلها بشكل معزول:
-
-</div>
+تأتي أُطر مثل gstack وsuperpowers وecc مع `CLAUDE.md` ومهارات ووكلاء خاصين بها. أبقِها معزولة:
 
 ```bash
-# إعداد لمرة واحدة: إنشاء Mode وتحميل إعدادات إطار العمل
+# إعداد لمرة واحدة: إنشاء الوضع وبذره بإعداد الإطار
 claudy mode create gstack
 cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
 
-# الاستخدام اليومي: تشغيل Claude مع تفعيل إطار العمل
+# الاستخدام اليومي: تشغيل Claude مع تفعيل الإطار
 claudy <profile> gstack
 ```
 
-<div dir="rtl">
-
-التبديل بين أُطر العمل دون تعديل الإعدادات الافتراضية:
-
-</div>
+التبديل بين الأُطر دون المساس بإعداداتك الافتراضية:
 
 ```bash
-claudy <profile> gstack      # إطار عمل gstack مفعّل
-claudy <profile> superpowers # إطار عمل superpowers مفعّل
-claudy <profile>             # الإعدادات الافتراضية، دون تغيير
+claudy <profile> gstack      # إطار gstack مفعّل
+claudy <profile> superpowers # إطار superpowers مفعّل
+claudy <profile>             # إعداداتك الافتراضية، دون تغيير
 ```
-
-<div dir="rtl">
 
 ### تفويض المهام إلى وكلاء آخرين عبر MCP
 
-</div>
-
 ```bash
-# 1) تأكد من تسجيل MCP (يحدث تلقائياً عند أول `claudy mcp`)
+# 1) التأكد من تسجيل MCP (يحدث تلقائيًا عند أول `claudy mcp`)
 claudy mcp
 
-# 2) في Claude Code، اطلب منه التفويض لأي وكيل مثبت:
+# 2) في Claude Code، اطلب منه التفويض إلى أي وكيل مثبت:
 #    "Ask gemini to analyze this error"
 #    "Ask aider to refactor the auth module"
 ```
 
-<div dir="rtl">
-
 ### تشخيص حالة التثبيت/الإعداد
-
-</div>
 
 ```bash
 claudy doctor
 claudy ping
 ```
 
-<div dir="rtl">
-
 ## استكشاف الأخطاء وإصلاحها
 
-- **`profile not recognized`**: شغِّل `claudy ls` واختر معرف Profile المُدرج.
-- **Profile بحالة `not configured`**: شغِّل `claudy setup <provider>` لإضافة بيانات الاعتماد.
-- **Channel status غير صحي**: شغِّل `claudy channel status`، ثم أعد التشغيل بـ `claudy channel stop` و `claudy channel start`.
-- **بوت Channel لا يستجيب**: تحقق من `~/.claudy/channel/logs/server.log` للأخطاء. تحقق من bot token في `~/.claudy/secrets.env` وأن `allowed_users` يتضمن معرف مستخدم الدردشة الخاص بك.
-- **Permission prompt لا يظهر**: تأكد من أن Claude CLI لا يعمل بـ `--dangerously-skip-permissions`. تُشغَّل النافذة فقط عندما يحتاج Claude إلى موافقة صريحة لاستخدام الأداة.
-- **الملف الثنائي غير موجود بعد التثبيت**: تأكد من أن دليل bin الخاص بـ Claudy موجود في `PATH`، ثم أعد تشغيل shell.
-- **الوكيل لا يظهر في MCP**: تأكد من أن الملف الثنائي للوكيل موجود في `PATH` (`which gemini`). تظهر فقط الوكلاء المثبتة في `tools/list`.
-- **Agent timeout**: زِد مهلة الانتظار في حقل agents في `config.yaml` (الافتراضي: 120s).
-- **MCP غير مسجل**: شغِّل `claudy mcp` مرة واحدة يدوياً، أو تحقق من إدخال `mcpServers.claudy` في `~/.claude/settings.json`.
-- **إخراج الوكيل مقطوع**: إخراج stdout للوكيل محدود بـ 10MB. للمخرجات الكبيرة، وجِّه الوكيل للكتابة إلى ملف بدلاً من ذلك.
-- **بيانات Analytics مفقودة**: شغِّل `claudy analytics ingest` للتعبئة من `~/.claude/projects/`. استخدم `--full` لإعادة استيعاب كل شيء.
+- **`profile not recognized`**: شغّل `claudy ls` واختر معرّف ملف شخصي من القائمة.
+- **ملف شخصي `not configured`**: شغّل `claudy setup <provider>` لإضافة بيانات الاعتماد.
+- **حالة القناة غير سليمة**: شغّل `claudy channel status`، ثم أعد التشغيل باستخدام `claudy channel stop` و`claudy channel start`.
+- **بوت القناة لا يستجيب**: تحقق من `~/.claudy/channel/logs/server.log` بحثًا عن أخطاء. تحقق من رمز البوت في `~/.claudy/secrets.env` وأن `allowed_users` يتضمن معرّف مستخدم الدردشة الخاص بك.
+- **مطالبة الأذونات لا تظهر**: تأكد من أن Claude CLI لا يعمل مع `--dangerously-skip-permissions`. لا تظهر المطالبة إلا عندما يحتاج Claude إلى موافقة صريحة على استخدام الأدوات.
+- **الملف الثنائي غير موجود بعد التثبيت**: راجع ملاحظة PATH في قسم [التحقق](#verify).
+- **الوكيل لا يظهر في MCP**: تأكد من أن الملف الثنائي للوكيل على `PATH` (`which gemini`). فقط الوكلاء المثبتون يظهرون في `tools/list`.
+- **انتهاء مهلة الوكيل**: زيّد المهلة في حقل agents في `config.yaml` (الافتراضي: 120 ثانية).
+- **MCP غير مسجّل**: شغّل `claudy mcp` يدويًا مرة واحدة، أو تحقق من `~/.claude/settings.json` بحثًا عن إدخال `mcpServers.claudy`.
+- **مخرجات الوكيل مقطوعة**: الإخراج القياسي للوكيل محدود بـ 10 ميجابايت. للمخرجات الكبيرة، وجّه الوكيل للكتابة في ملف بدلاً من ذلك.
+- **بيانات التحليلات مفقودة**: شغّل `claudy analytics ingest` لملئها من `~/.claudy/projects/`. استخدم `--full` لإعادة استيعاب كل شيء.
 
 ## التطوير
-
-</div>
 
 ```bash
 cargo build
@@ -668,32 +590,28 @@ cargo test
 cargo fmt
 cargo clippy -- -D warnings
 
-# اختبار analytics backend (يستخدم قاعدة بيانات محلية)
+# اختبار واجهة التحليلات (تستخدم قاعدة بيانات محلية)
 cargo run --example test_dashboard --features analytics-ui
 
-# تشغيل analytics dashboard (يتطلب ميزة analytics-ui)
+# تشغيل لوحة تحكم التحليلات (تتطلب ميزة analytics-ui)
 cargo run --features analytics-ui -- analytics dashboard
 ```
 
-<div dir="rtl">
-
 ## المساهمة
 
-نرحب بالمساهمات! إليك كيفية البدء:
+المساهمات مرحب بها! إليك كيف تبدأ:
 
-1. Fork المستودع وأنشئ فرع ميزة.
-2. أجرِ تغييراتك مع اختبارات حيثما يكون ذلك مناسباً.
-3. شغِّل `cargo test && cargo clippy -- -D warnings` قبل التقديم.
-4. افتح Pull Request على https://github.com/epicsagas/claudy.
+1. قم بعمل Fork للمستودع وأنشئ فرع ميزة.
+2. أجرِ تغييراتك مع اختبارات حيثما يناسب.
+3. شغّل `cargo test && cargo clippy -- -D warnings` قبل الإرسال.
+4. افتح طلب سحب على https://github.com/epicsagas/claudy.
 
-تقارير الأخطاء وطلبات الميزات مرحب بها عبر [GitHub Issues](https://github.com/epicsagas/claudy/issues).
+نرحب بتقارير الأخطاء وطلبات الميزات عبر [GitHub Issues](https://github.com/epicsagas/claudy/issues).
 
 ## شكر وتقدير
 
-استوحى هذا المشروع الإلهام من [Clother](https://github.com/jolehuit/clother)، وهو مُشغِّل متعدد الـ providers لـ Claude CLI مبني بـ Go. Claudy هو تطبيق Rust مستقل، أُعيد تصميمه من الصفر مع RAII-based session guards وإعادة توجيه الإشارات وروابط المُشغِّل وتكاملات النظام البيئي العميقة، بما في ذلك **Channel Bridge كامل المزايا** (Telegram/Slack/Discord)، و**Agent MCP Bridge** للتفويض بين الوكلاء، و**لوحة تحكم Analytics عالية الأداء** مبنية بـ Tauri 2. تعكس هذه الإضافات انتقال Claudy من مُشغِّل بسيط إلى مجموعة أدوات تشغيلية شاملة لمستخدمي Claude CLI.
+استُوحي هذا المشروع من [Clother](https://github.com/jolehuit/clother)، وهو مشغّل متعدّد المزوّدين مكتوب بلغة Go لـ Claude CLI. Claudy هو تطبيق مستقل بلغة Rust، أُعيد تصميمه من الصفر مع حراس جلسات قائمين على RAII، وتمرير الإشارات، وروابط مشغّلات رمزية، وتكاملات عميقة مع النظام البيئي تشمل **جسر قنوات كامل الميزات** (Telegram/Slack/Discord)، و**جسر MCP للوكلاء** للتفويض بين الوكلاء، و**لوحة تحليلات عالية الأداء** مبنية بـ Tauri 2. تعكس هذه الإضافات تحوّل Claudy من مشغّل بسيط إلى مجموعة أدوات تشغيلية شاملة لمستخدمي Claude CLI.
 
-## الرخصة
+## الترخيص
 
 [Apache-2.0](../../LICENSE)
-
-</div>

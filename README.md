@@ -317,10 +317,9 @@ DISCORD_APPLICATION_ID=...
 DISCORD_PUBLIC_KEY=...
 ```
 
-<details>
-<summary>Agent MCP Bridge</summary>
+</details>
 
-### Agent MCP bridge
+## Agent MCP bridge
 
 Run `claudy mcp` to start a stdio-based MCP server that lets Claude Code delegate tasks to other locally installed AI coding agents.
 
@@ -347,7 +346,7 @@ To register manually (or in a project-level `.claude/settings.json`):
 
 Claude Code will see an `ask_agent` tool that exposes all installed agents.
 
-#### Usage example
+### Usage example
 
 Once registered, Claude Code can delegate tasks like this:
 
@@ -363,7 +362,7 @@ Claude Code selects the appropriate agent, passes the prompt, and returns the re
 { "agent": "gemini", "prompt": "Explain this module", "working_directory": "/path/to/project" }
 ```
 
-#### Verify MCP registration
+### Verify MCP registration
 
 ```bash
 # Check if claudy is registered
@@ -373,7 +372,7 @@ cat ~/.claude/settings.json | grep -A3 claudy
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp run
 ```
 
-#### Supported agents (auto-detected from PATH)
+### Supported agents (auto-detected from PATH)
 
 | Agent | Binary | Headless command |
 |-------|--------|-----------------|
@@ -398,7 +397,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp r
 | Kilo Code | `kilo` | `kilo "..."` |
 | OpenHands | `openhands` | `openhands "..."` |
 
-#### Custom agents
+### Custom agents
 
 Add agents in `~/.claudy/config.yaml` under the `agents` key (see [Configuration](#configyaml-schema) for full schema):
 
@@ -413,10 +412,7 @@ agents:
 
 Same key as a built-in agent overrides its defaults. `{prompt}` in `args` is replaced with the actual task.
 
-<details>
-<summary>Usage Analytics</summary>
-
-### Analytics commands
+## Usage Analytics
 
 > **Note**: The analytics feature is still a work in progress. Token counts, cost estimates, and other metrics may not be fully accurate. Expect refinements in upcoming releases.
 
@@ -489,11 +485,7 @@ claudy analytics dashboard
   <img alt="Analytics Dashboard" src="docs/assets/analytics-dashboard.png" width="100%">
 </picture>
 
-</details>
-
-</details>
-
-</details>
+---
 
 ## Files and Directory Layout
 

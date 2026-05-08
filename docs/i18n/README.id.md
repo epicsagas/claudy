@@ -1,28 +1,29 @@
-[← English](../../README.md)
-
 <h1 align="center">claudy</h1>
 
-<p align="center"><b>Satu perintah. Provider apa pun. Kendali penuh atas Claude CLI.</b></p>
-
----
+<p align="center"><b>Satu perintah. Semua penyedia. Kontrol penuh atas Claude CLI.</b></p>
 
 <p align="center">
-Tidak perlu lagi pusing mengurus variabel lingkungan dan file konfigurasi.<br/>
-Claudy memungkinkan Anda beralih antara Anthropic, Z.AI, OpenRouter, Ollama, dan endpoint kustom hanya dengan satu perintah — menjaga credential, mode konfigurasi, dan framework Claude tetap terisolasi dengan rapi per profil.
+Berhenti memusingkan variabel lingkungan dan file konfigurasi.<br/>
+Claudy memungkinkan Anda beralih antara Anthropic, Z.AI, OpenRouter, Ollama, dan endpoint kustom dengan satu perintah — menjaga kredensial, mode konfigurasi, dan framework Claude tetap terisolasi per profil.
 </p>
 
 <p align="center">
-<b>Multi-provider · Isolasi config · Channel bridge · Bridge agen lokal · Analytics penggunaan</b>
+<b>Multi-penyedia · Isolasi konfigurasi · Bridge channel · Bridge agen lokal · Analitik penggunaan</b>
 </p>
 
 ---
 
-<p align="center"><b>Launcher multi-provider modern untuk Claude CLI.</b></p>
-
----
-
 <p align="center">
-Claudy membantu Anda menjalankan Claude terhadap berbagai provider dengan satu antarmuka perintah yang konsisten, sekaligus menjaga credential provider dan overlay konfigurasi Claude tetap terorganisir di bawah satu direktori home.
+  <a href="../../README.md">🇺🇸 English</a> •
+  <a href="README.ko.md">🇰🇷 한국어</a> •
+  <a href="README.zh-Hans.md">🇨🇳 中文</a> •
+  <a href="README.ja.md">🇯🇵 日本語</a> •
+  <a href="README.de.md">🇩🇪 Deutsch</a> •
+  <a href="README.fr.md">🇫🇷 Français</a> •
+  <a href="README.es.md">🇪🇸 Español</a> •
+  <a href="README.hi.md">🇮🇳 हिन्दी</a> •
+  <a href="README.pt-BR.md">🇧🇷 Português</a> •
+  <a href="README.ar.md">🇸🇦 العربية</a>
 </p>
 
 <p align="center">
@@ -31,126 +32,168 @@ Claudy membantu Anda menjalankan Claude terhadap berbagai provider dengan satu a
     <a href="https://crates.io/crates/claudy"><img src="https://img.shields.io/crates/d/claudy.svg" alt="Downloads" /></a>
     <a href="../../LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
     <a href="https://buymeacoffee.com/epicsaga"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee" /></a>
+    <a href="https://github.com/epicsagas/claudy/actions/workflows/ci.yml"><img src="https://github.com/epicsagas/claudy/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
 </p>
 
 ---
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../assets/features-2048.png">
-  <img alt="Mengapa Claudy?" src="../assets/features-2048.png" width="100%">
+  <img alt="Mengapa Claudy" src="../assets/features-2048.png" width="100%">
 </picture>
 
-## Mengapa Claudy?
+## Mengapa Claudy
 
 | | Fitur | Mengapa penting |
-|--|------|----------------|
-| 🔄 | Launch multi-provider | Beralih antara Anthropic, Z.AI, OpenRouter, Ollama, dan endpoint kustom dalam satu perintah |
-| 📦 | Config modes | Isolasi `CLAUDE.md`, pengaturan, skills, dan agents per mode — tanpa kontaminasi silang |
-| 🔗 | Agent MCP bridge | Delegasikan tugas dari Claude Code ke Gemini, Codex, Aider, dan 20+ agents lainnya |
-| 💬 | Channel bridge | Jalankan bot Telegram, Slack, dan Discord dengan prompt izin interaktif |
-| 📊 | Usage analytics | Lacak penggunaan token, biaya, dan pola alat di dashboard Tauri lokal |
-| 🔐 | Kontrol proses aman | Penerusan SIGINT/SIGTERM, penulisan config atomik, penyimpanan kredensial 0600 |
-| 🛠️ | UX operasional | Install, update, uninstall, diagnostik, tes konektivitas — satu biner saja |
+|--|-------|-----------------|
+| 🔄 | Peluncuran multi-penyedia | Beralih antara Anthropic, Z.AI, OpenRouter, Ollama, dan endpoint kustom dalam satu perintah |
+| 📦 | Mode konfigurasi | Isolasi `CLAUDE.md`, pengaturan, skill, dan agen per mode — tanpa kontaminasi silang |
+| 🔗 | Bridge MCP agen | Delegasikan tugas dari Claude Code ke Gemini, Codex, Aider, dan 20+ agen lainnya |
+| 💬 | Bridge channel | Jalankan bot Telegram, Slack, dan Discord dengan prompt izin interaktif |
+| 📊 | Analitik penggunaan | Lacak penggunaan token, biaya, dan pola tool dengan dasbor Tauri lokal |
+| 🔐 | Kontrol proses yang aman | Penerusan SIGINT/SIGTERM, penulisan konfigurasi atomik, penyimpanan kredensial 0600 |
+| 🛠️ | UX operasional | Instal, perbarui, hapus instalasi, doctor, ping — semuanya dari satu binary |
 
-## Provider yang Didukung
+## Penyedia yang didukung
 
-> Claudy terinspirasi dari [Clother](https://github.com/jolehuit/clother), launcher multi-provider berbasis Go untuk Claude CLI. Z.AI adalah provider yang paling banyak diuji. Jika Anda menemukan masalah dengan provider lain, silakan [buka issue](https://github.com/epicsagas/claudy/issues).
+> Claudy terinspirasi oleh [Clother](https://github.com/jolehuit/clother), peluncur multi-penyedia berbasis Go untuk Claude CLI. Z.AI telah menjadi penyedia yang paling banyak diuji. Jika Anda mengalami masalah dengan penyedia lain, silakan [buka issue](https://github.com/epicsagas/claudy/issues).
 
-| Provider | Status | Catatan |
+| Penyedia | Status | Catatan |
 |---|---|---|
-| Built-in (Anthropic) | ✅ Diuji | Default |
-| Z.AI | ✅ Diuji | |
-| OpenRouter alias | ⚠️ Eksperimental | Belum sepenuhnya diuji — laporkan masalah di GitHub |
-| Ollama | ⚠️ Eksperimental | Belum sepenuhnya diuji — laporkan masalah di GitHub |
-| Custom endpoint | ⚠️ Eksperimental | Belum sepenuhnya diuji — laporkan masalah di GitHub |
+| Bawaan (Anthropic) | ✅ Teruji | Default |
+| Z.AI | ✅ Teruji | |
+| Alias OpenRouter | ⚠️ Eksperimental | Belum sepenuhnya teruji — laporkan masalah di GitHub |
+| Ollama | ⚠️ Eksperimental | Belum sepenuhnya teruji — laporkan masalah di GitHub |
+| Endpoint kustom | ⚠️ Eksperimental | Belum sepenuhnya teruji — laporkan masalah di GitHub |
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../assets/demo.gif">
   <img alt="demo" src="../assets/demo.gif" width="100%">
 </picture>
 
-## Persyaratan
+## Mulai cepat
 
-- macOS atau Linux
-- Rust toolchain (`cargo`) untuk build/install dari sumber
-- Claude CLI terinstal dan tersedia di `PATH`
-
-## Instalasi
-
-### macOS / Linux (satu baris)
+**1. Instal** (pilih salah satu)
 
 ```bash
+# macOS / Linux
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
-```
 
-### macOS Homebrew
+# macOS (Homebrew)
+brew tap epicsagas/tap && brew install claudy
 
-```bash
-brew tap epicsagas/tap
-brew install claudy
-```
-
-### Windows PowerShell
-
-```powershell
+# Windows (PowerShell)
 irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
-```
 
-### crates.io
-
-**Binary siap pakai (cepat, tanpa kompilasi)**
-
-```
-cargo install cargo-binstall
+# Cargo (semua platform)
 cargo binstall claudy
 ```
 
-**Platform apa pun — build dari sumber**
-
-```
-cargo install claudy
-```
-
-### Instal dari sumber Git
+**2. Konfigurasi**
 
 ```bash
-git clone https://github.com/epicsagas/claudy.git
-cd claudy
-cargo install --path .
+claudy install                        # inisialisasi direktori, konfigurasi, rahasia
+echo 'ANTHROPIC_API_KEY=your-key' >> ~/.claudy/secrets.env
 ```
 
-## Penyiapan / Konfigurasi
+**3. Jalankan**
 
 ```bash
-claudy install
-echo 'ZAI_API_KEY=your-key-here' >> ~/.claudy/secrets.env
-claudy --version
-claudy zai
+claudy                                # penyedia default
+claudy zai                            # penyedia Z.AI
+claudy openrouter sonnet              # alias OpenRouter
 ```
 
-## Mulai Cepat
+<details>
+<summary>Kredensial penyedia</summary>
 
-<img src="docs/assets/demo.gif" alt="Quick Start" width="100%" />
+| Variabel | Penyedia |
+|---|---|
+| `ANTHROPIC_API_KEY` | Anthropic (bawaan) |
+| `ZAI_API_KEY` | Z.AI |
+| `ZAI_CN_API_KEY` | Z.AI China |
+| `MINIMAX_API_KEY` | MiniMax |
+| `MINIMAX_CN_API_KEY` | MiniMax China |
+| `KIMI_API_KEY` | Kimi K2 |
+| `MOONSHOT_API_KEY` | Moonshot AI |
+| `ARK_API_KEY` | VolcEngine |
+| `DEEPSEEK_API_KEY` | DeepSeek |
+| `MIMO_API_KEY` | Xiaomi MiMo |
+| `ALIBABA_API_KEY` | Alibaba Coding Plan |
+| `OPENROUTER_API_KEY` | OpenRouter (semua alias) |
 
-```bash
-# 1) Tampilkan daftar profiles yang tersedia/terselesaikan
-claudy ls
+Penyedia kustom menggunakan variabel `api_key_env` yang didefinisikan dalam entri `custom_providers` mereka.
 
-# 2) Konfigurasikan credential secara interaktif
-claudy setup
+</details>
 
-# 3) Periksa detail satu Profile
-claudy show <profile>
+<details>
+<summary>Skema config.yaml</summary>
 
-# 4) Jalankan Claude dengan sebuah Profile
-claudy <profile> [claude-args...]
+Semua konfigurasi berada di `~/.claudy/config.yaml`. Hanya tambahkan bagian yang Anda butuhkan — default digunakan untuk semua yang tidak disertakan.
+
+```yaml
+# Override penyedia — timpa model dan tingkat model default per penyedia
+provider_overrides:
+  zai:
+    model: "glm-5.1"
+    model_tiers:
+      haiku: "glm-4.7"                # → ANTHROPIC_DEFAULT_HAIKU_MODEL
+      sonnet: "glm-5.1"               # → ANTHROPIC_DEFAULT_SONNET_MODEL
+      opus: "glm-5"                   # → ANTHROPIC_DEFAULT_OPUS_MODEL
+
+# Alias OpenRouter — jalankan dengan: claudy atau <alias>
+openrouter_aliases:
+  kimi: "moonshotai/kimi-k2.5"
+  sonnet: "anthropic/claude-sonnet-4"
+
+# Penyedia kompatibel Anthropic kustom — jalankan dengan: claudy <slug>
+custom_providers:
+  my-llm:
+    name: "my-llm"
+    display_name: "My Custom LLM"
+    base_url: "https://my-llm.com/api/anthropic"
+    api_key_env: "MY_LLM_API_KEY"
+    default_model: "my-model-v1"
+
+# Kebijakan kompakasi
+compaction:
+  auto_compact: true                   # default: true
+  threshold: 0.8                       # 0.0–1.0, default: 0.8
+
+# Override konteks window per model
+model_settings:
+  deepseek-chat:
+    max_context_tokens: 64000
+
+# Bridge channel — alternatif non-interaktif untuk `claudy channel add`
+channel:
+  enabled_platforms: ["telegram"]
+  listen_addr: "127.0.0.1:3456"
+  default_profile: "zai"
+  platform_profiles:
+    telegram: "zai"
+  platform_allowed_users:
+    telegram: ["user_id_1"]
+  max_concurrent_sessions: 0           # 0 = tidak terbatas
+  stream_timeout_secs: 1800
+
+# Override agen
+agents:
+  aider:
+    binary: "aider"
+    args: ["--message", "{prompt}"]
+    timeout: 300
 ```
 
-## Konsep Inti
+</details>
 
-### Profile
+---
 
-Target peluncuran yang menyelesaikan metadata provider + strategi autentikasi (built-in provider, OpenRouter alias, atau custom provider).
+## Konsep inti
+
+### Profil
+
+Target peluncuran yang menyelesaikan metadata penyedia + strategi autentikasi (penyedia bawaan, alias OpenRouter, atau penyedia kustom).
 
 ### Mode
 
@@ -162,47 +205,50 @@ Ketika Anda menjalankan:
 claudy <profile> <mode> [args...]
 ```
 
-Claudy menetapkan:
+Claudy mengatur:
 
 ```bash
 CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 ```
 
-sehingga Claude membaca file konfigurasi khusus Mode.
+sehingga Claude membaca file konfigurasi khusus mode.
 
-Mode juga sangat cocok untuk menjalankan **framework dan toolkit Claude khusus** yang membawa `CLAUDE.md`, skill, agen, atau pengaturan mereka sendiri — seperti [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code), atau harness kustom apa pun. Daripada mengotori konfigurasi default, isolasi setiap framework di Mode-nya sendiri:
+Mode juga cocok secara alami untuk **framework dan toolkit Claude khusus** yang menyertakan `CLAUDE.md`, skill, agen, atau pengaturan mereka sendiri — seperti [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code), atau harness kustom lainnya. Alih-alih mencemari konfigurasi default Anda, isolasi setiap framework dalam modenya sendiri:
 
 ```bash
-# Buat Mode khusus untuk framework
+# Buat mode khusus untuk framework
 claudy mode create gstack
 
-# Salin atau buat symlink konfigurasi framework ke direktori Mode
+# Salin atau symlink konfigurasi framework ke direktori mode
 cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
 
 # Jalankan Claude dengan framework tersebut aktif
 claudy <profile> gstack
 ```
 
-Setiap direktori Mode adalah `CLAUDE_CONFIG_DIR` yang mandiri, sehingga framework tidak pernah saling berkonflik satu sama lain maupun dengan konfigurasi default Anda.
+Setiap direktori mode adalah `CLAUDE_CONFIG_DIR` yang mandiri, sehingga framework tidak akan pernah saling berkonflik atau dengan pengaturan default Anda.
 
-## Referensi Perintah
+<details>
+<summary>Referensi perintah</summary>
 
-### Perintah Utama
+## Referensi perintah
 
-- `claudy ls` (alias: `list`): tampilkan daftar profiles yang dikonfigurasi/terselesaikan.
-- `claudy setup [provider]` (alias: `config`): pengaturan provider secara interaktif.
-- `claudy show <profile>` (alias: `info`): tampilkan detail provider yang terselesaikan.
-- `claudy ping [profile]` (alias: `test`): uji konektivitas provider.
-- `claudy doctor` (alias: `status`): tampilkan versi, path, dan jumlah Profile.
+### Perintah utama
+
+- `claudy ls` (alias: `list`): daftar profil yang dikonfigurasi/diselesaikan.
+- `claudy setup [provider]` (alias: `config`): penyiapan penyedia interaktif.
+- `claudy show <profile>` (alias: `info`): tampilkan detail penyedia yang diselesaikan.
+- `claudy ping [profile]` (alias: `test`): uji konektivitas penyedia.
+- `claudy doctor` (alias: `status`): tampilkan versi, jalur, dan jumlah profil.
 - `claudy sync` (alias: `install`): instal/sinkronkan binary claudy.
 - `claudy update`: perbarui claudy.
 - `claudy uninstall`: hapus file yang terinstal.
-- `claudy mode <action> [name]`: kelola Claude config modes.
-- `claudy channel <subcommand>`: kelola Channel bridge.
-- `claudy mcp`: jalankan sebagai server MCP untuk jembatan agen.
-- `claudy analytics <subcommand>`: dashboard analytics penggunaan.
+- `claudy mode <action> [name]`: kelola mode konfigurasi Claude.
+- `claudy channel <subcommand>`: kelola bridge channel.
+- `claudy mcp`: jalankan sebagai server MCP untuk bridge agen.
+- `claudy analytics <subcommand>`: dasbor analitik penggunaan.
 
-### Perintah Mode
+### Perintah mode
 
 ```bash
 claudy mode create <name>
@@ -210,9 +256,9 @@ claudy mode ls
 claudy mode rm <name>
 ```
 
-Aturan nama Mode: `[a-z0-9][a-z0-9_-]*` (`mode` dicadangkan).
+Aturan nama mode: `[a-z0-9][a-z0-9_-]*` (`mode` adalah kata yang dipesan).
 
-### Perintah Channel (jembatan opsional)
+### Perintah channel (bridge opsional)
 
 ```bash
 claudy channel serve [--profile <profile>] [--listen <host:port>]
@@ -226,39 +272,41 @@ claudy channel enable
 claudy channel disable
 ```
 
-`channel add` memandu Anda melalui bot token, pengguna yang diizinkan, pemetaan Profile dan Mode.
+`channel add` memandu Anda melalui token bot, pengguna yang diizinkan, profil, dan pemetaan mode.
 
 #### Platform yang didukung
 
-| Platform | Penyerapan | Tombol interaktif | Catatan |
+| Platform | Ingestion | Tombol interaktif | Catatan |
 |----------|-----------|-------------------|---------|
 | Telegram | Long-polling + webhook | Inline keyboard | Paling lengkap |
-| Slack | Event subscription webhook | Block Kit actions | Terverifikasi HMAC-SHA256 |
-| Discord | Interaction webhook | Action row components | Terverifikasi Ed25519 |
+| Slack | Event subscription webhook | Block Kit actions | Diverifikasi HMAC-SHA256 |
+| Discord | Interaction webhook | Action row components | Diverifikasi Ed25519 |
 
-#### Perintah bot Channel
+#### Perintah bot channel
 
-Setelah berjalan, bot merespons perintah-perintah ini dalam obrolan:
+Setelah berjalan, bot merespons perintah-perintah berikut di chat:
 
 - `/help` — Tampilkan perintah yang tersedia
 - `/cancel` — Batalkan tugas saat ini
-- `/model` — Ganti model Claude (tombol interaktif)
-- `/yolo` — Toggle izin auto-allow
-- `/status` — Tampilkan status sesi, Profile, Mode, cabang git, dan penggunaan token
-- `/sessions` — Tampilkan daftar sesi Claude terbaru (dengan tombol switch)
-- `/projects` — Tampilkan daftar proyek (dengan tombol telusuri)
+- `/model` — Ubah model Claude (tombol interaktif)
+- `/yolo` — Aktifkan/nonaktifkan izin otomatis
+- `/status` — Tampilkan status sesi, profil, mode, branch git, dan penggunaan token
+- `/sessions` — Daftar sesi Claude terbaru (dengan tombol beralih)
+- `/projects` — Daftar proyek (dengan tombol jelajahi)
 - `/new` — Mulai sesi baru
 - `/history` — Tampilkan riwayat sesi terbaru
 
-Kirim teks lain apa pun untuk berbicara langsung dengan Claude.
+Kirim teks lainnya untuk berbicara langsung dengan Claude.
 
-#### Prompt izin (Permission prompts)
+#### Prompt izin
 
-Saat Claude meminta persetujuan untuk menggunakan alat (menjalankan perintah, mengedit file, dll.), bot mengirimkan prompt Allow/Deny interaktif ke obrolan Anda. Mengetuk tombol mengirimkan respons kembali ke Claude dan pemrosesan berlanjut secara otomatis.
+Ketika Claude meminta persetujuan untuk menggunakan tool (menjalankan perintah, mengedit file, dll.),
+bot mengirimkan prompt interaktif Izinkan/Tolak ke chat Anda. Mengetuk tombol
+mengirimkan respons kembali ke Claude dan pemrosesan berlanjut secara otomatis.
 
-#### Secrets
+#### Rahasia
 
-Simpan credential di `~/.claudy/secrets.env`:
+Simpan kredensial channel di `~/.claudy/secrets.env` (lihat [Kredensial penyedia](#kredensial-penyedia-secretsenv) untuk format lengkapnya):
 
 ```env
 TELEGRAM_BOT_TOKEN=...
@@ -269,19 +317,21 @@ DISCORD_APPLICATION_ID=...
 DISCORD_PUBLIC_KEY=...
 ```
 
-### Agent MCP bridge
+</details>
 
-Jalankan `claudy mcp` untuk memulai server MCP berbasis stdio yang memungkinkan Claude Code mendelegasikan tugas ke agen AI coding lokal lainnya.
+## Bridge MCP agen
+
+Jalankan `claudy mcp` untuk memulai server MCP berbasis stdio yang memungkinkan Claude Code mendelegasikan tugas ke agen coding AI lainnya yang terinstal secara lokal.
 
 ```bash
 claudy mcp run        # Mulai server MCP (dipanggil oleh Claude Code)
-claudy mcp install    # Daftarkan claudy sebagai MCP server di pengaturan Claude Code
+claudy mcp install    # Daftarkan claudy sebagai server MCP di pengaturan Claude Code
 claudy mcp uninstall  # Hapus claudy dari pengaturan MCP Claude Code
 ```
 
-`claudy mcp install` secara otomatis mendaftarkan dirinya di `~/.claude/settings.json`. Saat Anda membuat Mode dengan `claudy mode create <name>`, ia juga mendaftar di file pengaturan Mode. Tidak diperlukan konfigurasi manual.
+`claudy mcp install` secara otomatis mendaftarkan dirinya di `~/.claude/settings.json`. Ketika Anda membuat mode dengan `claudy mode create <name>`, ia juga mendaftar di file pengaturan mode tersebut. Tidak perlu konfigurasi manual.
 
-Untuk mendaftar secara manual (atau di `.claude/settings.json` tingkat proyek):
+Untuk mendaftar secara manual (atau di `settings.json` tingkat proyek `.claude/`):
 
 ```json
 {
@@ -294,9 +344,9 @@ Untuk mendaftar secara manual (atau di `.claude/settings.json` tingkat proyek):
 }
 ```
 
-Claude Code akan melihat alat `ask_agent` yang mengekspos semua agen yang terinstal.
+Claude Code akan melihat tool `ask_agent` yang mengekspos semua agen yang terinstal.
 
-#### Contoh penggunaan
+### Contoh penggunaan
 
 Setelah terdaftar, Claude Code dapat mendelegasikan tugas seperti ini:
 
@@ -306,25 +356,25 @@ Setelah terdaftar, Claude Code dapat mendelegasikan tugas seperti ini:
 > Ask aider to refactor the database layer
 ```
 
-Claude Code memilih agen yang tepat, meneruskan prompt, dan mengembalikan hasilnya. Anda juga dapat menentukan direktori kerja:
+Claude Code memilih agen yang sesuai, meneruskan prompt, dan mengembalikan hasilnya. Anda juga dapat menentukan direktori kerja:
 
 ```json
 { "agent": "gemini", "prompt": "Explain this module", "working_directory": "/path/to/project" }
 ```
 
-#### Verifikasi registrasi MCP
+### Verifikasi pendaftaran MCP
 
 ```bash
-# Periksa apakah claudy sudah terdaftar
+# Periksa apakah claudy terdaftar
 cat ~/.claude/settings.json | grep -A3 claudy
 
 # Uji server MCP secara manual
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp run
 ```
 
-#### Agen yang didukung (auto-detected dari PATH)
+### Agen yang didukung (otomatis terdeteksi dari PATH)
 
-| Agent | Binary | Headless command |
+| Agen | Binary | Perintah headless |
 |-------|--------|-----------------|
 | Gemini CLI | `gemini` | `gemini -p "..." --output-format text` |
 | Codex CLI | `codex` | `codex exec "..."` |
@@ -347,46 +397,42 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp r
 | Kilo Code | `kilo` | `kilo "..."` |
 | OpenHands | `openhands` | `openhands "..."` |
 
-#### Agen kustom
+### Agen kustom
 
-Tambahkan agen di `~/.claudy/config.yaml`:
+Tambahkan agen di `~/.claudy/config.yaml` di bawah kunci `agents` (lihat [Konfigurasi](#configyaml-schema) untuk skema lengkapnya):
 
-```json
-{
-  "agents": {
-    "my-agent": {
-      "binary": "my-agent",
-      "args": ["--prompt", "{prompt}", "--no-interactive"],
-      "description": "My custom agent",
-      "timeout": 180
-    }
-  }
-}
+```yaml
+agents:
+  my-agent:
+    binary: "my-agent"
+    args: ["--prompt", "{prompt}", "--no-interactive"]
+    description: "My custom agent"
+    timeout: 180
 ```
 
-Kunci yang sama dengan agen bawaan akan menimpa nilai default-nya. `{prompt}` dalam `args` diganti dengan tugas yang sebenarnya.
+Kunci yang sama dengan agen bawaan akan menimpa defaultnya. `{prompt}` dalam `args` akan diganti dengan tugas yang sebenarnya.
 
-### Perintah Analytics
+## Analitik penggunaan
 
-> **Catatan**: Fitur analytics masih dalam pengembangan. Jumlah token, estimasi biaya, dan metrik lainnya mungkin belum sepenuhnya akurat. Perbaikan diharapkan pada rilis mendatang.
+> **Catatan**: Fitur analitik masih dalam tahap pengembangan. Jumlah token, estimasi biaya, dan metrik lainnya mungkin belum sepenuhnya akurat. Harapkan penyempurnaan di rilis mendatang.
 
 ```bash
-claudy analytics dashboard         # Buka dashboard analytics lokal (Tauri 2)
+claudy analytics dashboard         # Buka dasbor analitik lokal (Tauri 2)
 claudy analytics ingest            # Serap data sesi dari ~/.claude/projects/
-claudy analytics ingest --full     # Serap ulang semua file (abaikan checkpoints)
+claudy analytics ingest --full     # Serap ulang semua file (abaikan checkpoint)
 claudy analytics ingest --project my-project  # Serap proyek tertentu
 claudy analytics recommend         # Tampilkan rekomendasi penggunaan di CLI
-claudy analytics export            # Ekspor data analytics (JSON, default 30 hari)
+claudy analytics export            # Ekspor data analitik (JSON, default 30 hari)
 claudy analytics export --format csv --days 7  # Ekspor sebagai CSV untuk 7 hari terakhir
 claudy analytics sync-pricing      # Sinkronkan harga model dari models.dev dan halaman harga Anthropic
 claudy analytics recalculate       # Hitung ulang semua biaya menggunakan data harga terbaru
-claudy analytics insights          # Buat ringkasan JSON kompak untuk analisis LLM (default: 7 hari)
+claudy analytics insights          # Buat ringkasan insight JSON ringkas (default: 7 hari)
 claudy analytics insights --days 14  # Analisis 14 hari terakhir
-claudy analytics insights --from 2026-04-01 --to 2026-04-30  # Rentang tanggal spesifik
+claudy analytics insights --from 2026-04-01 --to 2026-04-30  # Rentang tanggal tertentu
 claudy analytics insights --project my-project  # Filter berdasarkan proyek
 ```
 
-### Inside Claude Code: `/analytics-insights`
+### Di dalam Claude Code: `/analytics-insights`
 
 Cara tercepat untuk menganalisis penggunaan Anda adalah langsung di dalam Claude Code. Skill `analytics-insights` tersedia secara otomatis — cukup tanyakan secara alami:
 
@@ -401,8 +447,8 @@ Claude menjalankan `claudy analytics insights`, menganalisis JSON, dan mengembal
 
 - **Tren biaya** — pengeluaran harian/mingguan dengan deteksi lonjakan
 - **Distribusi model** — model mana yang Anda gunakan dan berapa biayanya per sesi
-- **Pola alat** — alat yang paling sering digunakan, tingkat kesalahan, observasi efisiensi
-- **Performa cache** — rasio hit dan penghematan yang diperkirakan
+- **Pola tool** — tool yang paling sering digunakan, tingkat kesalahan, observasi efisiensi
+- **Performa cache** — rasio hit dan estimasi penghematan
 - **Rekomendasi yang dapat ditindaklanjuti** — saran spesifik seperti "arahkan tugas sederhana ke turbo" dengan estimasi penghematan dalam dolar
 
 Contoh output (lihat [`docs/examples/analytics-insights-sample.json`](docs/examples/analytics-insights-sample.json) untuk data mentah):
@@ -418,24 +464,30 @@ sharply upward — last 3 weekdays averaged $97/day.
 3. Reduce harness overhead — TaskCreate/Update accounted for ~1,000 calls
 ```
 
-Tanpa perintah manual, tanpa berpindah konteks. Tanyakan kepada Claude tentang penggunaan Anda dan dapatkan jawaban secara instan.
+Tanpa perintah manual, tanpa berganti konteks. Tanyakan kepada Claude tentang penggunaan Anda dan dapatkan jawaban secara instan.
 
-Analytics melacak:
+### Apa yang dilacak analitik
 
-- **Tokens**: Tren terperinci token input, output, dan cache selama 30 hari terakhir, dikelompokkan berdasarkan model dan tanggal.
-- **Tools**: Analisis distribusi yang menunjukkan alat mana yang paling sering digunakan Claude, termasuk jumlah panggilan, tingkat kesalahan, dan waktu eksekusi rata-rata.
-- **Cost**: Estimasi real-time biaya penggunaan berdasarkan harga token aktual, termasuk perkiraan harian/mingguan/bulanan dan deteksi tren (increasing/stable/decreasing).
-- **Tips (Recommendations)**: Saran optimasi berbasis data, seperti mendeteksi sesi berbiaya tinggi, menyarankan Haiku untuk tugas sederhana, dan mengidentifikasi percakapan panjang yang bisa mendapat manfaat dari ringkasan konteks.
-- **Projects**: Secara otomatis memetakan UUID sesi yang tidak mudah dibaca ke nama folder proyek yang dapat dibaca manusia untuk konteks yang lebih baik.
+- **Token**: Tren detail token input, output, dan cache selama 30 hari terakhir, dikelompokkan berdasarkan model dan tanggal.
+- **Tool**: Analisis distribusi yang menunjukkan tool mana yang paling sering digunakan Claude, termasuk jumlah pemanggilan, tingkat kesalahan, dan waktu eksekusi rata-rata.
+- **Biaya**: Estimasi biaya penggunaan secara real-time berdasarkan harga token aktual, termasuk perkiraan harian/mingguan/bulanan dan deteksi tren (meningkat/stabil/menurun).
+- **Tips (Rekomendasi)**: Saran optimasi berbasis data, seperti mendeteksi sesi berbiaya tinggi, menyarankan Haiku untuk tugas sederhana, dan mengidentifikasi percakapan panjang yang dapat diuntungkan dari ringkasan konteks.
+- **Proyek**: Secara otomatis memetakan UUID sesi kriptik ke nama folder proyek yang dapat dibaca manusia untuk konteks yang lebih baik.
 
-Data disimpan dalam database SQLite lokal di `~/.claudy/analytics/`. Dashboard berjalan sebagai aplikasi Tauri 2 + Svelte lokal berkinerja tinggi. Gunakan tombol **[Sync]** di dashboard untuk langsung menyegarkan data dari riwayat Claude CLI Anda.
+Data disimpan dalam database SQLite lokal di `~/.claudy/analytics/`. Dasbor berjalan sebagai aplikasi lokal Tauri 2 + Svelte berkinerja tinggi. Gunakan tombol **[Sync]** di dasbor untuk menyegarkan data secara instan dari riwayat Claude CLI Anda.
 
+### Dasbor analitik
+```bash
+claudy analytics dashboard
+```
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../assets/analytics-dashboard.png">
-  <img alt="Analytics Dashboard" src="../assets/analytics-dashboard.png" width="100%">
+  <img alt="Dasbor Analitik" src="../assets/analytics-dashboard.png" width="100%">
 </picture>
 
-## Tata Letak File dan Direktori
+---
+
+## File dan tata letak direktori
 
 Secara default, Claudy menyimpan data di:
 
@@ -445,63 +497,63 @@ Secara default, Claudy menyimpan data di:
 
 File/direktori penting:
 
-- `config.yaml`: konfigurasi provider + channel + agent.
-- `secrets.env`: credential provider/bot.
-- `launchers.json`: manifest launcher/symlink.
-- `modes/`: Claude config modes.
+- `config.yaml`: konfigurasi penyedia + channel + agen.
+- `secrets.env`: kredensial penyedia/bot.
+- `launchers.json`: manifes launcher/symlink.
+- `modes/`: mode konfigurasi Claude.
 - `session-patches/`: penyimpanan patch sesi.
 - `channel/`: status runtime channel (`pid`, sesi, log audit).
-- `analytics/`: database SQLite analytics dan checkpoints.
+- `analytics/`: database SQLite analitik dan checkpoint.
 - `cache/update.json`: cache metadata pembaruan.
 
-## Variabel Lingkungan
+## Variabel lingkungan
 
 - `CLAUDY_HOME`: timpa direktori home Claudy (default: `~/.claudy`).
-- `CLAUDE_CONFIG_DIR`: diatur otomatis oleh Claudy saat meluncurkan dengan Mode.
+- `CLAUDE_CONFIG_DIR`: diatur secara otomatis oleh Claudy saat meluncurkan dengan mode.
 
-## Alur Kerja Umum
+## Alur kerja umum
 
-### Konfigurasi dan jalankan provider
+### Konfigurasi dan jalankan penyedia
 
 ```bash
 claudy setup
 claudy <profile>
 ```
 
-### Gunakan Mode dengan provider
+### Gunakan mode dengan penyedia
 
 ```bash
 claudy mode create work
 claudy <profile> work --yolo
 ```
 
-> `--yolo` adalah singkatan claudy untuk `--dangerously-skip-permissions`.
+> `--yolo` adalah shorthand claudy untuk `--dangerously-skip-permissions`.
 
-### Menjalankan Framework Claude Khusus dalam Mode-nya Sendiri
+### Jalankan framework Claude khusus dalam modenya sendiri
 
-Framework seperti gstack, superpowers, atau ecc membawa `CLAUDE.md`, skill, dan agen mereka sendiri. Jalankan secara terisolasi:
+Framework seperti gstack, superpowers, atau ecc menyertakan `CLAUDE.md`, skill, dan agen mereka sendiri. Jaga agar tetap terisolasi:
 
 ```bash
-# Pengaturan sekali: buat Mode dan muat konfigurasi framework
+# Penyiapan satu kali: buat mode dan isi dengan konfigurasi framework
 claudy mode create gstack
 cp -r /path/to/gstack/.claude/. ~/.claudy/modes/gstack/
 
-# Penggunaan harian: jalankan Claude dengan framework aktif
+# Penggunaan sehari-hari: jalankan Claude dengan framework aktif
 claudy <profile> gstack
 ```
 
-Beralih antar framework tanpa mengubah konfigurasi default:
+Beralih antara framework tanpa menyentuh konfigurasi default Anda:
 
 ```bash
 claudy <profile> gstack      # framework gstack aktif
 claudy <profile> superpowers # framework superpowers aktif
-claudy <profile>             # konfigurasi default, tidak berubah
+claudy <profile>             # konfigurasi default Anda, tidak berubah
 ```
 
 ### Delegasikan tugas ke agen lain melalui MCP
 
 ```bash
-# 1) Pastikan MCP sudah terdaftar (terjadi otomatis pada `claudy mcp` pertama)
+# 1) Pastikan MCP terdaftar (terjadi secara otomatis pada `claudy mcp` pertama)
 claudy mcp
 
 # 2) Di Claude Code, minta untuk mendelegasikan ke agen yang terinstal:
@@ -516,19 +568,19 @@ claudy doctor
 claudy ping
 ```
 
-## Pemecahan Masalah
+## Pemecahan masalah
 
-- **`profile not recognized`**: jalankan `claudy ls` dan pilih ID Profile yang terdaftar.
-- **Profile dengan status `not configured`**: jalankan `claudy setup <provider>` untuk menambahkan credential.
-- **Channel status tidak sehat**: jalankan `claudy channel status`, lalu restart dengan `claudy channel stop` dan `claudy channel start`.
-- **Bot Channel tidak merespons**: periksa `~/.claudy/channel/logs/server.log` untuk kesalahan. Verifikasi bot token di `~/.claudy/secrets.env` dan pastikan `allowed_users` mencakup ID pengguna obrolan Anda.
-- **Permission prompt tidak muncul**: pastikan Claude CLI tidak berjalan dengan `--dangerously-skip-permissions`. Prompt hanya terpicu saat Claude membutuhkan persetujuan eksplisit untuk penggunaan alat.
-- **Binary tidak ditemukan setelah instalasi**: pastikan direktori bin Claudy ada di `PATH`, lalu restart shell Anda.
+- **`profile not recognized`**: jalankan `claudy ls` dan pilih ID profil yang terdaftar.
+- **Profil `not configured`**: jalankan `claudy setup <provider>` untuk menambahkan kredensial.
+- **Status channel tidak sehat**: jalankan `claudy channel status`, lalu restart dengan `claudy channel stop` dan `claudy channel start`.
+- **Bot channel tidak merespons**: periksa `~/.claudy/channel/logs/server.log` untuk kesalahan. Verifikasi token bot di `~/.claudy/secrets.env` dan pastikan `allowed_users` menyertakan ID pengguna chat Anda.
+- **Prompt izin tidak muncul**: pastikan Claude CLI tidak berjalan dengan `--dangerously-skip-permissions`. Prompt hanya muncul ketika Claude membutuhkan persetujuan eksplisit untuk penggunaan tool.
+- **Binary tidak ditemukan setelah instalasi**: lihat catatan PATH di bagian [Verifikasi](#verify).
 - **Agen tidak muncul di MCP**: pastikan binary agen ada di `PATH` (`which gemini`). Hanya agen yang terinstal yang muncul di `tools/list`.
-- **Agent timeout**: tingkatkan timeout di field agents `config.yaml` (default: 120s).
-- **MCP belum terdaftar**: jalankan `claudy mcp` sekali secara manual, atau periksa entri `mcpServers.claudy` di `~/.claude/settings.json`.
-- **Output agen terpotong**: stdout agen dibatasi 10MB. Untuk output besar, arahkan agen untuk menulis ke file.
-- **Data Analytics hilang**: jalankan `claudy analytics ingest` untuk mengisi dari `~/.claude/projects/`. Gunakan `--full` untuk menyerap ulang semuanya.
+- **Waktu habis agen**: tingkatkan timeout di field agents `config.yaml` (default: 120d).
+- **MCP tidak terdaftar**: jalankan `claudy mcp` sekali secara manual, atau periksa `~/.claude/settings.json` untuk entri `mcpServers.claudy`.
+- **Output agen terpotong**: stdout agen dibatasi hingga 10MB. Untuk output besar, arahkan agen untuk menulis ke file sebagai gantinya.
+- **Data analitik hilang**: jalankan `claudy analytics ingest` untuk mengisi dari `~/.claude/projects/`. Gunakan `--full` untuk menyerap ulang semuanya.
 
 ## Pengembangan
 
@@ -538,27 +590,27 @@ cargo test
 cargo fmt
 cargo clippy -- -D warnings
 
-# Uji analytics backend (menggunakan DB lokal)
+# Uji backend analitik (menggunakan DB lokal)
 cargo run --example test_dashboard --features analytics-ui
 
-# Luncurkan analytics dashboard (memerlukan fitur analytics-ui)
+# Jalankan dasbor analitik (memerlukan fitur analytics-ui)
 cargo run --features analytics-ui -- analytics dashboard
 ```
 
 ## Berkontribusi
 
-Kontribusi sangat disambut! Berikut cara memulainya:
+Kontribusi sangat diterima! Berikut cara untuk memulai:
 
 1. Fork repositori dan buat branch fitur.
-2. Lakukan perubahan Anda dengan pengujian yang sesuai.
+2. Buat perubahan Anda dengan pengujian jika sesuai.
 3. Jalankan `cargo test && cargo clippy -- -D warnings` sebelum mengirimkan.
 4. Buka Pull Request di https://github.com/epicsagas/claudy.
 
-Laporan bug dan permintaan fitur disambut melalui [GitHub Issues](https://github.com/epicsagas/claudy/issues).
+Laporan bug dan permintaan fitur diterima melalui [GitHub Issues](https://github.com/epicsagas/claudy/issues).
 
-## Penghargaan
+## Ucapan terima kasih
 
-Proyek ini terinspirasi dari [Clother](https://github.com/jolehuit/clother), launcher multi-provider berbasis Go untuk Claude CLI. Claudy adalah implementasi Rust yang independen, dirancang ulang dari awal dengan RAII-based session guards, penerusan sinyal, launcher symlinks, dan integrasi ekosistem yang mendalam termasuk **Channel Bridge berfitur lengkap** (Telegram/Slack/Discord), **Agent MCP Bridge** untuk delegasi lintas agen, dan **Analytics Dashboard berkinerja tinggi** yang dibangun dengan Tauri 2. Penambahan-penambahan ini mencerminkan transisi Claudy dari launcher sederhana menjadi toolkit operasional komprehensif bagi pengguna Claude CLI.
+Proyek ini terinspirasi oleh [Clother](https://github.com/jolehuit/clother), peluncur multi-penyedia berbasis Go untuk Claude CLI. Claudy adalah implementasi Rust independen, didesain ulang dari awal dengan session guard berbasis RAII, penerusan sinyal, symlink launcher, dan integrasi ekosistem mendalam termasuk **Bridge Channel berfitur lengkap** (Telegram/Slack/Discord), **Agent MCP Bridge** untuk delegasi lintas-agen, dan **Dasbor Analitik berkinerja tinggi** yang dibangun dengan Tauri 2. Penambahan ini mencerminkan transisi Claudy dari peluncur sederhana menjadi toolkit operasional komprehensif untuk pengguna Claude CLI.
 
 ## Lisensi
 
