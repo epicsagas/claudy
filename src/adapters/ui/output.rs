@@ -112,7 +112,10 @@ impl Output {
     }
 }
 
-pub fn banner(target: &crate::domain::launch_blueprint::LaunchTarget, mode: Option<&str>) -> String {
+pub fn banner(
+    target: &crate::domain::launch_blueprint::LaunchTarget,
+    mode: Option<&str>,
+) -> String {
     use std::time::SystemTime;
 
     let tip = random_tip();
@@ -128,8 +131,8 @@ pub fn banner(target: &crate::domain::launch_blueprint::LaunchTarget, mode: Opti
     let bright = "\x1b[1m";
     let reset = "\x1b[0m";
     let dim = "\x1b[2m";
-    let label_color = "\x1b[38;5;245m";   // muted (#707a8a)
-    let accent_color = "\x1b[38;5;220m";  // yellow (#fcd535)
+    let label_color = "\x1b[38;5;245m"; // muted (#707a8a)
+    let accent_color = "\x1b[38;5;220m"; // yellow (#fcd535)
     let palette_accent = palette[0];
 
     // Title line
@@ -143,17 +146,12 @@ pub fn banner(target: &crate::domain::launch_blueprint::LaunchTarget, mode: Opti
     let mode_val = mode.unwrap_or("default");
     let info1 = format!(
         "  {label_color}Profile{reset}   {bright}{:<10}{reset}{label_color}Provider{reset}   {bright}{:<10}{reset}{label_color}Mode{reset}   {bright}{}{reset}",
-        target.profile,
-        target.display_name,
-        mode_val,
+        target.profile, target.display_name, mode_val,
     );
 
     // Info line 2: Models
     let models = format_model_tiers(&target.model, &target.model_tiers);
-    let info2 = format!(
-        "  {label_color}Models{reset}    {bright}{}{reset}",
-        models,
-    );
+    let info2 = format!("  {label_color}Models{reset}    {bright}{}{reset}", models,);
 
     // Commands line
     let commands = format!(
@@ -161,14 +159,9 @@ pub fn banner(target: &crate::domain::launch_blueprint::LaunchTarget, mode: Opti
     );
 
     // Tip line
-    let tip_line = format!(
-        "  {label_color}TIP{reset}       {dim}{}{reset}",
-        tip,
-    );
+    let tip_line = format!("  {label_color}TIP{reset}       {dim}{}{reset}", tip,);
 
-    format!(
-        "\n{art}{title}\n\n{info1}\n{info2}\n\n{commands}\n{tip_line}\n\n"
-    )
+    format!("\n{art}{title}\n\n{info1}\n{info2}\n\n{commands}\n{tip_line}\n\n")
 }
 
 fn format_model_tiers(default: &str, tiers: &std::collections::HashMap<String, String>) -> String {
@@ -200,7 +193,12 @@ fn shorten_model_name(model: &str) -> &str {
         if parts.len() >= 3 {
             // Remove the date suffix (e.g., "20250514")
             while parts.len() > 2 {
-                if parts.last().map(|p| p.starts_with(char::is_numeric)).unwrap_or(false) && parts.last().map(|p| p.len() == 8).unwrap_or(false) {
+                if parts
+                    .last()
+                    .map(|p| p.starts_with(char::is_numeric))
+                    .unwrap_or(false)
+                    && parts.last().map(|p| p.len() == 8).unwrap_or(false)
+                {
                     parts.pop();
                 } else {
                     break;

@@ -7,14 +7,16 @@ fn main() {
         let dist_dir = ui_dir.join("dist");
 
         if !dist_dir.join("assets").exists() && ui_dir.join("package.json").exists() {
-            let status = std::process::Command::new("npm")
+            let npm = if cfg!(windows) { "npm.cmd" } else { "npm" };
+
+            let status = std::process::Command::new(npm)
                 .arg("ci")
                 .current_dir(&ui_dir)
                 .status()
                 .expect("failed to run npm ci");
             assert!(status.success(), "npm ci failed for analytics dashboard");
 
-            let status = std::process::Command::new("npm")
+            let status = std::process::Command::new(npm)
                 .arg("run")
                 .arg("build")
                 .current_dir(&ui_dir)
