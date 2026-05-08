@@ -8,6 +8,18 @@ license = "Apache-2.0"
 repository = "https://github.com/epicsagas/claudy"
 homepage = "https://github.com/epicsagas/claudy"
 authors = ["epicsagas"]
+keywords = ["claude", "cli", "launcher", "ai", "multi-provider"]
+categories = ["command-line-utilities", "development-tools"]
+exclude = [
+    "ui/node_modules/",
+    "ui/dist/",
+    "stitch-screens/",
+    "scripts/",
+    "wix/",
+    "docs/i18n/",
+    ".github/",
+    ".claude/",
+]
 
 [package.metadata.wix]
 upgrade-guid = "D995884F-247F-4EA1-B756-FD4B02F7CD4B"
