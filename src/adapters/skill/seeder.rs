@@ -6,7 +6,7 @@ use std::path::Path;
 fn bundled_skills() -> Vec<(&'static str, &'static str)> {
     vec![(
         "analytics-insights",
-        include_str!("../../../.claude/skills/analytics-insights/SKILL.md"),
+        include_str!("bundled/analytics-insights.md"),
     )]
 }
 
