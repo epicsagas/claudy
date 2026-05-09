@@ -38,8 +38,15 @@ async fn do_edit(
         message_ref: Some(initial_message_id.to_string()),
         interaction: None,
     };
-    let policy = RetryPolicy::for_platform(channel_identity.platform);
-    if let Err(e) = retry_edit(channel, &edit_msg, &policy).await {
+    // Streaming edits are high-frequency — use a fast retry policy to avoid
+    // blocking the stream pipeline on platform API issues.
+    let fast_policy = RetryPolicy {
+        max_attempts: 2,
+        base_delay: std::time::Duration::from_millis(500),
+        max_delay: std::time::Duration::from_secs(1),
+        jitter: false,
+    };
+    if let Err(e) = retry_edit(channel, &edit_msg, &fast_policy).await {
         let err_str = e.to_string();
         // Silently ignore "not modified" — content is already up to date
         if err_str.contains("not modified") {

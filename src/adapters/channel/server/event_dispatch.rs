@@ -559,8 +559,16 @@ pub(super) async fn handle_bot_command(
 }
 
 /// Check if a process with the given PID is still alive (Unix signal-0 probe).
+/// Returns `true` if the process exists (including the EPERM case where it is
+/// alive but owned by another user). Returns `false` only on ESRCH (no such process).
 fn is_pid_alive(pid: u32) -> bool {
-    unsafe { libc::kill(pid as i32, 0) == 0 }
+    unsafe {
+        if libc::kill(pid as i32, 0) == 0 {
+            return true;
+        }
+        // EPERM means the process exists but we lack permission to signal it.
+        *libc::__error() != libc::ESRCH
+    }
 }
 
 #[cfg(test)]
