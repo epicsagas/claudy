@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
-use super::components::to_action_row;
+use super::components::to_components_value;
 use crate::domain::channel_events::InteractionButtons;
 
 const API_BASE: &str = "https://discord.com/api/v10";
@@ -61,12 +61,17 @@ impl DiscordApi {
         content: &str,
         interaction: Option<&InteractionButtons>,
     ) -> Result<DiscordMessage> {
-        let mut body = serde_json::json!({ "content": content });
+        let mut body = serde_json::json!({});
+        if !content.is_empty() {
+            body.as_object_mut()
+                .expect("body is always an object")
+                .insert("content".into(), serde_json::json!(content));
+        }
 
         if let Some(buttons) = interaction {
             body.as_object_mut()
                 .expect("body is always an object")
-                .insert("components".into(), to_action_row(buttons));
+                .insert("components".into(), to_components_value(buttons));
         }
 
         let url = format!("{API_BASE}/channels/{channel_id}/messages");
@@ -104,13 +109,18 @@ impl DiscordApi {
         content: &str,
         interaction: Option<&InteractionButtons>,
     ) -> Result<()> {
-        let mut body = serde_json::json!({ "content": content });
+        let mut body = serde_json::json!({});
+        if !content.is_empty() {
+            body.as_object_mut()
+                .expect("body is always an object")
+                .insert("content".into(), serde_json::json!(content));
+        }
 
         match interaction {
             Some(buttons) => {
                 body.as_object_mut()
                     .expect("body is always an object")
-                    .insert("components".into(), to_action_row(buttons));
+                    .insert("components".into(), to_components_value(buttons));
             }
             None => {
                 body.as_object_mut()

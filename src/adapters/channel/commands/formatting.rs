@@ -8,6 +8,8 @@ pub(crate) async fn reply(
     channel_id: &ChannelIdentity,
     text: &str,
 ) -> anyhow::Result<()> {
+    let max = channel_id.platform.max_message_length();
+    let text = truncate_chars(text, max);
     channel
         .send_message(&OutboundMessage {
             conversation_id: ConversationId::new(),
@@ -27,6 +29,8 @@ pub(crate) async fn reply_with_buttons(
     prompt_text: &str,
     buttons: Vec<Button>,
 ) -> anyhow::Result<()> {
+    let max = channel_id.platform.max_message_length();
+    let text = truncate_chars(&text, max).to_string();
     channel
         .send_message(&OutboundMessage {
             conversation_id: ConversationId::new(),
@@ -57,7 +61,11 @@ pub(crate) fn session_buttons(sessions: &[super::super::sessions::SessionInfo]) 
             let short = truncate_chars(preview, 40);
             let label = format!("{} - {}", s.project_name, short);
             Button {
-                id: truncate_button_id(&format!("sess:{}:{}", s.project, &s.session_id[..8])),
+                id: truncate_button_id(&format!(
+                    "sess:{}:{}",
+                    s.project,
+                    &s.session_id[..8.min(s.session_id.len())]
+                )),
                 label,
             }
         })
