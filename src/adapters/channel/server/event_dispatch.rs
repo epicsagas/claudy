@@ -218,18 +218,27 @@ pub(super) async fn handle_text_message(
         &msg.channel.user_id,
     );
 
-    // Reject if a Claude process is already running for this scope
-    if state.active_claude.lock().await.contains_key(&scope) {
-        let _ = channel
-            .send_message(&OutboundMessage {
-                conversation_id: msg.conversation_id.clone(),
-                channel: msg.channel.clone(),
-                text: "Busy — type /cancel first, then retry.".to_string(),
-                message_ref: None,
-                interaction: None,
-            })
-            .await;
-        return Ok(());
+    // Reject if a Claude process is already running for this scope,
+    // but clean up stale PIDs where the process has already exited.
+    {
+        let mut active = state.active_claude.lock().await;
+        if let Some(&pid) = active.get(&scope) {
+            if is_pid_alive(pid) {
+                drop(active);
+                let _ = channel
+                    .send_message(&OutboundMessage {
+                        conversation_id: msg.conversation_id.clone(),
+                        channel: msg.channel.clone(),
+                        text: "Busy — type /cancel first, then retry.".to_string(),
+                        message_ref: None,
+                        interaction: None,
+                    })
+                    .await;
+                return Ok(());
+            }
+            tracing::warn!(pid, scope = %scope, "Cleaning up stale Claude PID");
+            active.remove(&scope);
+        }
     }
 
     let profile = state.channel_config.profile_for_channel(
@@ -545,5 +554,26 @@ pub(super) async fn handle_bot_command(
                 .await?;
             Ok(())
         }
+    }
+}
+
+/// Check if a process with the given PID is still alive (Unix signal-0 probe).
+fn is_pid_alive(pid: u32) -> bool {
+    unsafe { libc::kill(pid as i32, 0) == 0 }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_pid_alive_returns_true_for_current_process() {
+        let pid = std::process::id();
+        assert!(is_pid_alive(pid), "Current process PID should be alive");
+    }
+
+    #[test]
+    fn is_pid_alive_returns_false_for_nonexistent_pid() {
+        assert!(!is_pid_alive(99_999_999), "Very large PID should not exist");
     }
 }
