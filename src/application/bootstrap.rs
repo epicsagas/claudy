@@ -19,6 +19,11 @@ pub fn run_cli_session(argv0: &str, args: &[String]) -> anyhow::Result<i32> {
         }
     }
 
+    // Warn on deprecated top-level "ls" alias
+    if args.first().is_some_and(|a| a == "ls") {
+        eprintln!("[deprecated] 'ls' is deprecated, use 'list' instead.");
+    }
+
     let cli = crate::adapters::cli::args::Cli::parse();
     let paths = crate::config::layout::discover()?;
     let catalog = crate::providers::index::load_index()?;

@@ -253,7 +253,7 @@ Each mode directory is a self-contained `CLAUDE_CONFIG_DIR`, so frameworks never
 ```bash
 claudy mode create <name>
 claudy mode ls
-claudy mode rm <name>
+claudy mode remove <name>
 ```
 
 Mode name rule: `[a-z0-9][a-z0-9_-]*` (`mode` is reserved).

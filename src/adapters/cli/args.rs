@@ -10,8 +10,8 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// List configured providers
-    #[command(name = "ls", alias = "list")]
-    Ls,
+    #[command(name = "list", alias = "ls")]
+    List,
 
     /// Interactive provider configuration
     #[command(name = "setup", alias = "config")]
@@ -51,9 +51,9 @@ pub enum Commands {
     /// Manage Claude configuration modes
     #[command(name = "mode")]
     Mode {
-        /// Action: create, ls, rm
+        /// Action: create, list, remove
         action: String,
-        /// Mode name (for create/rm)
+        /// Mode name (for create/remove)
         name: Option<String>,
     },
 

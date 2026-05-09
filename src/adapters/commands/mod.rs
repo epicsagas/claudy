@@ -27,7 +27,7 @@ impl crate::ports::command_ports::CommandGateway for LegacyCommandAdapter {
 
 pub fn map_cli_to_domain(command: Commands) -> DomainCommand {
     match command {
-        Commands::Ls => DomainCommand::List,
+        Commands::List => DomainCommand::List,
         Commands::Setup { provider } => DomainCommand::Setup { provider },
         Commands::Show { profile } => DomainCommand::Show { profile },
         Commands::Ping { profile } => DomainCommand::Ping { profile },

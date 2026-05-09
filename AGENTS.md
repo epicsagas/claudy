@@ -4,7 +4,7 @@
 - Build: `cargo build` | Build release: `cargo build --release`
 - Test: `cargo test` | Test single: `cargo test --lib <module>::tests::<fn_name>`
 - Lint: `cargo clippy -- -D warnings` | Format: `cargo fmt`
-- Run: `cargo run -- <subcommand>` (e.g. `cargo run -- ls`)
+- Run: `cargo run -- <subcommand>` (e.g. `cargo run -- list`)
 - Gen/Sync: N/A
 
 ## Project Structure

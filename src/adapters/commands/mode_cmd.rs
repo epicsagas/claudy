@@ -2,13 +2,31 @@ use std::path::Path;
 
 use crate::domain::context::Context;
 
+fn warn_deprecated(old: &str, new: &str) {
+    eprintln!(
+        "[deprecated] '{}' is deprecated, use '{}' instead.",
+        old, new
+    );
+}
+
 pub fn run_mode(ctx: &mut Context, action: &str, name: Option<&str>) -> anyhow::Result<i32> {
     match action {
         "create" => run_mode_create(ctx, name),
-        "ls" | "list" => run_mode_ls(ctx),
-        "rm" | "remove" => run_mode_rm(ctx, name),
+        "ls" => {
+            warn_deprecated("mode ls", "mode list");
+            run_mode_ls(ctx)
+        }
+        "list" => run_mode_ls(ctx),
+        "rm" => {
+            warn_deprecated("mode rm", "mode remove");
+            run_mode_rm(ctx, name)
+        }
+        "remove" => run_mode_rm(ctx, name),
         _ => {
-            anyhow::bail!("Unknown mode action '{}'. Use: create, ls, rm", action)
+            anyhow::bail!(
+                "Unknown mode action '{}'. Use: create, list, remove",
+                action
+            )
         }
     }
 }
