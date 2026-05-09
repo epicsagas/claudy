@@ -567,7 +567,7 @@ fn is_pid_alive(pid: u32) -> bool {
             return true;
         }
         // EPERM means the process exists but we lack permission to signal it.
-        *libc::__error() != libc::ESRCH
+        std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
     }
 }
 
