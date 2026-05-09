@@ -6,6 +6,7 @@ use crate::domain::channel_events::{
 };
 
 use super::{AppState, THINKING_MESSAGES, TypingGuard, is_authorized, spawn_process_event};
+use crate::adapters::channel::retry::{RetryPolicy, retry_send};
 use crate::adapters::channel::state::scope_key;
 
 /// Validate a stored session ID by checking if the session file still exists on disk.
@@ -218,18 +219,27 @@ pub(super) async fn handle_text_message(
         &msg.channel.user_id,
     );
 
-    // Reject if a Claude process is already running for this scope
-    if state.active_claude.lock().await.contains_key(&scope) {
-        let _ = channel
-            .send_message(&OutboundMessage {
-                conversation_id: msg.conversation_id.clone(),
-                channel: msg.channel.clone(),
-                text: "Busy — type /cancel first, then retry.".to_string(),
-                message_ref: None,
-                interaction: None,
-            })
-            .await;
-        return Ok(());
+    // Reject if a Claude process is already running for this scope,
+    // but clean up stale PIDs where the process has already exited.
+    {
+        let mut active = state.active_claude.lock().await;
+        if let Some(&pid) = active.get(&scope) {
+            if is_pid_alive(pid) {
+                drop(active);
+                let _ = channel
+                    .send_message(&OutboundMessage {
+                        conversation_id: msg.conversation_id.clone(),
+                        channel: msg.channel.clone(),
+                        text: "Busy — type /cancel first, then retry.".to_string(),
+                        message_ref: None,
+                        interaction: None,
+                    })
+                    .await;
+                return Ok(());
+            }
+            tracing::warn!(pid, scope = %scope, "Cleaning up stale Claude PID");
+            active.remove(&scope);
+        }
     }
 
     let profile = state.channel_config.profile_for_channel(
@@ -282,15 +292,15 @@ pub(super) async fn handle_text_message(
         Ok(p) => p,
         Err(e) => {
             tracing::error!(error = %e, "Failed to start Claude session");
-            let _ = channel
-                .send_message(&OutboundMessage {
-                    conversation_id: msg.conversation_id.clone(),
-                    channel: msg.channel.clone(),
-                    text: format!("Failed to start Claude session: {}", e),
-                    message_ref: None,
-                    interaction: None,
-                })
-                .await;
+            let err_msg = OutboundMessage {
+                conversation_id: msg.conversation_id.clone(),
+                channel: msg.channel.clone(),
+                text: format!("Failed to start Claude session: {}", e),
+                message_ref: None,
+                interaction: None,
+            };
+            let policy = RetryPolicy::for_platform(msg.channel.platform);
+            let _ = retry_send(channel.as_ref(), &err_msg, &policy).await;
             return Err(e);
         }
     };
@@ -307,15 +317,15 @@ pub(super) async fn handle_text_message(
         }
     }
 
-    let delivery = channel
-        .send_message(&OutboundMessage {
-            conversation_id: msg.conversation_id.clone(),
-            channel: msg.channel.clone(),
-            text: THINKING_MESSAGES[rand::random_range(0..THINKING_MESSAGES.len())].to_string(),
-            message_ref: None,
-            interaction: None,
-        })
-        .await?;
+    let thinking_msg = OutboundMessage {
+        conversation_id: msg.conversation_id.clone(),
+        channel: msg.channel.clone(),
+        text: THINKING_MESSAGES[rand::random_range(0..THINKING_MESSAGES.len())].to_string(),
+        message_ref: None,
+        interaction: None,
+    };
+    let policy = RetryPolicy::for_platform(msg.channel.platform);
+    let delivery = retry_send(channel.as_ref(), &thinking_msg, &policy).await?;
 
     let stdout = claude.stdout();
     let stream_result = crate::adapters::channel::stream_handler::stream_response(
@@ -343,15 +353,15 @@ pub(super) async fn handle_text_message(
         Err(e) => {
             tracing::error!(error = %e, "Stream error");
             state.active_claude.lock().await.remove(&scope);
-            let _ = channel
-                .send_message(&OutboundMessage {
-                    conversation_id: msg.conversation_id.clone(),
-                    channel: msg.channel.clone(),
-                    text: format!("Error: {}", e),
-                    message_ref: None,
-                    interaction: None,
-                })
-                .await;
+            let err_msg = OutboundMessage {
+                conversation_id: msg.conversation_id.clone(),
+                channel: msg.channel.clone(),
+                text: format!("Error: {}", e),
+                message_ref: None,
+                interaction: None,
+            };
+            let policy = RetryPolicy::for_platform(msg.channel.platform);
+            let _ = retry_send(channel.as_ref(), &err_msg, &policy).await;
             return Err(e);
         }
     }
@@ -545,5 +555,34 @@ pub(super) async fn handle_bot_command(
                 .await?;
             Ok(())
         }
+    }
+}
+
+/// Check if a process with the given PID is still alive (Unix signal-0 probe).
+/// Returns `true` if the process exists (including the EPERM case where it is
+/// alive but owned by another user). Returns `false` only on ESRCH (no such process).
+fn is_pid_alive(pid: u32) -> bool {
+    unsafe {
+        if libc::kill(pid as i32, 0) == 0 {
+            return true;
+        }
+        // EPERM means the process exists but we lack permission to signal it.
+        std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_pid_alive_returns_true_for_current_process() {
+        let pid = std::process::id();
+        assert!(is_pid_alive(pid), "Current process PID should be alive");
+    }
+
+    #[test]
+    fn is_pid_alive_returns_false_for_nonexistent_pid() {
+        assert!(!is_pid_alive(99_999_999), "Very large PID should not exist");
     }
 }
