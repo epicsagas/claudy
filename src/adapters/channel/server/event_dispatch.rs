@@ -6,6 +6,7 @@ use crate::domain::channel_events::{
 };
 
 use super::{AppState, THINKING_MESSAGES, TypingGuard, is_authorized, spawn_process_event};
+use crate::adapters::channel::retry::{RetryPolicy, retry_send};
 use crate::adapters::channel::state::scope_key;
 
 /// Validate a stored session ID by checking if the session file still exists on disk.
@@ -291,15 +292,15 @@ pub(super) async fn handle_text_message(
         Ok(p) => p,
         Err(e) => {
             tracing::error!(error = %e, "Failed to start Claude session");
-            let _ = channel
-                .send_message(&OutboundMessage {
-                    conversation_id: msg.conversation_id.clone(),
-                    channel: msg.channel.clone(),
-                    text: format!("Failed to start Claude session: {}", e),
-                    message_ref: None,
-                    interaction: None,
-                })
-                .await;
+            let err_msg = OutboundMessage {
+                conversation_id: msg.conversation_id.clone(),
+                channel: msg.channel.clone(),
+                text: format!("Failed to start Claude session: {}", e),
+                message_ref: None,
+                interaction: None,
+            };
+            let policy = RetryPolicy::for_platform(msg.channel.platform);
+            let _ = retry_send(channel.as_ref(), &err_msg, &policy).await;
             return Err(e);
         }
     };
@@ -316,15 +317,15 @@ pub(super) async fn handle_text_message(
         }
     }
 
-    let delivery = channel
-        .send_message(&OutboundMessage {
-            conversation_id: msg.conversation_id.clone(),
-            channel: msg.channel.clone(),
-            text: THINKING_MESSAGES[rand::random_range(0..THINKING_MESSAGES.len())].to_string(),
-            message_ref: None,
-            interaction: None,
-        })
-        .await?;
+    let thinking_msg = OutboundMessage {
+        conversation_id: msg.conversation_id.clone(),
+        channel: msg.channel.clone(),
+        text: THINKING_MESSAGES[rand::random_range(0..THINKING_MESSAGES.len())].to_string(),
+        message_ref: None,
+        interaction: None,
+    };
+    let policy = RetryPolicy::for_platform(msg.channel.platform);
+    let delivery = retry_send(channel.as_ref(), &thinking_msg, &policy).await?;
 
     let stdout = claude.stdout();
     let stream_result = crate::adapters::channel::stream_handler::stream_response(
@@ -352,15 +353,15 @@ pub(super) async fn handle_text_message(
         Err(e) => {
             tracing::error!(error = %e, "Stream error");
             state.active_claude.lock().await.remove(&scope);
-            let _ = channel
-                .send_message(&OutboundMessage {
-                    conversation_id: msg.conversation_id.clone(),
-                    channel: msg.channel.clone(),
-                    text: format!("Error: {}", e),
-                    message_ref: None,
-                    interaction: None,
-                })
-                .await;
+            let err_msg = OutboundMessage {
+                conversation_id: msg.conversation_id.clone(),
+                channel: msg.channel.clone(),
+                text: format!("Error: {}", e),
+                message_ref: None,
+                interaction: None,
+            };
+            let policy = RetryPolicy::for_platform(msg.channel.platform);
+            let _ = retry_send(channel.as_ref(), &err_msg, &policy).await;
             return Err(e);
         }
     }

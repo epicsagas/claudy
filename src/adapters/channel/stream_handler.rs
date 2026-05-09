@@ -2,6 +2,7 @@ use std::time::Instant;
 
 use tokio::io::{AsyncBufReadExt, BufReader};
 
+use crate::adapters::channel::retry::{RetryPolicy, retry_edit};
 use crate::domain::channel_events::{ChannelIdentity, OutboundMessage};
 use crate::ports::channel_ports::ChannelPort;
 
@@ -37,7 +38,8 @@ async fn do_edit(
         message_ref: Some(initial_message_id.to_string()),
         interaction: None,
     };
-    if let Err(e) = channel.edit_message(&edit_msg).await {
+    let policy = RetryPolicy::for_platform(channel_identity.platform);
+    if let Err(e) = retry_edit(channel, &edit_msg, &policy).await {
         let err_str = e.to_string();
         // Silently ignore "not modified" — content is already up to date
         if err_str.contains("not modified") {
