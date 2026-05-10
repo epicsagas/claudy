@@ -46,6 +46,18 @@ pub fn run_install(ctx: &mut Context) -> anyhow::Result<i32> {
     // Ensure MCP server is registered in all existing modes
     sync_mode_registrations(&ctx.paths.modes_dir);
 
+    // Seed bundled skills (global + all modes)
+    if let Some(home) = dirs::home_dir() {
+        let global_skills = home.join(".claude").join("skills");
+        let (installed, skipped) = crate::adapters::skill::seeder::install_skills(&global_skills);
+        seed_skills_all_modes(&ctx.paths.modes_dir);
+        if installed > 0 {
+            ctx.output.info(&format!(
+                "Seeded {installed} skill(s), {skipped} already up to date"
+            ));
+        }
+    }
+
     // Clean up legacy files
     let legacy1 = std::path::Path::new(&ctx.paths.data_dir).join("claudy-full.sh");
     let legacy2 = std::path::Path::new(&ctx.paths.data_dir).join("banner");
@@ -95,6 +107,33 @@ fn sync_mode_registrations(modes_dir: &str) {
             continue;
         }
         crate::adapters::mcp::server::ensure_registered_mode(modes_dir, name);
+    }
+}
+
+fn seed_skills_all_modes(modes_dir: &str) {
+    let modes_path = Path::new(modes_dir);
+    if !modes_path.exists() {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(modes_path) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if entry.file_type().is_ok_and(|ft| ft.is_symlink()) {
+            continue;
+        }
+        if !entry.path().is_dir() {
+            continue;
+        }
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else { continue };
+        if name.starts_with('.') {
+            continue;
+        }
+        if super::mode_cmd::validate_mode_name(name).is_err() {
+            continue;
+        }
+        crate::adapters::skill::seeder::install_skills(&entry.path().join("skills"));
     }
 }
 

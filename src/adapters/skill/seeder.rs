@@ -75,3 +75,85 @@ pub fn uninstall_skills(skills_dir: &Path) -> usize {
 
     removed
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_install_skills_creates_files() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let skills_dir = dir.path().join("skills");
+
+        let (installed, skipped) = install_skills(&skills_dir);
+
+        assert_eq!(installed, bundled_skills().len());
+        assert_eq!(skipped, 0);
+
+        for (name, content) in bundled_skills() {
+            let file = skills_dir.join(name).join("SKILL.md");
+            assert!(file.exists(), "skill {name} should exist");
+            assert_eq!(fs::read_to_string(&file).unwrap(), content);
+        }
+    }
+
+    #[test]
+    fn test_install_skills_idempotent() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let skills_dir = dir.path().join("skills");
+
+        let (installed1, skipped1) = install_skills(&skills_dir);
+        let (installed2, skipped2) = install_skills(&skills_dir);
+
+        assert_eq!(installed1, bundled_skills().len());
+        assert_eq!(skipped1, 0);
+        assert_eq!(installed2, 0);
+        assert_eq!(skipped2, bundled_skills().len());
+    }
+
+    #[test]
+    fn test_install_skills_overwrites_changed_content() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let skills_dir = dir.path().join("skills");
+
+        install_skills(&skills_dir);
+
+        // Corrupt one skill file
+        let (name, original) = bundled_skills()
+            .into_iter()
+            .next()
+            .expect("at least one skill");
+        let file = skills_dir.join(name).join("SKILL.md");
+        fs::write(&file, "corrupted").unwrap();
+
+        let (installed, skipped) = install_skills(&skills_dir);
+
+        assert_eq!(installed, 1);
+        assert_eq!(skipped, 0);
+        assert_eq!(fs::read_to_string(&file).unwrap(), original);
+    }
+
+    #[test]
+    fn test_uninstall_skills_removes_dirs() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let skills_dir = dir.path().join("skills");
+
+        install_skills(&skills_dir);
+        let removed = uninstall_skills(&skills_dir);
+
+        assert_eq!(removed, bundled_skills().len());
+        for (name, _) in bundled_skills() {
+            assert!(!skills_dir.join(name).exists());
+        }
+    }
+
+    #[test]
+    fn test_uninstall_skills_idempotent() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let skills_dir = dir.path().join("skills");
+
+        let removed = uninstall_skills(&skills_dir);
+        assert_eq!(removed, 0);
+    }
+}
