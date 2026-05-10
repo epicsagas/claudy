@@ -558,9 +558,10 @@ pub(super) async fn handle_bot_command(
     }
 }
 
-/// Check if a process with the given PID is still alive (Unix signal-0 probe).
+/// Check if a process with the given PID is still alive (signal-0 probe / OpenProcess).
 /// Returns `true` if the process exists (including the EPERM case where it is
 /// alive but owned by another user). Returns `false` only on ESRCH (no such process).
+#[cfg(unix)]
 fn is_pid_alive(pid: u32) -> bool {
     unsafe {
         if libc::kill(pid as i32, 0) == 0 {
@@ -569,6 +570,15 @@ fn is_pid_alive(pid: u32) -> bool {
         // EPERM means the process exists but we lack permission to signal it.
         std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
     }
+}
+
+#[cfg(windows)]
+fn is_pid_alive(pid: u32) -> bool {
+    std::process::Command::new("tasklist")
+        .args(["/FI", &format!("PID eq {}", pid), "/NH", "/FO", "CSV"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).contains(&pid.to_string()))
+        .unwrap_or(false)
 }
 
 #[cfg(test)]
