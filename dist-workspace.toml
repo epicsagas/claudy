@@ -19,9 +19,9 @@ install-updater = false
 # Enable when cert is available:
 #   1. Add secrets: APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
 #   2. Set macos-sign = true
-macos-sign = false
+macos-sign = true
 # macOS notarization (requires Apple Developer account + app-specific password)
-macos-notarize = false
+macos-notarize = true
 # Skip checking whether the specified configuration files are up to date
 allow-dirty = ["ci"]
 # Generate and dist a source tarball
