@@ -104,6 +104,19 @@ claudy zai                            # Z.AI provider
 claudy openrouter sonnet              # OpenRouter alias
 ```
 
+**4. Update**
+
+```bash
+# Built-in self-update (all platforms)
+claudy update
+
+# Or via your install method:
+brew upgrade claudy                   # Homebrew
+cargo binstall claudy@latest          # Cargo
+```
+
+Re-run the install command from step 1 to update via shell/PowerShell installer.
+
 <details>
 <summary>Provider credentials</summary>
 

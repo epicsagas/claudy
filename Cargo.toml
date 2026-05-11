@@ -90,6 +90,7 @@ tauri-build = { version = "2", optional = true , features = [] }
 opt-level = "s"
 lto = true
 strip = true
+codegen-units = 1
 
 # The profile that 'dist' will build with
 [profile.dist]
