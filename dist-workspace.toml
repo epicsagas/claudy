@@ -21,7 +21,6 @@ install-updater = false
 #   2. Set macos-sign = true
 macos-sign = true
 # macOS notarization (requires Apple Developer account + app-specific password)
-macos-notarize = true
 # Skip checking whether the specified configuration files are up to date
 allow-dirty = ["ci"]
 # Generate and dist a source tarball
