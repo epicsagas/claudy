@@ -23,7 +23,8 @@
   <a href="README.es.md">🇪🇸 Español</a> •
   <a href="README.hi.md">🇮🇳 हिन्दी</a> •
   <a href="README.pt-BR.md">🇧🇷 Português</a> •
-  <a href="README.id.md">🇮🇩 Bahasa</a>
+  <a href="README.id.md">🇮🇩 Bahasa</a> •
+  <a href="README.ar.md">🇸🇦 العربية</a>
 </p>
 
 <p align="center">
@@ -73,20 +74,32 @@
 
 ## البدء السريع
 
-**1. التثبيت** (اختر واحدًا)
+**1. التثبيت**
+
+macOS / Linux:
 
 ```bash
-# macOS / Linux
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+brew install epicsagas/tap/claudy
+```
 
-# macOS (Homebrew)
-brew tap epicsagas/tap && brew install claudy
+لا تملك Homebrew؟ استخدم نص التثبيت:
 
-# Windows (PowerShell)
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+```
+
+Windows:
+
+```powershell
 irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
+```
 
-# Cargo (جميع المنصات)
-cargo binstall claudy
+عبر سلسلة أدوات Rust:
+
+```bash
+cargo binstall claudy   # ملف ثنائي مُجمّع مسبقًا (سريع)
+cargo install claudy    # بناء من المصدر
 ```
 
 **2. الإعداد**
@@ -102,6 +115,15 @@ echo 'ANTHROPIC_API_KEY=your-key' >> ~/.claudy/secrets.env
 claudy                                # المزوّد الافتراضي
 claudy zai                            # مزوّد Z.AI
 claudy openrouter sonnet              # اسم مستعار OpenRouter
+```
+
+**4. التحديث**
+
+```bash
+brew upgrade claudy          # Homebrew
+claudy update                # المحدّث المدمج
+# أو أعد تشغيل نص التثبيت / cargo binstall claudy@latest
+claudy --version
 ```
 
 <details>
@@ -253,7 +275,7 @@ claudy <profile> gstack
 ```bash
 claudy mode create <name>
 claudy mode ls
-claudy mode rm <name>
+claudy mode remove <name>
 ```
 
 قاعدة تسمية الوضع: `[a-z0-9][a-z0-9_-]*` (`mode` محجوز).
@@ -440,7 +462,7 @@ claudy analytics insights --project my-project  # تصفية حسب المشرو
 > /analytics-insights
 > /analytics-insights last 2 weeks
 > analyze my usage patterns
-> تحليل أنماط استخدامي
+> استخدام 패턴 분석해줘
 ```
 
 يشغّل Claude أمر `claudy analytics insights`، ويحلل JSON، ويُعيد تقريرًا مُنظّمًا يتضمن:

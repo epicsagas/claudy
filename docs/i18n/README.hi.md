@@ -73,20 +73,32 @@ Claudy आपको Anthropic, Z.AI, OpenRouter, Ollama, और कस्टम 
 
 ## त्वरित शुरुआत
 
-**1. इंस्टॉल करें** (कोई एक चुनें)
+**1. इंस्टॉल करें**
+
+macOS / Linux:
 
 ```bash
-# macOS / Linux
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+brew install epicsagas/tap/claudy
+```
 
-# macOS (Homebrew)
-brew tap epicsagas/tap && brew install claudy
+Homebrew नहीं है? इंस्टॉलर स्क्रिप्ट उपयोग करें:
 
-# Windows (PowerShell)
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+```
+
+Windows:
+
+```powershell
 irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
+```
 
-# Cargo (सभी प्लेटफ़ॉर्म)
-cargo binstall claudy
+Rust टूलचेन के माध्यम से:
+
+```bash
+cargo binstall claudy   # प्री-बिल्ट बाइनरी (तेज़)
+cargo install claudy    # सोर्स से बिल्ड
 ```
 
 **2. कॉन्फ़िगर करें**
@@ -102,6 +114,15 @@ echo 'ANTHROPIC_API_KEY=your-key' >> ~/.claudy/secrets.env
 claudy                                # डिफ़ॉल्ट प्रदाता
 claudy zai                            # Z.AI प्रदाता
 claudy openrouter sonnet              # OpenRouter उपनाम
+```
+
+**4. अपडेट करें**
+
+```bash
+brew upgrade claudy          # Homebrew
+claudy update                # बिल्ट-इन अपडेटर
+# या इंस्टॉलर स्क्रिप्ट / cargo binstall claudy@latest पुनः चलाएँ
+claudy --version
 ```
 
 <details>
@@ -253,7 +274,7 @@ claudy <profile> gstack
 ```bash
 claudy mode create <name>
 claudy mode ls
-claudy mode rm <name>
+claudy mode remove <name>
 ```
 
 मोड नाम नियम: `[a-z0-9][a-z0-9_-]*` (`mode` आरक्षित है)।
@@ -471,7 +492,7 @@ Claude `claudy analytics insights` चलाता है, JSON का विश
 - **टोकन**: पिछले 30 दिनों में इनपुट, आउटपुट, और कैश टोकन के विस्तृत रुझान, मॉडल और तिथि के अनुसार समूहबद्ध।
 - **टूल**: Claude द्वारा सबसे अधिक उपयोग किए जाने वाले टूल का वितरण विश्लेषण, कॉल गणना, त्रुटि दरें, और औसत निष्पादन समय सहित।
 - **लागत**: वास्तविक टोकन प्राइसिंग पर आधारित उपयोग लागत का रीयल-टाइम अनुमान, दैनिक/साप्ताहिक/मासिक पूर्वानुमान और रुझान पहचान (बढ़ता/स्थिर/घटता) सहित।
-- **सुझाव (सिफ़ारिशें)****: डेटा-संचालित अनुकूलन सलाह, जैसे उच्च-लागत सेशन का पता लगाना, सरल कार्यों के लिए Haiku का सुझाव देना, और लंबी बातचीत की पहचान जो कॉन्टेक्स्ट सारांश से लाभान्वित हो सकती हैं।
+- **सुझाव (सिफ़ारिशें)**: डेटा-संचालित अनुकूलन सलाह, जैसे उच्च-लागत सेशन का पता लगाना, सरल कार्यों के लिए Haiku का सुझाव देना, और लंबी बातचीत की पहचान जो कॉन्टेक्स्ट सारांश से लाभान्वित हो सकती हैं।
 - **प्रोजेक्ट**: बेहतर कॉन्टेक्स्ट के लिए क्रिप्टिक सेशन UUID को मानव-पठनीय प्रोजेक्ट फ़ोल्डर नामों में स्वचालित रूप से मैप करें।
 
 डेटा `~/.claudy/analytics/` के अंतर्गत एक लोकल SQLite डेटाबेस में संग्रहीत होता है। डैशबोर्ड एक उच्च-प्रदर्शन लोकल Tauri 2 + Svelte ऐप के रूप में चलता है। अपने Claude CLI इतिहास से डेटा तुरंत रिफ़्रेश करने के लिए डैशबोर्ड में **[Sync]** बटन का उपयोग करें।

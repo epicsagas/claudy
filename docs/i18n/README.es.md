@@ -14,7 +14,6 @@ Claudy te permite cambiar entre Anthropic, Z.AI, OpenRouter, Ollama y endpoints 
 ---
 
 <p align="center">
-  <a href="../../README.md">🇺🇸 English</a> •
   <a href="README.ko.md">🇰🇷 한국어</a> •
   <a href="README.zh-Hans.md">🇨🇳 中文</a> •
   <a href="README.ja.md">🇯🇵 日本語</a> •
@@ -73,20 +72,32 @@ Claudy te permite cambiar entre Anthropic, Z.AI, OpenRouter, Ollama y endpoints 
 
 ## Inicio rápido
 
-**1. Instalar** (elige uno)
+**1. Instalar**
+
+macOS / Linux:
 
 ```bash
-# macOS / Linux
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+brew install epicsagas/tap/claudy
+```
 
-# macOS (Homebrew)
-brew tap epicsagas/tap && brew install claudy
+No tienes Homebrew? Usa el script de instalación:
 
-# Windows (PowerShell)
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+```
+
+Windows:
+
+```powershell
 irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
+```
 
-# Cargo (todas las plataformas)
-cargo binstall claudy
+Vía toolchain de Rust:
+
+```bash
+cargo binstall claudy   # binario precompilado (rápido)
+cargo install claudy    # compilar desde el código fuente
 ```
 
 **2. Configurar**
@@ -102,6 +113,15 @@ echo 'ANTHROPIC_API_KEY=your-key' >> ~/.claudy/secrets.env
 claudy                                # proveedor predeterminado
 claudy zai                            # proveedor Z.AI
 claudy openrouter sonnet              # alias de OpenRouter
+```
+
+**4. Actualizar**
+
+```bash
+brew upgrade claudy          # Homebrew
+claudy update                # actualizador integrado
+# o vuelve a ejecutar el script de instalación / cargo binstall claudy@latest
+claudy --version
 ```
 
 <details>
@@ -253,7 +273,7 @@ Cada directorio de modo es un `CLAUDE_CONFIG_DIR` autónomo, por lo que los fram
 ```bash
 claudy mode create <nombre>
 claudy mode ls
-claudy mode rm <nombre>
+claudy mode remove <nombre>
 ```
 
 Regla de nombres de modo: `[a-z0-9][a-z0-9_-]*` (`mode` está reservado).
@@ -599,7 +619,7 @@ cargo run --features analytics-ui -- analytics dashboard
 
 ## Contribuir
 
-¡Las contribuciones son bienvenidas! Aquí te explicamos cómo empezar:
+Las contribuciones son bienvenidas! Aquí te explicamos cómo empezar:
 
 1. Haz un fork del repositorio y crea una rama de funcionalidad.
 2. Realiza tus cambios con pruebas donde sea apropiado.

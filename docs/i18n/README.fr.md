@@ -14,7 +14,6 @@ Claudy vous permet de basculer entre Anthropic, Z.AI, OpenRouter, Ollama et des 
 ---
 
 <p align="center">
-  <a href="../../README.md">🇺🇸 English</a> •
   <a href="README.ko.md">🇰🇷 한국어</a> •
   <a href="README.zh-Hans.md">🇨🇳 中文</a> •
   <a href="README.ja.md">🇯🇵 日本語</a> •
@@ -31,7 +30,7 @@ Claudy vous permet de basculer entre Anthropic, Z.AI, OpenRouter, Ollama et des 
     <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-1.92%2B-orange.svg" alt="rust-lang" /></a>
     <a href="https://crates.io/crates/claudy"><img src="https://img.shields.io/crates/v/claudy.svg" alt="crates.io" /></a>
     <a href="https://crates.io/crates/claudy"><img src="https://img.shields.io/crates/d/claudy.svg" alt="Downloads" /></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
+    <a href="../../LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
     <a href="https://buymeacoffee.com/epicsaga"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee" /></a>
     <a href="https://github.com/epicsagas/claudy/actions/workflows/ci.yml"><img src="https://github.com/epicsagas/claudy/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
 </p>
@@ -74,20 +73,32 @@ Claudy vous permet de basculer entre Anthropic, Z.AI, OpenRouter, Ollama et des 
 
 ## Démarrage rapide
 
-**1. Installer** (choisissez une méthode)
+**1. Installer**
+
+macOS / Linux :
 
 ```bash
-# macOS / Linux
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+brew install epicsagas/tap/claudy
+```
 
-# macOS (Homebrew)
-brew tap epicsagas/tap && brew install claudy
+Pas de Homebrew ? Utilisez le script d'installation :
 
-# Windows (PowerShell)
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+```
+
+Windows :
+
+```powershell
 irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
+```
 
-# Cargo (toutes les plateformes)
-cargo binstall claudy
+Via la chaîne d'outils Rust :
+
+```bash
+cargo binstall claudy   # binaire pré-compilé (rapide)
+cargo install claudy    # compiler depuis les sources
 ```
 
 **2. Configurer**
@@ -103,6 +114,15 @@ echo 'ANTHROPIC_API_KEY=votre-clé' >> ~/.claudy/secrets.env
 claudy                                # fournisseur par défaut
 claudy zai                            # fournisseur Z.AI
 claudy openrouter sonnet              # alias OpenRouter
+```
+
+**4. Mettre à jour**
+
+```bash
+brew upgrade claudy          # Homebrew
+claudy update                # mise à jour intégrée
+# ou ré-exécuter le script d'installation / cargo binstall claudy@latest
+claudy --version
 ```
 
 <details>
@@ -254,7 +274,7 @@ Chaque répertoire de mode est un `CLAUDE_CONFIG_DIR` autonome, donc les framewo
 ```bash
 claudy mode create <nom>
 claudy mode ls
-claudy mode rm <nom>
+claudy mode remove <nom>
 ```
 
 Règle de nommage des modes : `[a-z0-9][a-z0-9_-]*` (`mode` est réservé).

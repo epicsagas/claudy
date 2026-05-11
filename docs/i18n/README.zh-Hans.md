@@ -16,6 +16,7 @@ Claudy 让你在 Anthropic、Z.AI、OpenRouter、Ollama 和自定义端点之间
 <p align="center">
   <a href="../../README.md">🇺🇸 English</a> •
   <a href="README.ko.md">🇰🇷 한국어</a> •
+  <a href="README.zh-Hans.md">🇨🇳 中文</a> •
   <a href="README.ja.md">🇯🇵 日本語</a> •
   <a href="README.de.md">🇩🇪 Deutsch</a> •
   <a href="README.fr.md">🇫🇷 Français</a> •
@@ -73,20 +74,32 @@ Claudy 让你在 Anthropic、Z.AI、OpenRouter、Ollama 和自定义端点之间
 
 ## 快速开始
 
-**1. 安装**（任选其一）
+**1. 安装**
+
+macOS / Linux：
 
 ```bash
-# macOS / Linux
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+brew install epicsagas/tap/claudy
+```
 
-# macOS (Homebrew)
-brew tap epicsagas/tap && brew install claudy
+没有 Homebrew？使用安装脚本：
 
-# Windows (PowerShell)
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+```
+
+Windows：
+
+```powershell
 irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
+```
 
-# Cargo (所有平台)
-cargo binstall claudy
+通过 Rust 工具链：
+
+```bash
+cargo binstall claudy   # 预编译二进制（快速）
+cargo install claudy    # 从源码编译
 ```
 
 **2. 配置**
@@ -102,6 +115,15 @@ echo 'ANTHROPIC_API_KEY=your-key' >> ~/.claudy/secrets.env
 claudy                                # 默认提供商
 claudy zai                            # Z.AI 提供商
 claudy openrouter sonnet              # OpenRouter 别名
+```
+
+**4. 更新**
+
+```bash
+brew upgrade claudy          # Homebrew
+claudy update                # 内置更新器
+# 或重新运行安装脚本 / cargo binstall claudy@latest
+claudy --version
 ```
 
 <details>
@@ -253,7 +275,7 @@ claudy <profile> gstack
 ```bash
 claudy mode create <name>
 claudy mode ls
-claudy mode rm <name>
+claudy mode remove <name>
 ```
 
 模式名称规则：`[a-z0-9][a-z0-9_-]*`（`mode` 为保留名称）。
@@ -319,7 +341,7 @@ DISCORD_PUBLIC_KEY=...
 
 </details>
 
-## Agent MCP bridge
+## 代理 MCP 桥接
 
 运行 `claudy mcp` 启动一个基于 stdio 的 MCP 服务器，让 Claude Code 可以将任务委派给其他本地安装的 AI 编程代理。
 
@@ -440,7 +462,7 @@ claudy analytics insights --project my-project  # 按项目筛选
 > /analytics-insights
 > /analytics-insights last 2 weeks
 > analyze my usage patterns
-> 使用 패턴 分析해줘
+> 사용 패턴 분석해줘
 ```
 
 Claude 会运行 `claudy analytics insights`，分析 JSON 数据，并返回包含以下内容的结构化报告：
@@ -610,7 +632,7 @@ cargo run --features analytics-ui -- analytics dashboard
 
 ## 致谢
 
-本项目的灵感来自 [Clother](https://github.com/jolehuit/clother)，一个基于 Go 的 Claude CLI 多提供商启动器。Claudy 是一个独立的 Rust 实现，从零开始重新设计，具有基于 RAII 的会话守卫、信号转发、启动器符号链接和深度生态集成，包括**全功能频道桥接**（Telegram/Slack/Discord）、用于跨代理委派的 **Agent MCP 桥接**，以及使用 Tauri 2 构建的**高性能分析仪表板**。这些新增功能标志着 Claudy 从一个简单的启动器转变为 Claude CLI 用户的综合运维工具包。
+本项目的灵感来自 [Clother](https://github.com/jolehuit/clother)，一个基于 Go 的 Claude CLI 多提供商启动器。Claudy 是一个独立的 Rust 实现，从零开始重新设计，具有基于 RAII 的会话守卫、信号转发、启动器符号链接和深度生态集成，包括**全功能频道桥接**（Telegram/Slack/Discord）、用于跨代理委派的**代理 MCP 桥接**，以及使用 Tauri 2 构建的**高性能分析仪表板**。这些新增功能标志着 Claudy 从一个简单的启动器转变为 Claude CLI 用户的综合运维工具包。
 
 ## 许可证
 

@@ -73,20 +73,32 @@ Claudy memungkinkan Anda beralih antara Anthropic, Z.AI, OpenRouter, Ollama, dan
 
 ## Mulai cepat
 
-**1. Instal** (pilih salah satu)
+**1. Instal**
+
+macOS / Linux:
 
 ```bash
-# macOS / Linux
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+brew install epicsagas/tap/claudy
+```
 
-# macOS (Homebrew)
-brew tap epicsagas/tap && brew install claudy
+Tidak punya Homebrew? Gunakan skrip installer:
 
-# Windows (PowerShell)
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+```
+
+Windows:
+
+```powershell
 irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
+```
 
-# Cargo (semua platform)
-cargo binstall claudy
+Melalui toolchain Rust:
+
+```bash
+cargo binstall claudy   # binary pre-built (cepat)
+cargo install claudy    # build dari sumber
 ```
 
 **2. Konfigurasi**
@@ -102,6 +114,15 @@ echo 'ANTHROPIC_API_KEY=your-key' >> ~/.claudy/secrets.env
 claudy                                # penyedia default
 claudy zai                            # penyedia Z.AI
 claudy openrouter sonnet              # alias OpenRouter
+```
+
+**4. Perbarui**
+
+```bash
+brew upgrade claudy          # Homebrew
+claudy update                # pembaruan bawaan
+# atau jalankan ulang skrip installer / cargo binstall claudy@latest
+claudy --version
 ```
 
 <details>
@@ -141,7 +162,7 @@ provider_overrides:
       sonnet: "glm-5.1"               # → ANTHROPIC_DEFAULT_SONNET_MODEL
       opus: "glm-5"                   # → ANTHROPIC_DEFAULT_OPUS_MODEL
 
-# Alias OpenRouter — jalankan dengan: claudy atau <alias>
+# Alias OpenRouter — jalankan dengan: claudy ou <alias>
 openrouter_aliases:
   kimi: "moonshotai/kimi-k2.5"
   sonnet: "anthropic/claude-sonnet-4"
@@ -155,7 +176,7 @@ custom_providers:
     api_key_env: "MY_LLM_API_KEY"
     default_model: "my-model-v1"
 
-# Kebijakan kompakasi
+# Kebijakan kompaksi
 compaction:
   auto_compact: true                   # default: true
   threshold: 0.8                       # 0.0–1.0, default: 0.8
@@ -253,7 +274,7 @@ Setiap direktori mode adalah `CLAUDE_CONFIG_DIR` yang mandiri, sehingga framewor
 ```bash
 claudy mode create <name>
 claudy mode ls
-claudy mode rm <name>
+claudy mode remove <name>
 ```
 
 Aturan nama mode: `[a-z0-9][a-z0-9_-]*` (`mode` adalah kata yang dipesan).

@@ -73,20 +73,32 @@ Claudy permite alternar entre Anthropic, Z.AI, OpenRouter, Ollama e endpoints pe
 
 ## Início rápido
 
-**1. Instalar** (escolha uma opção)
+**1. Instalar**
+
+macOS / Linux:
 
 ```bash
-# macOS / Linux
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+brew install epicsagas/tap/claudy
+```
 
-# macOS (Homebrew)
-brew tap epicsagas/tap && brew install claudy
+Sem Homebrew? Use o script de instalação:
 
-# Windows (PowerShell)
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+```
+
+Windows:
+
+```powershell
 irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
+```
 
-# Cargo (todas as plataformas)
-cargo binstall claudy
+Via Rust toolchain:
+
+```bash
+cargo binstall claudy   # binário pré-compilado (rápido)
+cargo install claudy    # compilar a partir do código-fonte
 ```
 
 **2. Configurar**
@@ -102,6 +114,15 @@ echo 'ANTHROPIC_API_KEY=your-key' >> ~/.claudy/secrets.env
 claudy                                # provedor padrão
 claudy zai                            # provedor Z.AI
 claudy openrouter sonnet              # alias OpenRouter
+```
+
+**4. Atualizar**
+
+```bash
+brew upgrade claudy          # Homebrew
+claudy update                # atualizador integrado
+# ou execute novamente o script de instalação / cargo binstall claudy@latest
+claudy --version
 ```
 
 <details>
@@ -253,7 +274,7 @@ Cada diretório de modo é um `CLAUDE_CONFIG_DIR` independente, então os framew
 ```bash
 claudy mode create <name>
 claudy mode ls
-claudy mode rm <name>
+claudy mode remove <name>
 ```
 
 Regra de nomenclatura de modos: `[a-z0-9][a-z0-9_-]*` (`mode` é reservado).

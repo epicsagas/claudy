@@ -73,20 +73,32 @@ Claudyを使えば、Anthropic、Z.AI、OpenRouter、Ollama、カスタムエン
 
 ## クイックスタート
 
-**1. インストール** (いずれかを選択)
+**1. インストール**
+
+macOS / Linux:
 
 ```bash
-# macOS / Linux
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+brew install epicsagas/tap/claudy
+```
 
-# macOS (Homebrew)
-brew tap epicsagas/tap && brew install claudy
+Homebrewがない場合、インストーラースクリプトを使用:
 
-# Windows (PowerShell)
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+```
+
+Windows:
+
+```powershell
 irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
+```
 
-# Cargo (全プラットフォーム)
-cargo binstall claudy
+Rustツールチェーン経由:
+
+```bash
+cargo binstall claudy   # プレビルドバイナリ (高速)
+cargo install claudy    # ソースからビルド
 ```
 
 **2. 設定**
@@ -102,6 +114,15 @@ echo 'ANTHROPIC_API_KEY=your-key' >> ~/.claudy/secrets.env
 claudy                                # デフォルトプロバイダー
 claudy zai                            # Z.AIプロバイダー
 claudy openrouter sonnet              # OpenRouterエイリアス
+```
+
+**4. 更新**
+
+```bash
+brew upgrade claudy          # Homebrew
+claudy update                # 内蔵アップデーター
+# またはインストーラースクリプトを再実行 / cargo binstall claudy@latest
+claudy --version
 ```
 
 <details>
@@ -253,7 +274,7 @@ claudy <profile> gstack
 ```bash
 claudy mode create <name>
 claudy mode ls
-claudy mode rm <name>
+claudy mode remove <name>
 ```
 
 モード名ルール: `[a-z0-9][a-z0-9_-]*` (`mode`は予約語)。

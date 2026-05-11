@@ -30,7 +30,7 @@ Mit Claudy wechseln Sie zwischen Anthropic, Z.AI, OpenRouter, Ollama und benutze
     <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-1.92%2B-orange.svg" alt="rust-lang" /></a>
     <a href="https://crates.io/crates/claudy"><img src="https://img.shields.io/crates/v/claudy.svg" alt="crates.io" /></a>
     <a href="https://crates.io/crates/claudy"><img src="https://img.shields.io/crates/d/claudy.svg" alt="Downloads" /></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
+    <a href="../../LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
     <a href="https://buymeacoffee.com/epicsaga"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee" /></a>
     <a href="https://github.com/epicsagas/claudy/actions/workflows/ci.yml"><img src="https://github.com/epicsagas/claudy/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
 </p>
@@ -73,20 +73,32 @@ Mit Claudy wechseln Sie zwischen Anthropic, Z.AI, OpenRouter, Ollama und benutze
 
 ## Schnellstart
 
-**1. Installieren** (eines wählen)
+**1. Installieren**
+
+macOS / Linux:
 
 ```bash
-# macOS / Linux
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+brew install epicsagas/tap/claudy
+```
 
-# macOS (Homebrew)
-brew tap epicsagas/tap && brew install claudy
+Kein Homebrew? Das Installationsprogramm verwenden:
 
-# Windows (PowerShell)
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+```
+
+Windows:
+
+```powershell
 irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
+```
 
-# Cargo (alle Plattformen)
-cargo binstall claudy
+Über Rust-Toolchain:
+
+```bash
+cargo binstall claudy   # vorgefertigte Binärdatei (schnell)
+cargo install claudy    # aus Quellcode erstellen
 ```
 
 **2. Konfigurieren**
@@ -102,6 +114,15 @@ echo 'ANTHROPIC_API_KEY=your-key' >> ~/.claudy/secrets.env
 claudy                                # Standardanbieter
 claudy zai                            # Z.AI-Anbieter
 claudy openrouter sonnet              # OpenRouter-Alias
+```
+
+**4. Aktualisieren**
+
+```bash
+brew upgrade claudy          # Homebrew
+claudy update                # integrierter Updater
+# oder das Installationsskript erneut ausführen / cargo binstall claudy@latest
+claudy --version
 ```
 
 <details>
@@ -253,7 +274,7 @@ Jedes Modus-Verzeichnis ist ein in sich geschlossenes `CLAUDE_CONFIG_DIR`, sodas
 ```bash
 claudy mode create <name>
 claudy mode ls
-claudy mode rm <name>
+claudy mode remove <name>
 ```
 
 Modusnamensregel: `[a-z0-9][a-z0-9_-]*` (`mode` ist reserviert).
@@ -372,7 +393,7 @@ cat ~/.claude/settings.json | grep -A3 claudy
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp run
 ```
 
-### Unterstützte Agents (automatisch aus PATH erkannt)
+### Unterstutzte Agents (automatisch aus PATH erkannt)
 
 | Agent | Binärdatei | Headless-Befehl |
 |-------|--------|-----------------|
@@ -599,7 +620,7 @@ cargo run --features analytics-ui -- analytics dashboard
 
 ## Mitwirken
 
-Beiträge sind willkommen! So kommen SieStarted:
+Beiträge sind willkommen! So kommen Sie gestartet:
 
 1. Repository forken und einen Feature-Branch erstellen.
 2. Änderungen mit entsprechenden Tests vornehmen.
