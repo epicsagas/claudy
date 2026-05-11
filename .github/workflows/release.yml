@@ -331,8 +331,6 @@ jobs:
           echo "darwin_amd=$(sha256sum artifacts/claudy-x86_64-apple-darwin.tar.xz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
           echo "linux_arm=$(sha256sum artifacts/claudy-aarch64-unknown-linux-gnu.tar.xz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
           echo "linux_amd=$(sha256sum artifacts/claudy-x86_64-unknown-linux-gnu.tar.xz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
-          echo "linux_musl_arm=$(sha256sum artifacts/claudy-aarch64-unknown-linux-musl.tar.xz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
-          echo "linux_musl_amd=$(sha256sum artifacts/claudy-x86_64-unknown-linux-musl.tar.xz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
       - name: Resolve version
         id: version
@@ -357,8 +355,6 @@ jobs:
           SHA_DARWIN_AMD: ${{ steps.sha.outputs.darwin_amd }}
           SHA_LINUX_ARM: ${{ steps.sha.outputs.linux_arm }}
           SHA_LINUX_AMD: ${{ steps.sha.outputs.linux_amd }}
-          SHA_LINUX_MUSL_ARM: ${{ steps.sha.outputs.linux_musl_arm }}
-          SHA_LINUX_MUSL_AMD: ${{ steps.sha.outputs.linux_musl_amd }}
         run: |
           printf 'class Claudy < Formula\n' > Formula/claudy.rb
           printf '  desc "Modern multi-provider launcher for Claude CLI"\n' >> Formula/claudy.rb
@@ -376,11 +372,11 @@ jobs:
           printf '  end\n\n' >> Formula/claudy.rb
           printf '  on_linux do\n' >> Formula/claudy.rb
           printf '    if Hardware::CPU.arm?\n' >> Formula/claudy.rb
-          printf '      url "https://github.com/epicsagas/claudy/releases/download/%s/claudy-aarch64-unknown-linux-musl.tar.xz"\n' "$TAG" >> Formula/claudy.rb
-          printf '      sha256 "%s"\n' "$SHA_LINUX_MUSL_ARM" >> Formula/claudy.rb
+          printf '      url "https://github.com/epicsagas/claudy/releases/download/%s/claudy-aarch64-unknown-linux-gnu.tar.xz"\n' "$TAG" >> Formula/claudy.rb
+          printf '      sha256 "%s"\n' "$SHA_LINUX_ARM" >> Formula/claudy.rb
           printf '    else\n' >> Formula/claudy.rb
-          printf '      url "https://github.com/epicsagas/claudy/releases/download/%s/claudy-x86_64-unknown-linux-musl.tar.xz"\n' "$TAG" >> Formula/claudy.rb
-          printf '      sha256 "%s"\n' "$SHA_LINUX_MUSL_AMD" >> Formula/claudy.rb
+          printf '      url "https://github.com/epicsagas/claudy/releases/download/%s/claudy-x86_64-unknown-linux-gnu.tar.xz"\n' "$TAG" >> Formula/claudy.rb
+          printf '      sha256 "%s"\n' "$SHA_LINUX_AMD" >> Formula/claudy.rb
           printf '    end\n' >> Formula/claudy.rb
           printf '  end\n\n' >> Formula/claudy.rb
           printf '  def install\n' >> Formula/claudy.rb
