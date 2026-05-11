@@ -28,6 +28,15 @@ exclude = [
 name = "claudy"
 path = "src/main.rs"
 
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }.tar.xz"
+pkg-fmt = "txz"
+bin-dir = "{ name }-{ target }/{ bin }"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
+bin-dir = "{ bin }.exe"
+
 [package.metadata.wix]
 upgrade-guid = "D995884F-247F-4EA1-B756-FD4B02F7CD4B"
 path-guid = "4EE36F0E-4C9B-4D51-9765-57B8AB64706E"
