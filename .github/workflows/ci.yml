@@ -29,6 +29,8 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Check
+        run: cargo check --all-targets
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Clippy
@@ -57,7 +59,7 @@ jobs:
         with:
           toolchain: stable
       - name: Install cargo-audit
-        run: cargo install cargo-audit
+        run: cargo install cargo-audit --locked
       - name: Run audit
         run: cargo audit
 
