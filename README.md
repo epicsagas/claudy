@@ -106,16 +106,15 @@ claudy openrouter sonnet              # OpenRouter alias
 
 **4. Update**
 
-```bash
-# Built-in self-update (all platforms)
-claudy update
+| Install method | Update command |
+|----------------|----------------|
+| curl \| sh (macOS/Linux) | Re-run the install command from step 1 |
+| irm \| iex (Windows) | Re-run the install command from step 1 |
+| Homebrew | `brew upgrade claudy` |
+| cargo-binstall | `cargo binstall claudy@latest` |
+| Built-in | `claudy update` |
 
-# Or via your install method:
-brew upgrade claudy                   # Homebrew
-cargo binstall claudy@latest          # Cargo
-```
-
-Re-run the install command from step 1 to update via shell/PowerShell installer.
+Verify the installed version: `claudy --version`
 
 <details>
 <summary>Provider credentials</summary>
