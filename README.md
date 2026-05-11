@@ -73,23 +73,32 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
 
 ## Quick Start
 
-**1. Install** (pick one)
+**1. Install**
+
+macOS / Linux:
 
 ```bash
-# macOS / Linux — pre-built binary, no Rust required
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
-
-# Windows — pre-built binary, no Rust required
-irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
-
-# Homebrew (macOS / Linux)
 brew install epicsagas/tap/claudy
+```
 
-# cargo-binstall — pre-built binary via Rust toolchain
-cargo binstall claudy
+No Homebrew? Use the installer script:
 
-# cargo install — build from source (requires Rust toolchain)
-cargo install claudy
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+```
+
+Windows:
+
+```powershell
+irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
+```
+
+Via Rust toolchain:
+
+```bash
+cargo binstall claudy   # pre-built binary (fast)
+cargo install claudy    # build from source
 ```
 
 **2. Configure**
@@ -109,18 +118,10 @@ claudy openrouter sonnet              # OpenRouter alias
 
 **4. Update**
 
-| Method | Command |
-|--------|---------|
-| curl installer (macOS/Linux) | Re-run the install script from step 1 |
-| PowerShell installer (Windows) | Re-run the install command from step 1 |
-| Homebrew | `brew upgrade claudy` |
-| cargo binstall | `cargo binstall claudy@latest` |
-| cargo install | `cargo install claudy@latest` |
-| Built-in | `claudy update` |
-
-Verify the installed version:
-
 ```bash
+brew upgrade claudy          # Homebrew
+claudy update                # built-in updater
+# or re-run the installer script / cargo binstall claudy@latest
 claudy --version
 ```
 
