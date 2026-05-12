@@ -85,13 +85,13 @@ No Homebrew? Use the installer script:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.sh | sh
+  https://github.com/epicsagas/claudy/releases/latest/download/install.sh | sh
 ```
 
 Windows:
 
 ```powershell
-irm https://github.com/epicsagas/claudy/releases/latest/download/claudy-installer.ps1 | iex
+irm https://github.com/epicsagas/claudy/releases/latest/download/install.ps1 | iex
 ```
 
 Via Rust toolchain:
