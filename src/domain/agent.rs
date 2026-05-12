@@ -83,13 +83,6 @@ pub fn builtin_agents() -> Vec<AgentDefinition> {
             timeout: 120,
         },
         AgentDefinition {
-            name: "aider".into(),
-            binary: "aider".into(),
-            args: vec!["--message".into(), "{prompt}".into()],
-            description: "Aider (git-native pair programming, 39K stars)".into(),
-            timeout: 180,
-        },
-        AgentDefinition {
             name: "goose".into(),
             binary: "goose".into(),
             args: vec!["run".into(), "{prompt}".into()],
