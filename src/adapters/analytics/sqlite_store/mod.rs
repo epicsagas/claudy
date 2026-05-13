@@ -206,14 +206,14 @@ mod tests {
         let store = test_store();
         let id = store
             .upsert_project(
-                "-Volumes-T5-projects-claudy",
+                "-home-user-projects-claudy",
                 "claudy",
-                Some("/Volumes/T5/projects/claudy"),
+                Some("/home/user/projects/claudy"),
             )
             .unwrap();
         assert!(id > 0);
         let found = store
-            .get_project_by_encoded_dir("-Volumes-T5-projects-claudy")
+            .get_project_by_encoded_dir("-home-user-projects-claudy")
             .unwrap()
             .expect("found");
         assert_eq!(found.display_name, "claudy");

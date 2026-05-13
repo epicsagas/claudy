@@ -410,7 +410,7 @@ mod tests {
     #[test]
     fn test_project_display_name() {
         assert_eq!(
-            project_display_name(Some("/Users/hackme/projects/myapp")),
+            project_display_name(Some("/home/user/projects/myapp")),
             "myapp"
         );
         assert_eq!(project_display_name(None), "unknown");
