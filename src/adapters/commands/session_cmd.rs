@@ -56,12 +56,12 @@ pub fn run_session_sanitize(
     }
 
     // ── display table ────────────────────────────────────────────────────────
-    let sep = "─".repeat(82);
+    let sep = "─".repeat(72);
     ctx.output.header("Sessions with invalid thinking blocks");
     ctx.output.write_line(&sep)?;
     ctx.output.write_line(&format!(
-        " {:<3}  {:<16}  {:<8}  {:<7}  {:<36}  {}",
-        "#", "Project", "Session", "Age", "Last message", "Blocks"
+        " {:<3}  {:<14}  {:<8}  {:<4}  {:<30}  {}",
+        "#", "Project", "Session", "Age", "Last message", "Blk"
     ))?;
     ctx.output.write_line(&sep)?;
 
@@ -72,17 +72,19 @@ pub fn run_session_sanitize(
 
     for (idx, (s, n)) in flagged.iter().enumerate() {
         let age = format_age(now.saturating_sub(s.last_modified));
-        let last = s
-            .last_message
-            .as_deref()
-            .unwrap_or("")
-            .chars()
-            .take(36)
-            .collect::<String>();
+        // Strip newlines and collapse whitespace so the row stays single-line
+        let raw = s.last_message.as_deref().unwrap_or("");
+        let oneliner: String = raw
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let last = truncate_str(&oneliner, 30);
         ctx.output.write_line(&format!(
-            " {:<3}  {:<16}  {:<8}  {:<7}  {:<36}  {}",
+            " {:<3}  {:<14}  {:<8}  {:<4}  {:<30}  {}",
             idx + 1,
-            truncate_str(&s.project_name, 16),
+            truncate_str(&s.project_name, 14),
             &s.session_id[..8],
             age,
             last,
@@ -91,36 +93,30 @@ pub fn run_session_sanitize(
     }
     ctx.output.write_line(&sep)?;
 
-    // ── selection ────────────────────────────────────────────────────────────
+    // ── selection: number prompt (avoids terminal scroll issues) ─────────────
     let targets: Vec<(SessionInfo, usize)> = if all {
         flagged
     } else {
-        let mut items: Vec<String> = flagged
-            .iter()
-            .enumerate()
-            .map(|(i, (s, n))| {
-                format!(
-                    "#{:<2}  {} / {}  ({} blocks)",
-                    i + 1,
-                    truncate_str(&s.project_name, 16),
-                    &s.session_id[..8],
-                    n
-                )
-            })
-            .collect();
-        items.push("Sanitize ALL".to_string());
-
-        let choice = ctx
-            .prompt
-            .select_opt("Select session to sanitize", &items, 0)?;
-
-        match choice {
-            None => {
+        let input = ctx.prompt.prompt(
+            &format!("Select # (1-{}) or 'a' for all, Enter to cancel", flagged.len()),
+            "",
+        )?;
+        let trimmed = input.trim();
+        match trimmed {
+            "" | "q" => {
                 ctx.output.info("Cancelled.");
                 return Ok(0);
             }
-            Some(i) if i == flagged.len() => flagged, // "all"
-            Some(i) => vec![flagged.into_iter().nth(i).unwrap()],
+            "a" => flagged,
+            s => match s.parse::<usize>() {
+                Ok(n) if n >= 1 && n <= flagged.len() => {
+                    vec![flagged.into_iter().nth(n - 1).unwrap()]
+                }
+                _ => {
+                    ctx.output.warn(&format!("Invalid selection: {}", s));
+                    return Ok(1);
+                }
+            },
         }
     };
 
