@@ -18,13 +18,11 @@ pub fn run_session_sanitize(
     let sessions = discover_sessions(&projects_dir, 200);
 
     // If no project filter given, default to the current directory's name.
-    let effective_filter: Option<String> = project
-        .map(|s| s.to_string())
-        .or_else(|| {
-            std::env::current_dir()
-                .ok()
-                .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
-        });
+    let effective_filter: Option<String> = project.map(|s| s.to_string()).or_else(|| {
+        std::env::current_dir()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+    });
 
     let sessions: Vec<SessionInfo> = if let Some(ref f) = effective_filter {
         let f = f.to_lowercase();
