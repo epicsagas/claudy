@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use crate::domain::channel_events::{
     ChannelIdentity, ConversationId, IncomingEvent, InteractionButtons, InteractionEvent,
-    OutboundMessage, TextMessage,
+    OutboundMessage, Platform, TextMessage,
 };
 
 use super::{AppState, THINKING_MESSAGES, TypingGuard, is_authorized, spawn_process_event};
 use crate::adapters::channel::retry::{RetryPolicy, retry_send};
-use crate::adapters::channel::state::scope_key;
+use crate::adapters::channel::state::{scope_key, with_write};
 
 /// Validate a stored session ID by checking if the session file still exists on disk.
 /// Clears stale session state and returns `None` if the file is missing.
@@ -72,12 +72,18 @@ async fn start_claude_and_track(
                     Ok(_) => {
                         let trimmed = line.trim();
                         tracing::warn!(stderr = trimmed, "Claude stderr");
-                        if trimmed.contains("No conversation found with session ID") {
-                            tracing::info!("Clearing stale session due to Claude resume error");
+                        if trimmed.contains("No conversation found with session ID")
+                            || trimmed.contains("Invalid `signature` in `thinking` block")
+                            || trimmed.contains("Invalid signature in thinking block")
+                        {
+                            tracing::info!(
+                                stderr = trimmed,
+                                "Clearing session due to resume incompatibility"
+                            );
                             let mut cs = stderr_state.write().await;
                             cs.clear_session(&stderr_scope);
                             if let Err(e) = cs.save() {
-                                tracing::error!(error = %e, "Failed to clear stale session");
+                                tracing::error!(error = %e, "Failed to clear session after resume error");
                             }
                         }
                     }
@@ -219,6 +225,49 @@ pub(super) async fn handle_text_message(
         &msg.channel.user_id,
     );
 
+    // Handle "waiting for directory input" state (from New project flow)
+    {
+        let waiting = {
+            let cs = state.channel_state.read().await;
+            cs.waiting_for_dir(&scope)
+        };
+        if waiting {
+            let path = msg.text.trim();
+            if std::path::Path::new(path).is_dir() {
+                with_write(&state.channel_state, |cs| {
+                    cs.set_working_dir(&scope, path);
+                    cs.clear_session(&scope);
+                    cs.clear_waiting_for_dir(&scope);
+                })
+                .await;
+                let display = std::path::Path::new(path)
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| path.to_string());
+                let _ = channel
+                    .send_message(&OutboundMessage {
+                        conversation_id: msg.conversation_id.clone(),
+                        channel: msg.channel.clone(),
+                        text: format!("New session started.\nProject: {}", display),
+                        message_ref: None,
+                        interaction: None,
+                    })
+                    .await;
+            } else {
+                let _ = channel
+                    .send_message(&OutboundMessage {
+                        conversation_id: msg.conversation_id.clone(),
+                        channel: msg.channel.clone(),
+                        text: "Directory not found. Try again or type /cancel.".to_string(),
+                        message_ref: None,
+                        interaction: None,
+                    })
+                    .await;
+            }
+            return Ok(());
+        }
+    }
+
     // Reject if a Claude process is already running for this scope,
     // but clean up stale PIDs where the process has already exited.
     {
@@ -274,6 +323,31 @@ pub(super) async fn handle_text_message(
     };
 
     let resume_session = validate_resume_session(state, &scope, resume_session).await;
+
+    // Strip thinking blocks with empty/invalid signatures written by non-Anthropic
+    // providers (e.g. ZAI/GLM). The Anthropic API rejects these with HTTP 400 when
+    // the session is resumed. Sanitization is a no-op when the file is already clean.
+    if let (Some(sid), Some(projects_dir)) = (
+        resume_session.as_deref(),
+        crate::adapters::channel::sessions::claude_projects_dir(),
+    ) {
+        match crate::adapters::channel::sessions::sanitize_session_thinking_blocks(
+            &projects_dir,
+            sid,
+        ) {
+            Ok(0) => {}
+            Ok(n) => tracing::info!(
+                count = n,
+                session_id = %sid,
+                "Stripped invalid thinking blocks before resume"
+            ),
+            Err(e) => tracing::warn!(
+                error = %e,
+                session_id = %sid,
+                "Could not sanitize thinking blocks; resume may fail"
+            ),
+        }
+    }
 
     let mut claude = match start_claude_and_track(
         state,
@@ -453,10 +527,22 @@ pub(super) async fn handle_bot_command(
     );
 
     match command {
-        "/help" | "/start" => {
+        "/start" => {
+            // Set up Telegram persistent bottom keyboard
+            if platform == Platform::Telegram
+                && let Some(tg) = adapter
+                    .as_any()
+                    .downcast_ref::<super::super::telegram::TelegramAdapter>()
+                && let Err(e) = tg.send_reply_keyboard(&bot_channel.channel_id).await
+            {
+                tracing::warn!(error = %e, "Failed to send Telegram reply keyboard");
+            }
             crate::adapters::channel::commands::handle_help(adapter.as_ref(), &bot_channel).await
         }
-        "/cancel" => {
+        "/help" => {
+            crate::adapters::channel::commands::handle_help(adapter.as_ref(), &bot_channel).await
+        }
+        "/cancel" | "/stop" => {
             crate::adapters::channel::commands::handle_cancel(
                 adapter.as_ref(),
                 &bot_channel,
@@ -540,6 +626,27 @@ pub(super) async fn handle_bot_command(
                 &bot_channel,
                 &scope,
                 &state.channel_state,
+            )
+            .await
+        }
+        "/compact" => {
+            let has_session = {
+                let cs = state.channel_state.read().await;
+                cs.session_id(&scope).is_some()
+            };
+            if !has_session {
+                crate::adapters::channel::commands::handle_help(adapter.as_ref(), &bot_channel)
+                    .await?;
+                return Ok(());
+            }
+            handle_text_message(
+                state,
+                TextMessage {
+                    conversation_id: ConversationId::new(),
+                    channel: bot_channel,
+                    text: "/compact".to_string(),
+                    reply_to_id: None,
+                },
             )
             .await
         }

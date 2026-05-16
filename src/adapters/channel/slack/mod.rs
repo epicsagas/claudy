@@ -83,6 +83,10 @@ impl ChannelPort for SlackAdapter {
         // not through the REST API. No-op here.
         Ok(())
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 /// Parse a message reference in the format "{channel_id}:{ts}".

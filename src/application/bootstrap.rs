@@ -130,6 +130,7 @@ fn is_builtin_subcommand(name: &str) -> bool {
             | "channel"
             | "mcp"
             | "analytics"
+            | "session"
             | "help"
     )
 }

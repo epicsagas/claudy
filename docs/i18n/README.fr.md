@@ -52,6 +52,7 @@ Claudy vous permet de basculer entre Anthropic, Z.AI, OpenRouter, Ollama et des 
 | 💬 | Pont de canaux | Exécutez des bots Telegram, Slack et Discord avec des invites de permission interactives |
 | 📊 | Analytique d'utilisation | Suivez l'utilisation des jetons, les coûts et les modèles d'outils avec un tableau de bord Tauri local |
 | 🔐 | Contrôle de processus sûr | Transmission SIGINT/SIGTERM, écritures atomiques de configuration, stockage des identifiants en mode 0600 |
+| 🔀 | Continuité de session inter-fournisseurs | Réparer automatiquement les sessions Z.AI/GLM pour les reprendre sans interruption avec l'API Anthropic |
 | 🛠️ | UX opérationnelle | Installation, mise à jour, désinstallation, diagnostic, ping — tout depuis un seul binaire |
 
 ## Fournisseurs pris en charge
@@ -268,6 +269,7 @@ Chaque répertoire de mode est un `CLAUDE_CONFIG_DIR` autonome, donc les framewo
 - `claudy channel <sous-commande>` : gérer le pont de canaux.
 - `claudy mcp` : exécuter en tant que serveur MCP pour le pont d'agents.
 - `claudy analytics <sous-commande>` : tableau de bord d'analytique d'utilisation.
+- `claudy session sanitize` : réparer les sessions contenant des blocs thinking invalides écrits par des fournisseurs non-Anthropic.
 
 ### Commandes de mode
 
@@ -508,6 +510,37 @@ claudy analytics dashboard
 
 ---
 
+## Continuité de session inter-fournisseurs
+
+Lors d'une session créée avec un fournisseur non-Anthropic (par ex. Z.AI / GLM), le fichier JSONL de session contient des blocs thinking avec une signature vide. La reprise de cette session via l'API Anthropic échoue avec :
+
+```
+API Error: 400 Invalid `signature` in `thinking` block
+```
+
+Claudy gère cela de deux façons :
+
+**Automatique (pont de canal) :** Lorsque le serveur de canal reprend une session, il convertit silencieusement les blocs thinking à signature vide en blocs texte. Aucune action requise.
+
+**Manuel (CLI) :** Utilisez `claudy session sanitize` avant de reprendre avec `claude --resume` :
+
+```bash
+# Interactif — sélectionner dans la liste des sessions problématiques
+claudy session sanitize
+
+# Filtrer par nom de projet
+claudy session sanitize --project book-forge
+
+# Traiter toutes les sessions en une fois
+claudy session sanitize --all --yes
+```
+
+**Ce que fait la conversion :** Les blocs thinking à signature vide sont réécrits en blocs texte ordinaires, préservant le contenu du raisonnement. Les blocs avec une signature Anthropic valide ne sont pas modifiés.
+
+**Limitation :** La continuité de session dépend de la compatibilité de l'historique de conversation. Un changement de fournisseur en cours de session peut entraîner de légères variations de contexte même après la correction.
+
+---
+
 ## Fichiers et structure des répertoires
 
 Par défaut, Claudy stocke les données dans :
@@ -602,6 +635,7 @@ claudy ping
 - **MCP non enregistré** : exécutez `claudy mcp` une fois manuellement, ou vérifiez `~/.claude/settings.json` pour l'entrée `mcpServers.claudy`.
 - **Sortie de l'agent tronquée** : la sortie standard de l'agent est limitée à 10 Mo. Pour les grandes sorties, redirigez l'agent pour écrire dans un fichier à la place.
 - **Données d'analytique manquantes** : exécutez `claudy analytics ingest` pour remplir depuis `~/.claude/projects/`. Utilisez `--full` pour tout ré-ingérer.
+- **`400 Invalid signature in thinking block` à la reprise d'une session** : la session a été créée avec un fournisseur non-Anthropic (par ex. Z.AI). Exécutez `claudy session sanitize` pour convertir les blocs thinking invalides, puis reprenez normalement.
 
 ## Développement
 

@@ -262,6 +262,48 @@ impl TelegramApi {
 
         Ok(())
     }
+
+    /// Send a persistent ReplyKeyboardMarkup with quick-action buttons.
+    ///
+    /// Unlike InlineKeyboardMarkup (attached to a specific message),
+    /// ReplyKeyboardMarkup stays at the bottom of the chat until replaced.
+    pub async fn send_reply_keyboard(&self, chat_id: &str) -> Result<()> {
+        let body = serde_json::json!({
+            "chat_id": chat_id,
+            "text": "Ready.",
+            "reply_markup": {
+                "keyboard": [
+                    [
+                        {"text": "/stop"},
+                        {"text": "/sessions"},
+                        {"text": "/projects"}
+                    ]
+                ],
+                "resize_keyboard": true,
+                "one_time_keyboard": false
+            }
+        });
+
+        let resp: TelegramResponse = self
+            .client
+            .post(self.url("sendMessage"))
+            .json(&body)
+            .send()
+            .await
+            .context("telegram sendReplyKeyboard request failed")?
+            .json()
+            .await
+            .context("telegram sendReplyKeyboard response parse failed")?;
+
+        if !resp.ok {
+            let desc = resp
+                .description
+                .unwrap_or_else(|| "unknown error".to_string());
+            anyhow::bail!("telegram sendReplyKeyboard failed: {desc}");
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

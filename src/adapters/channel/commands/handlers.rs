@@ -16,6 +16,8 @@ pub async fn handle_help(
     let text = "Claudy Bot Commands:\n\n\
         /help - Show available commands\n\
         /cancel - Cancel current task\n\
+        /stop - Stop current task\n\
+        /compact - Compact conversation context\n\
         /model - Change Claude model\n\
         /yolo - Toggle auto-allow permissions\n\
         /status - Show session status\n\

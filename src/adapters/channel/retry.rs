@@ -167,6 +167,10 @@ mod tests {
         async fn send_typing(&self, _channel: &ChannelIdentity) -> anyhow::Result<()> {
             Ok(())
         }
+
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
     }
 
     fn test_msg() -> OutboundMessage {

@@ -55,6 +55,11 @@ impl CommandRegistry {
                     .warn("Analytics requires --features analytics build");
                 Ok(1)
             }
+            DomainCommand::Session(action) => match action {
+                crate::domain::commands::SessionAction::Sanitize { project, all, yes } => {
+                    super::session_cmd::run_session_sanitize(ctx, project.as_deref(), all, yes)
+                }
+            },
         }
     }
 }

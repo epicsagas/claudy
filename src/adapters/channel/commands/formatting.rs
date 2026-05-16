@@ -54,7 +54,7 @@ pub(crate) fn truncate_chars(s: &str, max_chars: usize) -> &str {
 }
 
 pub(crate) fn session_buttons(sessions: &[super::super::sessions::SessionInfo]) -> Vec<Button> {
-    sessions
+    let mut buttons: Vec<Button> = sessions
         .iter()
         .map(|s| {
             let preview = s.first_message.as_deref().unwrap_or("(no message)");
@@ -69,7 +69,13 @@ pub(crate) fn session_buttons(sessions: &[super::super::sessions::SessionInfo]) 
                 label,
             }
         })
-        .collect()
+        .collect();
+
+    buttons.push(Button {
+        id: "new:session".to_string(),
+        label: "New session".to_string(),
+    });
+    buttons
 }
 
 pub(crate) fn project_buttons(projects: &[super::super::sessions::ProjectInfo]) -> Vec<Button> {
@@ -219,9 +225,10 @@ mod tests {
             last_modified: 0,
         }];
         let buttons = session_buttons(&sessions);
-        assert_eq!(buttons.len(), 1);
+        assert_eq!(buttons.len(), 2); // 1 session + 1 "New session"
         assert!(buttons[0].id.len() <= 62);
         assert!(buttons[0].id.starts_with("sess:"));
+        assert_eq!(buttons[1].id, "new:session");
     }
 
     #[test]

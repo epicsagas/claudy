@@ -13,6 +13,8 @@ pub trait ChannelPort: Send + Sync {
     async fn delete_message(&self, channel: &ChannelIdentity, message_ref: &str) -> Result<()>;
     async fn ack_interaction(&self, channel: &ChannelIdentity, interaction_id: &str) -> Result<()>;
     async fn send_typing(&self, channel: &ChannelIdentity) -> Result<()>;
+
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
 #[async_trait]

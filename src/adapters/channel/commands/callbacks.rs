@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::domain::channel_events::{
-    ChannelIdentity, ConversationId, IncomingEvent, OutboundMessage, TextMessage,
+    Button, ChannelIdentity, ConversationId, IncomingEvent, OutboundMessage, TextMessage,
 };
 use crate::ports::channel_ports::ChannelPort;
 
@@ -54,6 +54,18 @@ pub async fn handle_callback(ctx: CallbackContext) -> anyhow::Result<()> {
         }
         "model" => {
             handle_model_callback(
+                channel.as_ref(),
+                &channel_id,
+                &data,
+                callback_message_id,
+                original_text,
+                &scope,
+                &channel_state,
+            )
+            .await
+        }
+        "new" => {
+            handle_new_callback(
                 channel.as_ref(),
                 &channel_id,
                 &data,
@@ -336,4 +348,79 @@ async fn handle_choice_callback(
     });
     super::super::server::spawn_process_event(app_state, synthetic);
     Ok(())
+}
+
+async fn handle_new_callback(
+    channel: &dyn ChannelPort,
+    channel_id: &ChannelIdentity,
+    data: &str,
+    callback_message_id: Option<String>,
+    original_text: Option<String>,
+    scope: &str,
+    state: &Arc<tokio::sync::RwLock<ChannelState>>,
+) -> anyhow::Result<()> {
+    match data {
+        "session" => {
+            dismiss_keyboard(channel, channel_id, callback_message_id, original_text, "").await?;
+            reply_with_buttons(
+                channel,
+                channel_id,
+                "New session:".to_string(),
+                "Choose scope",
+                vec![
+                    Button {
+                        id: "new:current".to_string(),
+                        label: "Current project".to_string(),
+                    },
+                    Button {
+                        id: "new:project".to_string(),
+                        label: "Other project".to_string(),
+                    },
+                ],
+            )
+            .await
+        }
+        "current" => {
+            let cwd_info = with_write(state, |cs| {
+                cs.clear_session(scope);
+                cs.clear_waiting_for_dir(scope);
+                cs.working_dir(scope)
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "default workspace".to_string())
+            })
+            .await;
+            dismiss_keyboard(
+                channel,
+                channel_id,
+                callback_message_id,
+                original_text,
+                &format!("New session started.\nWorking dir: {}", cwd_info),
+            )
+            .await
+        }
+        "project" => {
+            with_write(state, |cs| {
+                cs.set_waiting_for_dir(scope);
+            })
+            .await;
+            dismiss_keyboard(
+                channel,
+                channel_id,
+                callback_message_id,
+                original_text,
+                "Enter the project folder path:",
+            )
+            .await
+        }
+        _ => {
+            dismiss_keyboard(
+                channel,
+                channel_id,
+                callback_message_id,
+                original_text,
+                "Unknown new-session option.",
+            )
+            .await
+        }
+    }
 }

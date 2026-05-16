@@ -52,6 +52,7 @@ Claudyを使えば、Anthropic、Z.AI、OpenRouter、Ollama、カスタムエン
 | 💬 | チャネルブリッジ | Telegram、Slack、Discordボットをインタラクティブな権限プロンプト付きで実行 |
 | 📊 | 使用量分析 | トークン使用量、コスト、ツールパターンをローカルTauriダッシュボードで追跡 |
 | 🔐 | 安全なプロセス制御 | SIGINT/SIGTERM転送、アトミック設定書き込み、0600認証情報ストレージ |
+| 🔀 | クロスプロバイダーセッション継続性 | Z.AI/GLMで作成したセッションをAnthropic APIで引き継いで作業できるよう自動修復 |
 | 🛠️ | 運用UX | インストール、更新、アンインストール、診断、ping — すべて1つのバイナリから |
 
 ## サポートプロバイダー
@@ -268,6 +269,7 @@ claudy <profile> gstack
 - `claudy channel <subcommand>`: チャネルブリッジを管理。
 - `claudy mcp`: エージェントブリッジ用MCPサーバーとして実行。
 - `claudy analytics <subcommand>`: 使用量分析ダッシュボード。
+- `claudy session sanitize`: 非Anthropicプロバイダーによる無効なthinkingブロックを持つセッションを修復します。
 
 ### モードコマンド
 
@@ -508,6 +510,37 @@ claudy analytics dashboard
 
 ---
 
+## クロスプロバイダーセッション継続性
+
+Z.AI / GLMなど非AnthropicプロバイダーによるセッションのJSONLファイルには、空のsignatureを持つthinkingブロックが記録されます。そのセッションをAnthropic APIで再開すると、次のエラーが発生します:
+
+```
+API Error: 400 Invalid `signature` in `thinking` block
+```
+
+Claudyは2つの方法でこの問題を処理します:
+
+**自動 (チャネルブリッジ):** チャネルサーバーがセッションを再開する際、空のsignatureを持つthinkingブロックを自動的に通常のテキストブロックに変換します。追加の操作は不要です。
+
+**手動 (CLI):** `claude --resume`で直接再開する前に、`claudy session sanitize`でセッションを修復します:
+
+```bash
+# インタラクティブ — 問題のあるセッションリストから選択
+claudy session sanitize
+
+# プロジェクト名でフィルタリング
+claudy session sanitize --project book-forge
+
+# すべての問題セッションを一括処理
+claudy session sanitize --all --yes
+```
+
+**変換の仕組み:** 空のsignatureを持つthinkingブロックが通常のテキストブロックに書き換えられます。推論内容はテキストとして保持され、セッションファイルはアトミックに更新されます。有効なAnthropic signatureを持つブロックは変更されません。
+
+**制限事項:** セッション継続性は会話履歴の互換性に依存します。セッション中にプロバイダーを切り替えると、sanitization後も微妙なコンテキストの変化が生じる可能性があります。
+
+---
+
 ## ファイルとディレクトリ構成
 
 デフォルトでは、Claudyは次の場所にデータを保存します:
@@ -602,6 +635,7 @@ claudy ping
 - **MCPが登録されない**: `claudy mcp`を手動で1回実行するか、`~/.claude/settings.json`で `mcpServers.claudy` エントリを確認してください。
 - **エージェント出力が切り詰められる**: エージェントstdoutは10MBに制限されています。大きな出力の場合は、エージェントがファイルに書き込むようにリダイレクトしてください。
 - **分析データが欠落**: `claudy analytics ingest`を実行して `~/.claude/projects/` からデータを取り込んでください。`--full`を使用してすべてを再取り込みしてください。
+- **セッション再開時に `400 Invalid signature in thinking block`**: Z.AIなど非AnthropicプロバイダーによるセッションはAnthropicのAPIで無効なthinkingブロックが含まれています。`claudy session sanitize`を実行して変換した後、通常通り再開してください。
 
 ## 開発
 

@@ -68,6 +68,10 @@ pub enum Commands {
     /// Usage analytics and recommendations dashboard
     #[command(subcommand)]
     Analytics(AnalyticsCommands),
+
+    /// Manage Claude sessions
+    #[command(subcommand)]
+    Session(SessionCommands),
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -175,4 +179,22 @@ pub enum AnalyticsCommands {
     },
     /// Recalculate all costs using the latest pricing data
     Recalculate,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SessionCommands {
+    /// Find sessions with invalid thinking blocks (from non-Anthropic providers)
+    /// and convert them so the session can be resumed with Claude.
+    #[command(name = "sanitize")]
+    Sanitize {
+        /// Filter by project name (case-insensitive substring)
+        #[arg(long, short)]
+        project: Option<String>,
+        /// Sanitize all flagged sessions without interactive selection
+        #[arg(long, short)]
+        all: bool,
+        /// Skip the confirmation prompt
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
 }

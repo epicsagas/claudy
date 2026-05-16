@@ -53,6 +53,7 @@ Claudy 让你在 Anthropic、Z.AI、OpenRouter、Ollama 和自定义端点之间
 | 💬 | 频道桥接 | 运行 Telegram、Slack 和 Discord 机器人，支持交互式权限提示 |
 | 📊 | 使用分析 | 通过本地 Tauri 仪表板追踪 token 用量、成本和工具使用模式 |
 | 🔐 | 安全进程控制 | SIGINT/SIGTERM 信号转发、原子配置写入、0600 凭证存储 |
+| 🔀 | 跨提供商会话连续性 | 自动修复 Z.AI/GLM 创建的会话，使其可以通过 Anthropic API 无缝续接 |
 | 🛠️ | 运维体验 | 安装、更新、卸载、诊断、连通测试 —— 一个二进制文件搞定一切 |
 
 ## 支持的提供商
@@ -269,6 +270,7 @@ claudy <profile> gstack
 - `claudy channel <subcommand>`：管理频道桥接。
 - `claudy mcp`：作为 MCP 服务器运行，用于代理桥接。
 - `claudy analytics <subcommand>`：使用分析仪表板。
+- `claudy session sanitize`：修复包含非 Anthropic 提供商写入的无效 thinking 块的会话。
 
 ### 模式命令
 
@@ -509,6 +511,37 @@ claudy analytics dashboard
 
 ---
 
+## 跨提供商会话连续性
+
+使用 Z.AI / GLM 等非 Anthropic 提供商工作时，会话 JSONL 文件中会记录带有空 signature 的 thinking 块。通过 Anthropic API 恢复该会话时会出现以下错误：
+
+```
+API Error: 400 Invalid `signature` in `thinking` block
+```
+
+Claudy 通过两种方式处理此问题：
+
+**自动处理（频道桥接）：** 频道服务器恢复会话时，会自动将带有空 signature 的 thinking 块转换为普通文本块。无需任何操作。
+
+**手动处理（CLI）：** 在使用 `claude --resume` 直接恢复前，运行 `claudy session sanitize` 修复会话：
+
+```bash
+# 交互式 — 从问题会话列表中选择
+claudy session sanitize
+
+# 按项目名称过滤
+claudy session sanitize --project book-forge
+
+# 批量处理所有问题会话
+claudy session sanitize --all --yes
+```
+
+**转换方式：** 带有空 signature 的 thinking 块被重写为纯文本块，推理内容以文本形式保留，会话文件以原子方式更新。具有有效 Anthropic signature 的块不会被修改。
+
+**限制：** 会话连续性取决于对话历史的兼容性。在会话中途切换提供商，即使经过 sanitization 也可能产生细微的上下文变化。
+
+---
+
 ## 文件和目录结构
 
 默认情况下，Claudy 将数据存储在：
@@ -603,6 +636,7 @@ claudy ping
 - **MCP 未注册**：手动运行一次 `claudy mcp`，或检查 `~/.claude/settings.json` 中的 `mcpServers.claudy` 条目。
 - **代理输出被截断**：代理 stdout 上限为 10MB。对于大输出，请将代理重定向到写入文件。
 - **分析数据缺失**：运行 `claudy analytics ingest` 从 `~/.claude/projects/` 填充数据。使用 `--full` 重新导入所有内容。
+- **恢复会话时出现 `400 Invalid signature in thinking block`**：该会话由 Z.AI 等非 Anthropic 提供商创建。运行 `claudy session sanitize` 转换无效的 thinking 块，然后正常恢复。
 
 ## 开发
 

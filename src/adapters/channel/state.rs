@@ -163,6 +163,18 @@ impl ChannelState {
         self.set(scope, "BRANCH", "");
     }
 
+    pub fn waiting_for_dir(&self, scope: &str) -> bool {
+        self.get(scope, "WAITING_FOR_DIR") == Some("true")
+    }
+
+    pub fn set_waiting_for_dir(&mut self, scope: &str) {
+        self.set(scope, "WAITING_FOR_DIR", "true");
+    }
+
+    pub fn clear_waiting_for_dir(&mut self, scope: &str) {
+        self.set(scope, "WAITING_FOR_DIR", "false");
+    }
+
     pub fn save(&mut self) -> anyhow::Result<()> {
         if !self.dirty {
             return Ok(());

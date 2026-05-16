@@ -73,6 +73,10 @@ impl ChannelPort for DiscordAdapter {
     async fn send_typing(&self, channel: &ChannelIdentity) -> Result<()> {
         self.api.trigger_typing(&channel.channel_id).await
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[cfg(test)]

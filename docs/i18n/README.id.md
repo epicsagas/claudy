@@ -52,6 +52,7 @@ Claudy memungkinkan Anda beralih antara Anthropic, Z.AI, OpenRouter, Ollama, dan
 | 💬 | Bridge channel | Jalankan bot Telegram, Slack, dan Discord dengan prompt izin interaktif |
 | 📊 | Analitik penggunaan | Lacak penggunaan token, biaya, dan pola tool dengan dasbor Tauri lokal |
 | 🔐 | Kontrol proses yang aman | Penerusan SIGINT/SIGTERM, penulisan konfigurasi atomik, penyimpanan kredensial 0600 |
+| 🔀 | Kontinuitas sesi lintas penyedia | Memperbaiki sesi Z.AI/GLM secara otomatis agar dapat dilanjutkan dengan Anthropic API tanpa gangguan |
 | 🛠️ | UX operasional | Instal, perbarui, hapus instalasi, doctor, ping — semuanya dari satu binary |
 
 ## Penyedia yang didukung
@@ -268,6 +269,7 @@ Setiap direktori mode adalah `CLAUDE_CONFIG_DIR` yang mandiri, sehingga framewor
 - `claudy channel <subcommand>`: kelola bridge channel.
 - `claudy mcp`: jalankan sebagai server MCP untuk bridge agen.
 - `claudy analytics <subcommand>`: dasbor analitik penggunaan.
+- `claudy session sanitize`: memperbaiki sesi dengan blok thinking tidak valid yang ditulis oleh penyedia non-Anthropic.
 
 ### Perintah mode
 
@@ -508,6 +510,37 @@ claudy analytics dashboard
 
 ---
 
+## Kontinuitas Sesi Lintas Penyedia
+
+Saat bekerja dengan penyedia non-Anthropic (mis. Z.AI / GLM), file JSONL sesi berisi blok thinking dengan tanda tangan kosong. Melanjutkan sesi tersebut dengan Anthropic API akan menghasilkan error:
+
+```
+API Error: 400 Invalid `signature` in `thinking` block
+```
+
+Claudy menangani ini dengan dua cara:
+
+**Otomatis (jembatan saluran):** Saat server saluran melanjutkan sesi, server secara diam-diam mengonversi blok thinking dengan tanda tangan kosong menjadi blok teks. Tidak diperlukan tindakan apa pun.
+
+**Manual (CLI):** Gunakan `claudy session sanitize` sebelum melanjutkan dengan `claude --resume`:
+
+```bash
+# Interaktif — pilih dari daftar sesi bermasalah
+claudy session sanitize
+
+# Filter berdasarkan nama proyek
+claudy session sanitize --project book-forge
+
+# Proses semua sesi sekaligus
+claudy session sanitize --all --yes
+```
+
+**Apa yang dilakukan konversi:** Blok thinking dengan tanda tangan kosong ditulis ulang sebagai blok teks biasa, mempertahankan konten penalaran. Blok dengan tanda tangan Anthropic yang valid tidak diubah.
+
+**Batasan:** Kontinuitas sesi bergantung pada kompatibilitas riwayat percakapan. Beralih penyedia di tengah sesi dapat menyebabkan perubahan konteks kecil meskipun sudah dilakukan sanitasi.
+
+---
+
 ## File dan tata letak direktori
 
 Secara default, Claudy menyimpan data di:
@@ -602,6 +635,7 @@ claudy ping
 - **MCP tidak terdaftar**: jalankan `claudy mcp` sekali secara manual, atau periksa `~/.claude/settings.json` untuk entri `mcpServers.claudy`.
 - **Output agen terpotong**: stdout agen dibatasi hingga 10MB. Untuk output besar, arahkan agen untuk menulis ke file sebagai gantinya.
 - **Data analitik hilang**: jalankan `claudy analytics ingest` untuk mengisi dari `~/.claude/projects/`. Gunakan `--full` untuk menyerap ulang semuanya.
+- **`400 Invalid signature in thinking block` saat melanjutkan sesi**: sesi dibuat dengan penyedia non-Anthropic (mis. Z.AI). Jalankan `claudy session sanitize` untuk mengonversi blok thinking yang tidak valid, lalu lanjutkan seperti biasa.
 
 ## Pengembangan
 

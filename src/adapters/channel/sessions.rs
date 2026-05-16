@@ -373,23 +373,127 @@ pub fn discover_project_sessions(
     sessions
 }
 
+/// Count thinking blocks with empty/invalid signatures in a session file.
+pub fn count_invalid_thinking_blocks(claude_projects_dir: &str, session_id: &str) -> usize {
+    let Some(path) = find_session_file(claude_projects_dir, session_id) else {
+        return 0;
+    };
+    let Ok(content) = std::fs::read_to_string(&path) else {
+        return 0;
+    };
+    let mut count = 0usize;
+    for line in content.lines() {
+        let Ok(event) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        if event.pointer("/message/role").and_then(|v| v.as_str()) != Some("assistant") {
+            continue;
+        }
+        if let Some(arr) = event.pointer("/message/content").and_then(|v| v.as_array()) {
+            for block in arr {
+                if block["type"].as_str() == Some("thinking")
+                    && block["signature"].as_str().unwrap_or("").is_empty()
+                {
+                    count += 1;
+                }
+            }
+        }
+    }
+    count
+}
+
+/// Locate a session JSONL file by scanning all project subdirectories.
+fn find_session_file(claude_projects_dir: &str, session_id: &str) -> Option<std::path::PathBuf> {
+    let base = Path::new(claude_projects_dir);
+    std::fs::read_dir(base).ok()?.flatten().find_map(|entry| {
+        let candidate = entry.path().join(format!("{}.jsonl", session_id));
+        candidate.exists().then_some(candidate)
+    })
+}
+
+/// Strip thinking blocks with empty or missing signatures from a session JSONL file.
+///
+/// ZAI and other non-Anthropic providers write thinking blocks without valid
+/// Anthropic signatures. When Claude CLI resumes such a session it sends those
+/// blocks to the API, which rejects them with HTTP 400. This function removes
+/// the offending blocks in-place so the next `--resume` succeeds.
+///
+/// Returns the number of thinking blocks removed. Returns `Ok(0)` when the file
+/// is clean or does not exist.
+pub fn sanitize_session_thinking_blocks(
+    claude_projects_dir: &str,
+    session_id: &str,
+) -> anyhow::Result<usize> {
+    let Some(path) = find_session_file(claude_projects_dir, session_id) else {
+        return Ok(0);
+    };
+
+    let content = std::fs::read_to_string(&path)?;
+    let mut removed = 0usize;
+    let mut out = String::with_capacity(content.len());
+    let mut changed = false;
+
+    for line in content.lines() {
+        let Ok(mut event) = serde_json::from_str::<serde_json::Value>(line) else {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        };
+
+        // Only assistant messages can carry thinking blocks.
+        let is_assistant =
+            event.pointer("/message/role").and_then(|v| v.as_str()) == Some("assistant");
+
+        if is_assistant
+            && let Some(arr) = event
+                .pointer_mut("/message/content")
+                .and_then(|v| v.as_array_mut())
+        {
+            let mut converted = 0usize;
+            for block in arr.iter_mut() {
+                if block["type"].as_str() == Some("thinking")
+                    && block["signature"].as_str().unwrap_or("").is_empty()
+                {
+                    // Convert to a text block instead of removing.
+                    // Stripping the block entirely violates the Anthropic API requirement
+                    // that thinking blocks be included verbatim in conversation history.
+                    // A text block has no signature and passes validation while keeping
+                    // the reasoning content readable for subsequent turns.
+                    let text = block["thinking"].as_str().unwrap_or("").to_string();
+                    *block = serde_json::json!({"type": "text", "text": text});
+                    converted += 1;
+                }
+            }
+            if converted > 0 {
+                removed += converted;
+                changed = true;
+                out.push_str(&serde_json::to_string(&event)?);
+                out.push('\n');
+                continue;
+            }
+        }
+
+        out.push_str(line);
+        out.push('\n');
+    }
+
+    if !changed {
+        return Ok(0);
+    }
+
+    // Atomic replace: write to a sibling temp file then rename.
+    let parent = path.parent().unwrap_or(Path::new("."));
+    let tmp = parent.join(format!(".{}.tmp", session_id));
+    std::fs::write(&tmp, &out)?;
+    std::fs::rename(&tmp, &path)?;
+
+    Ok(removed)
+}
+
 /// Check whether a session JSONL file exists for the given session ID
 /// within any project subdirectory of the Claude projects directory.
 pub fn session_file_exists(claude_projects_dir: &str, session_id: &str) -> bool {
-    let base = Path::new(claude_projects_dir);
-    if !base.is_dir() {
-        return false;
-    }
-    let Ok(entries) = std::fs::read_dir(base) else {
-        return false;
-    };
-    for entry in entries.flatten() {
-        let candidate = entry.path().join(format!("{}.jsonl", session_id));
-        if candidate.exists() {
-            return true;
-        }
-    }
-    false
+    find_session_file(claude_projects_dir, session_id).is_some()
 }
 
 /// Resolve the `~/.claude/projects/` directory path.
@@ -526,5 +630,62 @@ mod tests {
         assert!(sessions.is_empty());
         let sessions = discover_project_sessions(dir.path().to_str().unwrap(), "..", 5);
         assert!(sessions.is_empty());
+    }
+
+    #[test]
+    fn sanitize_converts_empty_signature_thinking_to_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let proj_dir = dir.path().join("-test-project");
+        std::fs::create_dir_all(&proj_dir).unwrap();
+
+        let session_id = "550e8400-e29b-41d4-a716-446655440001";
+        let jsonl = "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"hello\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"model\":\"glm-5.1\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"some thoughts\",\"signature\":\"\"},{\"type\":\"text\",\"text\":\"response\"}]}}\n".to_string();
+        std::fs::write(proj_dir.join(format!("{}.jsonl", session_id)), &jsonl).unwrap();
+
+        let removed =
+            sanitize_session_thinking_blocks(dir.path().to_str().unwrap(), session_id).unwrap();
+        assert_eq!(removed, 1);
+
+        let patched =
+            std::fs::read_to_string(proj_dir.join(format!("{}.jsonl", session_id))).unwrap();
+        // thinking block converted to text block — type field gone, content preserved
+        assert!(
+            !patched.contains(r#""type":"thinking""#),
+            "thinking block type should be replaced"
+        );
+        assert!(
+            patched.contains("some thoughts"),
+            "thinking content must be preserved as text"
+        );
+        assert!(
+            patched.contains("\"response\""),
+            "original text block must survive"
+        );
+    }
+
+    #[test]
+    fn sanitize_keeps_valid_signature_thinking_blocks() {
+        let dir = tempfile::tempdir().unwrap();
+        let proj_dir = dir.path().join("-test-project");
+        std::fs::create_dir_all(&proj_dir).unwrap();
+
+        let session_id = "550e8400-e29b-41d4-a716-446655440002";
+        let jsonl = "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"thoughts\",\"signature\":\"valid-sig-abc123\"},{\"type\":\"text\",\"text\":\"ok\"}]}}\n".to_string();
+        std::fs::write(proj_dir.join(format!("{}.jsonl", session_id)), &jsonl).unwrap();
+
+        let removed =
+            sanitize_session_thinking_blocks(dir.path().to_str().unwrap(), session_id).unwrap();
+        assert_eq!(removed, 0, "valid signature must not be stripped");
+    }
+
+    #[test]
+    fn sanitize_returns_zero_for_missing_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let removed = sanitize_session_thinking_blocks(
+            dir.path().to_str().unwrap(),
+            "nonexistent-0000-0000-0000-000000000000",
+        )
+        .unwrap();
+        assert_eq!(removed, 0);
     }
 }

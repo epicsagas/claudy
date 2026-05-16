@@ -19,6 +19,10 @@ impl TelegramAdapter {
             api: TelegramApi::new(bot_token),
         }
     }
+
+    pub async fn send_reply_keyboard(&self, chat_id: &str) -> anyhow::Result<()> {
+        self.api.send_reply_keyboard(chat_id).await
+    }
 }
 
 #[async_trait]
@@ -71,6 +75,10 @@ impl ChannelPort for TelegramAdapter {
         self.api
             .send_chat_action(&channel.channel_id, "typing")
             .await
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

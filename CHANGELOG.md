@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-16
+
+### Added
+
+- `claudy session sanitize` command — finds sessions with invalid thinking blocks written by non-Anthropic providers (e.g. Z.AI / GLM) and converts them to text blocks so the session can be resumed with the Anthropic API without a `400 Invalid signature in thinking block` error. Supports `--project` filter, `--all` flag, and `-y` to skip confirmation.
+- Channel bridge: automatic session sanitization before `--resume` — when the channel server resumes a session that contains thinking blocks with empty signatures, it silently converts them before spawning the Claude process, making provider switching transparent.
+- Channel bridge: stderr detection for `Invalid signature in thinking block` — if sanitization is bypassed or another signature error occurs at runtime, the channel server clears the session ID so the next message starts cleanly.
+
 ### Changed
 
 - CLI: `ls` renamed to `list` (old name works as deprecated alias)

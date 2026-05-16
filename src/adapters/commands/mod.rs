@@ -8,13 +8,16 @@ pub mod install;
 pub mod list;
 pub mod mcp_cmd;
 pub mod mode_cmd;
+pub mod session_cmd;
 pub mod status;
 pub mod test_cmd;
 pub mod uninstall;
 pub mod update_cmd;
 
 use crate::adapters::cli::args::Commands;
-use crate::domain::commands::{AnalyticsAction, ChannelAction, DomainCommand, McpAction};
+use crate::domain::commands::{
+    AnalyticsAction, ChannelAction, DomainCommand, McpAction, SessionAction,
+};
 use crate::domain::context::Context;
 
 pub struct LegacyCommandAdapter;
@@ -98,6 +101,11 @@ pub fn map_cli_to_domain(command: Commands) -> DomainCommand {
             crate::adapters::cli::args::McpCommands::Install => McpAction::Install,
             crate::adapters::cli::args::McpCommands::Uninstall => McpAction::Uninstall,
         }),
+        Commands::Session(sub) => match sub {
+            crate::adapters::cli::args::SessionCommands::Sanitize { project, all, yes } => {
+                DomainCommand::Session(SessionAction::Sanitize { project, all, yes })
+            }
+        },
         Commands::Analytics(sub) => match sub {
             crate::adapters::cli::args::AnalyticsCommands::Dashboard => {
                 DomainCommand::Analytics(AnalyticsAction::Dashboard)

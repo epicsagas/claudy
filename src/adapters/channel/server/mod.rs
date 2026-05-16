@@ -75,6 +75,10 @@ pub(super) const BOT_COMMANDS: &[BotCommand] = &[
         description: "Cancel current task",
     },
     BotCommand {
+        name: "stop",
+        description: "Stop current task (alias for cancel)",
+    },
+    BotCommand {
         name: "model",
         description: "Change Claude model",
     },
@@ -97,6 +101,10 @@ pub(super) const BOT_COMMANDS: &[BotCommand] = &[
     BotCommand {
         name: "new",
         description: "Start new session",
+    },
+    BotCommand {
+        name: "compact",
+        description: "Compact conversation context",
     },
     BotCommand {
         name: "history",

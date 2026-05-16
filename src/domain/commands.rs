@@ -31,6 +31,7 @@ pub enum DomainCommand {
     },
     Mcp(McpAction),
     Analytics(AnalyticsAction),
+    Session(SessionAction),
 }
 
 #[derive(Debug, Clone)]
@@ -74,4 +75,13 @@ pub enum AnalyticsAction {
         project: Option<String>,
     },
     Recalculate,
+}
+
+#[derive(Debug, Clone)]
+pub enum SessionAction {
+    Sanitize {
+        project: Option<String>,
+        all: bool,
+        yes: bool,
+    },
 }
