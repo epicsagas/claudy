@@ -57,9 +57,9 @@ pub fn run_session_sanitize(
     let targets: Vec<(SessionInfo, usize)> = if all {
         flagged
     } else {
+        // Conservative item budget: dialoguer adds "~> " (3 cols) + scrollbar
         let term_cols = terminal_cols();
-        // Reserve ~4 cols for dialoguer's leading "> " indicator + margin
-        let item_budget = term_cols.saturating_sub(4);
+        let item_budget = term_cols.saturating_sub(6).min(76);
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -70,29 +70,23 @@ pub fn run_session_sanitize(
             .iter()
             .map(|(s, n)| {
                 let age = format_age(now.saturating_sub(s.last_modified));
-                let raw = s.last_message.as_deref().unwrap_or("");
-                let oneliner: String = raw
-                    .lines()
-                    .map(str::trim)
-                    .filter(|l| !l.is_empty())
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                // Fixed prefix: "project / session  age  (N blk)  \""
-                let suffix = format!("  {}  ({} blk)  \"", age, n);
-                let prefix_cols = display_width(&s.project_name)
-                    + 3  // " / "
-                    + 8  // session id
-                    + display_width(&suffix)
-                    + 1; // closing "
-                let preview_budget = item_budget.saturating_sub(prefix_cols);
-                let preview = truncate_display(&oneliner, preview_budget);
-                format!(
-                    "{} / {}{}\"{}\"",
-                    s.project_name,
-                    &s.session_id[..8],
-                    suffix,
-                    preview,
-                )
+                let proj = sanitize_str(&truncate_display(&s.project_name, 14));
+                let raw_msg = sanitize_str(
+                    &s.last_message
+                        .as_deref()
+                        .unwrap_or("")
+                        .lines()
+                        .map(str::trim)
+                        .filter(|l| !l.is_empty())
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                );
+                // prefix: "proj / sid  age  (Nblk)  "
+                let prefix = format!("{} / {}  {}  ({}blk)  ", proj, &s.session_id[..8], age, n);
+                let prefix_w = display_width(&prefix);
+                let preview_budget = item_budget.saturating_sub(prefix_w);
+                let preview = truncate_display(&raw_msg, preview_budget);
+                format!("{}{}", prefix, preview)
             })
             .collect();
         items.push("Sanitize ALL".to_string());
@@ -151,6 +145,13 @@ pub fn run_session_sanitize(
     Ok(0)
 }
 
+/// Strip control characters, tabs, and zero-width chars to prevent line-wrap in dialoguer.
+fn sanitize_str(s: &str) -> String {
+    s.chars()
+        .filter(|c| !c.is_control() && *c != '\u{200B}' && *c != '\u{FEFF}')
+        .collect()
+}
+
 /// Returns terminal column width via TIOCGWINSZ, falling back to 80.
 fn terminal_cols() -> usize {
     #[cfg(unix)]
@@ -170,6 +171,9 @@ fn display_width(s: &str) -> usize {
 
 /// Truncate string to at most `max_cols` display columns.
 fn truncate_display(s: &str, max_cols: usize) -> String {
+    if max_cols == 0 {
+        return String::new();
+    }
     let mut cols = 0usize;
     let mut result = String::new();
     for ch in s.chars() {
@@ -193,11 +197,13 @@ fn char_width(c: char) -> usize {
         | 0x3400..=0x4DBF // CJK Extension A
         | 0x4E00..=0x9FFF // CJK Unified Ideographs
         | 0xA000..=0xA4CF // Yi
+        | 0xA960..=0xA97F // Hangul Jamo Extended-A
         | 0xAC00..=0xD7AF // Hangul Syllables
+        | 0xD7B0..=0xD7FF // Hangul Jamo Extended-B
         | 0xF900..=0xFAFF // CJK Compatibility Ideographs
         | 0xFE10..=0xFE6F // CJK Compatibility Forms / Small Forms
         | 0xFF00..=0xFFEF // Halfwidth/Fullwidth Forms
-        | 0x1F300..=0x1F9FF // Emoji / Misc Symbols
+        | 0x1F300..=0x1FAFF // Emoji / Symbols
         | 0x20000..=0x2FA1F // CJK Extensions B-F
     ) {
         2
