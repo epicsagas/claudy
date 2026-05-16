@@ -17,13 +17,27 @@ pub fn run_session_sanitize(
 
     let sessions = discover_sessions(&projects_dir, 200);
 
-    // Optional project name filter (case-insensitive substring)
-    let sessions: Vec<SessionInfo> = if let Some(filter) = project {
-        let f = filter.to_lowercase();
-        sessions
+    // If no project filter given, default to the current directory's name.
+    let effective_filter: Option<String> = project
+        .map(|s| s.to_string())
+        .or_else(|| {
+            std::env::current_dir()
+                .ok()
+                .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+        });
+
+    let sessions: Vec<SessionInfo> = if let Some(ref f) = effective_filter {
+        let f = f.to_lowercase();
+        let filtered: Vec<_> = sessions
             .into_iter()
             .filter(|s| s.project_name.to_lowercase().contains(&f))
-            .collect()
+            .collect();
+        // If the cwd-derived filter matches nothing, fall back to all sessions.
+        if filtered.is_empty() && project.is_none() {
+            discover_sessions(&projects_dir, 200)
+        } else {
+            filtered
+        }
     } else {
         sessions
     };
@@ -83,13 +97,27 @@ pub fn run_session_sanitize(
     let targets: Vec<(SessionInfo, usize)> = if all {
         flagged
     } else {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
         let mut items: Vec<String> = flagged
             .iter()
             .map(|(s, n)| {
+                let age = format_age(now.saturating_sub(s.last_modified));
+                let preview = s
+                    .last_message
+                    .as_deref()
+                    .unwrap_or("")
+                    .chars()
+                    .take(40)
+                    .collect::<String>();
                 format!(
-                    "{} / {} ({} blocks)",
+                    "{} / {}  {}  \"{}\"  ({} blocks)",
                     truncate_str(&s.project_name, 20),
                     &s.session_id[..8],
+                    age,
+                    preview,
                     n
                 )
             })
