@@ -100,6 +100,7 @@ impl PrompterPort for Prompter {
             .with_prompt(label)
             .items(items)
             .default(default)
+            .max_length(10)
             .interact()?)
     }
 
@@ -114,6 +115,7 @@ impl PrompterPort for Prompter {
             .with_prompt(label)
             .items(items)
             .default(default)
+            .max_length(10)
             .interact_opt()?)
     }
 }
