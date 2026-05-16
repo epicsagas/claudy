@@ -95,27 +95,15 @@ pub fn run_session_sanitize(
     let targets: Vec<(SessionInfo, usize)> = if all {
         flagged
     } else {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
         let mut items: Vec<String> = flagged
             .iter()
-            .map(|(s, n)| {
-                let age = format_age(now.saturating_sub(s.last_modified));
-                let preview = s
-                    .last_message
-                    .as_deref()
-                    .unwrap_or("")
-                    .chars()
-                    .take(40)
-                    .collect::<String>();
+            .enumerate()
+            .map(|(i, (s, n))| {
                 format!(
-                    "{} / {}  {}  \"{}\"  ({} blocks)",
-                    truncate_str(&s.project_name, 20),
+                    "#{:<2}  {} / {}  ({} blocks)",
+                    i + 1,
+                    truncate_str(&s.project_name, 16),
                     &s.session_id[..8],
-                    age,
-                    preview,
                     n
                 )
             })
