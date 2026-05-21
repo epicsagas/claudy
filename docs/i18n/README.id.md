@@ -399,7 +399,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp r
 
 | Agen | Binary | Perintah headless |
 |-------|--------|-----------------|
-| Gemini CLI | `gemini` | `gemini -p "..." --output-format text` |
+| Antigravity | `gemini` | `gemini -p "..." --output-format text` |
 | Codex CLI | `codex` | `codex exec "..."` |
 | Cursor Agent | `agent` | `agent -p "..." --output-format text` |
 | GitHub Copilot | `copilot` | `copilot -p "..."` |
