@@ -108,8 +108,6 @@ pub(crate) fn context_window_for(model: &str) -> i64 {
     let m = model.to_lowercase();
     if m.contains("gpt-4") || m.contains("gpt4") {
         128_000
-    } else if m.contains("gemini") {
-        1_000_000
     } else {
         200_000 // Claude default
     }

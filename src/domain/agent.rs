@@ -30,18 +30,6 @@ pub fn builtin_agents() -> Vec<AgentDefinition> {
     vec![
         // Tier 1: Major provider native
         AgentDefinition {
-            name: "gemini".into(),
-            binary: "gemini".into(),
-            args: vec![
-                "-p".into(),
-                "{prompt}".into(),
-                "--output-format".into(),
-                "text".into(),
-            ],
-            description: "Google Gemini CLI (free tier: 1000 req/day)".into(),
-            timeout: 120,
-        },
-        AgentDefinition {
             name: "codex".into(),
             binary: "codex".into(),
             args: vec!["exec".into(), "{prompt}".into()],

@@ -101,7 +101,7 @@ mod tests {
         // Use "cargo" as a guaranteed-available binary to test override logic.
         let mut overrides = HashMap::new();
         overrides.insert(
-            "gemini".to_string(),
+            "codex".to_string(),
             AgentConfig {
                 binary: "cargo".to_string(),
                 args: vec![],
@@ -110,9 +110,9 @@ mod tests {
             },
         );
         let agents = discover_agents(&overrides);
-        let gemini = agents.iter().find(|a| a.name == "gemini");
+        let codex = agents.iter().find(|a| a.name == "codex");
         // If cargo is on PATH (it always is in dev), verify the override was applied.
-        if let Some(agent) = gemini {
+        if let Some(agent) = codex {
             assert_eq!(agent.binary, "cargo");
             assert_eq!(agent.description, "Overridden description");
             assert_eq!(agent.timeout, 42);

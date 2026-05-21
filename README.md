@@ -54,7 +54,7 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
 |--|---------|----------------|
 | 🔄 | Multi-provider launch | Switch across Anthropic, Z.AI, OpenRouter, Ollama, and custom endpoints in one command |
 | 📦 | Config modes | Isolate `CLAUDE.md`, settings, skills, and agents per mode — no cross-contamination |
-| 🔗 | Agent MCP bridge | Delegate tasks from Claude Code to Gemini, Codex, Aider, and 20+ other agents |
+| 🔗 | Agent MCP bridge | Delegate tasks from Claude Code to Codex, Aider, and 20+ other agents |
 | 💬 | Channel bridge | Run Telegram, Slack, and Discord bots with interactive permission prompts |
 | 📊 | Usage analytics | Track token usage, costs, and tool patterns with a local Tauri dashboard |
 | 🔐 | Safe process control | SIGINT/SIGTERM forwarding, atomic config writes, 0600 credential storage |
@@ -380,7 +380,6 @@ Claude Code will see an `ask_agent` tool that exposes all installed agents.
 Once registered, Claude Code can delegate tasks like this:
 
 ```
-> Ask gemini to review the error handling in src/api.rs
 > Ask codex to write unit tests for the parser module
 > Ask aider to refactor the database layer
 ```
@@ -388,7 +387,7 @@ Once registered, Claude Code can delegate tasks like this:
 Claude Code selects the appropriate agent, passes the prompt, and returns the result. You can also specify a working directory:
 
 ```json
-{ "agent": "gemini", "prompt": "Explain this module", "working_directory": "/path/to/project" }
+{ "agent": "codex", "prompt": "Explain this module", "working_directory": "/path/to/project" }
 ```
 
 ### Verify MCP registration
@@ -405,7 +404,6 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp r
 
 | Agent | Binary | Headless command |
 |-------|--------|-----------------|
-| Gemini CLI | `gemini` | `gemini -p "..." --output-format text` |
 | Codex CLI | `codex` | `codex exec "..."` |
 | Cursor Agent | `agent` | `agent -p "..." --output-format text` |
 | GitHub Copilot | `copilot` | `copilot -p "..."` |
@@ -631,7 +629,7 @@ claudy <profile>             # your default config, unchanged
 claudy mcp
 
 # 2) In Claude Code, ask it to delegate to any installed agent:
-#    "Ask gemini to analyze this error"
+#    "Ask codex to analyze this error"
 #    "Ask aider to refactor the auth module"
 ```
 
@@ -650,7 +648,7 @@ claudy ping
 - **Channel bot not responding**: check `~/.claudy/channel/logs/server.log` for errors. Verify bot token in `~/.claudy/secrets.env` and that `allowed_users` includes your chat user ID.
 - **Permission prompt not appearing**: ensure Claude CLI is not running with `--dangerously-skip-permissions`. The prompt only triggers when Claude needs explicit approval for tool use.
 - **Binary not found after install**: see the PATH note in the [Verify](#verify) section.
-- **Agent not showing in MCP**: ensure the agent binary is on `PATH` (`which gemini`). Only installed agents appear in `tools/list`.
+- **Agent not showing in MCP**: ensure the agent binary is on `PATH` (e.g. `which codex`). Only installed agents appear in `tools/list`.
 - **Agent timeout**: increase timeout in `config.yaml` agents field (default: 120s).
 - **MCP not registered**: run `claudy mcp` once manually, or check `~/.claude/settings.json` for the `mcpServers.claudy` entry.
 - **Agent output truncated**: agent stdout is capped at 10MB. For large outputs, redirect the agent to write to a file instead.

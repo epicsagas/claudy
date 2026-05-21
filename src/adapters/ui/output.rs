@@ -277,7 +277,7 @@ const TIPS: &[&str] = &[
     "run 'claudy ping <profile>' to test provider connectivity",
     "use 'claudy show <profile>' to inspect resolved provider details",
     "add 'claudy mcp' to Claude Code settings to delegate tasks to other AI agents",
-    "use 'claudy mcp' to expose Gemini, Codex, Aider, etc. as MCP tools",
+    "use 'claudy mcp' to expose Codex, Aider, and other agents as MCP tools",
     "try 'claudy channel start' to run a Telegram/Slack/Discord bot bridge",
     "use modes to switch between work/personal Claude configurations",
     "run 'claudy channel add telegram' to set up a Telegram bot",
