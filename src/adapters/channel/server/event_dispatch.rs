@@ -977,7 +977,9 @@ async fn update_and_replay_after_compact(
     } else {
         // Compact produced no new session ID — replaying into the old
         // context-limited session would be pointless. Fall back to fresh session.
-        tracing::warn!("Compact succeeded but produced no session ID — falling back to new session");
+        tracing::warn!(
+            "Compact succeeded but produced no session ID — falling back to new session"
+        );
         return start_fresh_session_and_replay(state, scope, channel, original_msg).await;
     }
 
