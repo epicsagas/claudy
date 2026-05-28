@@ -429,20 +429,7 @@ pub(super) async fn handle_text_message(
                     .await;
             }
 
-            // Clear recovery flag before processing the result — even if
-            // process_stream_result fails, the recovery cycle is over and the
-            // flag should not block future auto-recovery attempts.
-            {
-                let cs = state.channel_state.read().await;
-                let is_recovery = cs.get(&scope, "AUTO_COMPACT_TRIGGERED") == Some("true");
-                if is_recovery {
-                    drop(cs);
-                    with_write(&state.channel_state, |cs| {
-                        cs.set(&scope, "AUTO_COMPACT_TRIGGERED", "false");
-                    })
-                    .await;
-                }
-            }
+            clear_recovery_flag(state, &scope).await;
 
             process_stream_result(
                 state,
@@ -469,19 +456,7 @@ pub(super) async fn handle_text_message(
                     .await;
             }
 
-            // Non-context-limit error: clear the recovery flag so future
-            // context-limit hits can trigger auto-recovery again.
-            {
-                let cs = state.channel_state.read().await;
-                let is_recovery = cs.get(&scope, "AUTO_COMPACT_TRIGGERED") == Some("true");
-                if is_recovery {
-                    drop(cs);
-                    with_write(&state.channel_state, |cs| {
-                        cs.set(&scope, "AUTO_COMPACT_TRIGGERED", "false");
-                    })
-                    .await;
-                }
-            }
+            clear_recovery_flag(state, &scope).await;
 
             tracing::error!(error = %e, "Stream error");
             state.active_claude.lock().await.remove(&scope);
@@ -697,81 +672,7 @@ pub(super) async fn handle_bot_command(
                     .await?;
                 return Ok(());
             }
-            // R2: Use dedicated compact path that provides user feedback
-            let (session_id, working_dir, model, yolo) = {
-                let cs = state.channel_state.read().await;
-                let sid = cs.session_id(&scope).map(|s| s.to_string());
-                let cwd = cs.working_dir(&scope).map(|s| s.to_string());
-                let m = cs.model(&scope).map(|s| s.to_string());
-                let y = cs.yolo(&scope);
-                (sid, cwd, m, y)
-            };
-
-            if let Some(ref sid) = session_id {
-                let before_tokens = {
-                    let cs = state.channel_state.read().await;
-                    cs.input_tokens(&scope)
-                };
-
-                let result = run_compact_command(CompactParams {
-                    state,
-                    scope: &scope,
-                    channel: adapter.as_ref(),
-                    channel_id: &bot_channel,
-                    session_id: sid,
-                    working_dir: working_dir.as_deref(),
-                    model: model.as_deref(),
-                    yolo,
-                })
-                .await;
-
-                match result {
-                    Ok(Some(r)) => {
-                        let after_tokens = r.input_tokens;
-                        // Update session state
-                        if let Some(ref new_sid) = r.session_id {
-                            with_write(&state.channel_state, |cs| {
-                                cs.set_session_id(&scope, new_sid);
-                                if r.input_tokens > 0 || r.output_tokens > 0 {
-                                    cs.add_tokens(&scope, r.input_tokens, r.output_tokens);
-                                }
-                                cs.set(&scope, "AUTO_COMPACT_TRIGGERED", "false");
-                            })
-                            .await;
-                        }
-                        let text = match (before_tokens, after_tokens) {
-                            (0, 0) => "Compaction complete.".to_string(),
-                            (b, a) => format!("Compaction complete ({} -> {} tokens).", b, a),
-                        };
-                        let msg = OutboundMessage {
-                            conversation_id: ConversationId::new(),
-                            channel: bot_channel.clone(),
-                            text,
-                            message_ref: None,
-                            interaction: None,
-                        };
-                        let policy = RetryPolicy::for_platform(bot_channel.platform);
-                        if let Err(e) = retry_send(adapter.as_ref(), &msg, &policy).await {
-                            tracing::warn!(error = %e, "Failed to send compact success message");
-                        }
-                    }
-                    Ok(None) | Err(_) => {
-                        let msg = OutboundMessage {
-                            conversation_id: ConversationId::new(),
-                            channel: bot_channel.clone(),
-                            text: "Compaction failed. Try /new to start a fresh session."
-                                .to_string(),
-                            message_ref: None,
-                            interaction: None,
-                        };
-                        let policy = RetryPolicy::for_platform(bot_channel.platform);
-                        if let Err(e) = retry_send(adapter.as_ref(), &msg, &policy).await {
-                            tracing::warn!(error = %e, "Failed to send compact failure message");
-                        }
-                    }
-                }
-            }
-            Ok(())
+            handle_manual_compact(state, &scope, adapter.as_ref(), &bot_channel).await
         }
         _ => {
             adapter
@@ -785,6 +686,96 @@ pub(super) async fn handle_bot_command(
                 .await?;
             Ok(())
         }
+    }
+}
+
+/// Handle a manual `/compact` command: run compaction and report token savings.
+async fn handle_manual_compact(
+    state: &Arc<AppState>,
+    scope: &str,
+    channel: &dyn crate::ports::channel_ports::ChannelPort,
+    bot_channel: &ChannelIdentity,
+) -> anyhow::Result<()> {
+    let (session_id, working_dir, model, yolo) = {
+        let cs = state.channel_state.read().await;
+        let sid = cs.session_id(scope).map(|s| s.to_string());
+        let cwd = cs.working_dir(scope).map(|s| s.to_string());
+        let m = cs.model(scope).map(|s| s.to_string());
+        let y = cs.yolo(scope);
+        (sid, cwd, m, y)
+    };
+
+    if let Some(ref sid) = session_id {
+        let before_tokens = {
+            let cs = state.channel_state.read().await;
+            cs.input_tokens(scope)
+        };
+
+        let result = run_compact_command(CompactParams {
+            state,
+            scope,
+            channel,
+            channel_id: bot_channel,
+            session_id: sid,
+            working_dir: working_dir.as_deref(),
+            model: model.as_deref(),
+            yolo,
+        })
+        .await;
+
+        match result {
+            Ok(Some(r)) => {
+                let after_tokens = r.input_tokens;
+                if let Some(ref new_sid) = r.session_id {
+                    with_write(&state.channel_state, |cs| {
+                        cs.set_session_id(scope, new_sid);
+                        if r.input_tokens > 0 || r.output_tokens > 0 {
+                            cs.add_tokens(scope, r.input_tokens, r.output_tokens);
+                        }
+                        cs.set(scope, "AUTO_COMPACT_TRIGGERED", "false");
+                    })
+                    .await;
+                }
+                let text = match (before_tokens, after_tokens) {
+                    (0, 0) => "Compaction complete.".to_string(),
+                    (b, a) => format!("Compaction complete ({} -> {} tokens).", b, a),
+                };
+                let msg = OutboundMessage {
+                    conversation_id: ConversationId::new(),
+                    channel: bot_channel.clone(),
+                    text,
+                    message_ref: None,
+                    interaction: None,
+                };
+                let policy = RetryPolicy::for_platform(bot_channel.platform);
+                if let Err(e) = retry_send(channel, &msg, &policy).await {
+                    tracing::warn!(error = %e, "Failed to send compact success message");
+                }
+            }
+            Ok(None) | Err(_) => {
+                let msg = OutboundMessage {
+                    conversation_id: ConversationId::new(),
+                    channel: bot_channel.clone(),
+                    text: "Compaction failed. Try /new to start a fresh session.".to_string(),
+                    message_ref: None,
+                    interaction: None,
+                };
+                let policy = RetryPolicy::for_platform(bot_channel.platform);
+                if let Err(e) = retry_send(channel, &msg, &policy).await {
+                    tracing::warn!(error = %e, "Failed to send compact failure message");
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Clear the `AUTO_COMPACT_TRIGGERED` flag for the given scope using a single
+/// write lock. Avoids the read-drop-write TOCTOU gap that the previous pattern had.
+async fn clear_recovery_flag(state: &Arc<AppState>, scope: &str) {
+    let mut cs = state.channel_state.write().await;
+    if cs.get(scope, "AUTO_COMPACT_TRIGGERED") == Some("true") {
+        cs.set(scope, "AUTO_COMPACT_TRIGGERED", "false");
     }
 }
 
@@ -983,8 +974,8 @@ async fn update_and_replay_after_compact(
         return start_fresh_session_and_replay(state, scope, channel, original_msg).await;
     }
 
-    // Box to break the recursive async cycle:
-    // handle_text_message → handle_context_limit_recovery → this fn → handle_text_message
+    // Pin the future so the compiler can determine its size —
+    // handle_text_message is recursive through the recovery path.
     Box::pin(handle_text_message(
         state,
         TextMessage {
@@ -1023,8 +1014,8 @@ async fn start_fresh_session_and_replay(
         tracing::warn!(error = %e, "Failed to send new session fallback message");
     }
 
-    // Box to break the recursive async cycle:
-    // handle_text_message → handle_context_limit_recovery → this fn → handle_text_message
+    // Pin the future so the compiler can determine its size —
+    // handle_text_message is recursive through the recovery path.
     Box::pin(handle_text_message(
         state,
         TextMessage {
@@ -1118,7 +1109,7 @@ async fn run_compact_command(
         Ok(r) => Ok(Some(r)),
         Err(e) => {
             tracing::warn!(error = %e, "Compact stream failed");
-            Ok(None)
+            Err(e)
         }
     }
 }
