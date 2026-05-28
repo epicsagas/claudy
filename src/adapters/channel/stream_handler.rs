@@ -6,6 +6,33 @@ use crate::adapters::channel::retry::{RetryPolicy, retry_edit};
 use crate::domain::channel_events::{ChannelIdentity, OutboundMessage};
 use crate::ports::channel_ports::ChannelPort;
 
+/// Indicates the stream ended due to a context window limit error from the
+/// Claude API. The caller should trigger compaction or start a new session.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContextLimitError {
+    /// The raw error message from Claude.
+    pub message: String,
+}
+
+impl std::fmt::Display for ContextLimitError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Context window limit: {}", self.message)
+    }
+}
+
+impl std::error::Error for ContextLimitError {}
+
+/// Checks whether a stream line or accumulated text indicates a context
+/// window limit error from the Claude API.
+pub fn is_context_limit_error(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    lower.contains("context window limit")
+        || lower.contains("context length exceeded")
+        || lower.contains("max_context_tokens")
+        || (lower.contains("max_tokens") && lower.contains("exceeded"))
+        || (lower.contains("context") && lower.contains("limit"))
+}
+
 pub struct StreamResult {
     /// Session ID extracted from the first stream event that contains one.
     pub session_id: Option<String>,
@@ -23,6 +50,8 @@ pub struct StreamResult {
     pub input_tokens: i64,
     /// Accumulated output tokens across all assistant events in this stream.
     pub output_tokens: i64,
+    /// Set when the stream detected a context window limit error.
+    pub context_limit: Option<ContextLimitError>,
 }
 
 async fn do_edit(
@@ -98,6 +127,7 @@ pub async fn stream_response(
     let mut model: Option<String> = None;
     let mut input_tokens: i64 = 0;
     let mut output_tokens: i64 = 0;
+    let mut context_limit: Option<ContextLimitError> = None;
 
     loop {
         let line_future = lines.next_line();
@@ -151,6 +181,7 @@ pub async fn stream_response(
                         model: &mut model,
                         input_tokens: &mut input_tokens,
                         output_tokens: &mut output_tokens,
+                        context_limit: &mut context_limit,
                     },
                 )
                 .await;
@@ -182,6 +213,7 @@ pub async fn stream_response(
         model,
         input_tokens,
         output_tokens,
+        context_limit,
     })
 }
 
@@ -194,6 +226,7 @@ struct StreamState<'a> {
     model: &'a mut Option<String>,
     input_tokens: &'a mut i64,
     output_tokens: &'a mut i64,
+    context_limit: &'a mut Option<ContextLimitError>,
 }
 
 async fn process_line(
@@ -265,6 +298,21 @@ async fn process_line(
             } else {
                 None
             };
+            if let Some(ref text) = result_text
+                && is_context_limit_error(text)
+            {
+                *state.context_limit = Some(ContextLimitError {
+                    message: text.clone(),
+                });
+            }
+            // Also check the error field for API errors
+            if let Some(err) = event["error"].as_str()
+                && is_context_limit_error(err)
+            {
+                *state.context_limit = Some(ContextLimitError {
+                    message: err.to_string(),
+                });
+            }
             if let Some(text) = result_text {
                 *state.accumulated = text;
             }
@@ -293,4 +341,79 @@ pub fn truncate_message(text: &str, max_chars: usize) -> String {
     let budget = max_chars - suffix.chars().count();
     let truncated: String = text.chars().take(budget).collect();
     format!("{}{}", truncated, suffix)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_context_limit_error_detects_known_patterns() {
+        assert!(is_context_limit_error(
+            "The model has reached its context window limit."
+        ));
+        assert!(is_context_limit_error(
+            "context length exceeded: too many tokens"
+        ));
+        assert!(is_context_limit_error("max_context_tokens exceeded"));
+        assert!(is_context_limit_error(
+            "max_tokens exceeded the allowed limit"
+        ));
+        assert!(is_context_limit_error("context limit reached"));
+    }
+
+    #[test]
+    fn is_context_limit_error_rejects_normal_messages() {
+        assert!(!is_context_limit_error("Hello, how can I help?"));
+        assert!(!is_context_limit_error("Step 3 완료. Step 4 진행합니다."));
+        assert!(!is_context_limit_error(
+            "The build completed successfully."
+        ));
+    }
+
+    #[test]
+    fn context_limit_error_display() {
+        let err = ContextLimitError {
+            message: "test error".to_string(),
+        };
+        assert_eq!(format!("{}", err), "Context window limit: test error");
+    }
+
+    #[test]
+    fn stream_result_context_limit_default_none() {
+        let result = StreamResult {
+            session_id: None,
+            cwd: None,
+            has_content: false,
+            accumulated_text: String::new(),
+            branch: None,
+            model: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            context_limit: None,
+        };
+        assert!(result.context_limit.is_none());
+    }
+
+    #[test]
+    fn stream_result_context_limit_set() {
+        let result = StreamResult {
+            session_id: None,
+            cwd: None,
+            has_content: true,
+            accumulated_text: "error text".to_string(),
+            branch: None,
+            model: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            context_limit: Some(ContextLimitError {
+                message: "context window limit reached".to_string(),
+            }),
+        };
+        assert!(result.context_limit.is_some());
+        assert_eq!(
+            result.context_limit.unwrap().message,
+            "context window limit reached"
+        );
+    }
 }
