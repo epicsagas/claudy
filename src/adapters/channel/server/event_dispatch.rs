@@ -420,7 +420,9 @@ pub(super) async fn handle_text_message(
                     error = %ctx_err.message,
                     "Context window limit detected — attempting auto-compact recovery"
                 );
-                process_stream_result(
+                // W2 fix: ignore process_stream_result errors during recovery —
+                // the channel message edit is non-critical; we must proceed to recovery.
+                let _ = process_stream_result(
                     state,
                     &scope,
                     channel.as_ref(),
@@ -429,7 +431,7 @@ pub(super) async fn handle_text_message(
                     result,
                     yolo,
                 )
-                .await?;
+                .await;
 
                 return handle_context_limit_recovery(
                     state,
@@ -821,6 +823,51 @@ fn handle_context_limit_recovery<'a>(
     error_message: &'a str,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send + 'a>> {
     Box::pin(async move {
+        // W3 fix: prevent infinite recursion — if recovery was already attempted,
+        // skip straight to new session fallback instead of retrying compact.
+        let already_attempted = {
+            let cs = state.channel_state.read().await;
+            cs.get(scope, "AUTO_COMPACT_TRIGGERED") == Some("true")
+        };
+
+        if already_attempted {
+            tracing::warn!("Recovery already attempted — skipping to new session fallback");
+            with_write(&state.channel_state, |cs| {
+                cs.clear_session(scope);
+                cs.set(scope, "AUTO_COMPACT_TRIGGERED", "false");
+            })
+            .await;
+
+            let fallback_msg = OutboundMessage {
+                conversation_id: original_msg.conversation_id.clone(),
+                channel: original_msg.channel.clone(),
+                text: format!(
+                    "Context recovery failed. New session started — retrying your message..."
+                ),
+                message_ref: None,
+                interaction: None,
+            };
+            let policy = RetryPolicy::for_platform(original_msg.channel.platform);
+            let _ = retry_send(channel, &fallback_msg, &policy).await;
+
+            return handle_text_message(
+                state,
+                TextMessage {
+                    conversation_id: original_msg.conversation_id.clone(),
+                    channel: original_msg.channel.clone(),
+                    text: original_msg.text.clone(),
+                    reply_to_id: None,
+                },
+            )
+            .await;
+        }
+
+        // Mark recovery as in-progress
+        with_write(&state.channel_state, |cs| {
+            cs.set(scope, "AUTO_COMPACT_TRIGGERED", "true");
+        })
+        .await;
+
         // R4: Notify user that compaction is being attempted
         let compacting_msg = OutboundMessage {
             conversation_id: original_msg.conversation_id.clone(),
@@ -885,6 +932,7 @@ fn handle_context_limit_recovery<'a>(
                         if result.input_tokens > 0 || result.output_tokens > 0 {
                             cs.add_tokens(scope, result.input_tokens, result.output_tokens);
                         }
+                        cs.set(scope, "AUTO_COMPACT_TRIGGERED", "false");
                         if let Err(e) = cs.save() {
                             tracing::error!(error = %e, "Failed to save state after compaction");
                         }
