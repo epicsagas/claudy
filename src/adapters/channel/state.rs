@@ -161,6 +161,8 @@ impl ChannelState {
         self.set(scope, "SESSION_INPUT_TOKENS", "0");
         self.set(scope, "SESSION_OUTPUT_TOKENS", "0");
         self.set(scope, "BRANCH", "");
+        // RECOVERY_DEPTH is reset here as part of full session reset.
+        // reset_recovery_depth() after clear_session() is harmless but redundant.
         self.set(scope, "RECOVERY_DEPTH", "0");
     }
 
