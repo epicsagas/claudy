@@ -469,6 +469,20 @@ pub(super) async fn handle_text_message(
                     .await;
             }
 
+            // Non-context-limit error: clear the recovery flag so future
+            // context-limit hits can trigger auto-recovery again.
+            {
+                let cs = state.channel_state.read().await;
+                let is_recovery = cs.get(&scope, "AUTO_COMPACT_TRIGGERED") == Some("true");
+                if is_recovery {
+                    drop(cs);
+                    with_write(&state.channel_state, |cs| {
+                        cs.set(&scope, "AUTO_COMPACT_TRIGGERED", "false");
+                    })
+                    .await;
+                }
+            }
+
             tracing::error!(error = %e, "Stream error");
             state.active_claude.lock().await.remove(&scope);
             let err_msg = OutboundMessage {

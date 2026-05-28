@@ -29,7 +29,7 @@ pub fn is_context_limit_error(text: &str) -> bool {
     lower.contains("context window limit")
         || lower.contains("context length exceeded")
         || lower.contains("max_context_tokens")
-        || (lower.contains("max_tokens") && lower.contains("exceeded"))
+        || lower.contains("prompt is too long")
 }
 
 pub struct StreamResult {
@@ -356,7 +356,7 @@ mod tests {
         ));
         assert!(is_context_limit_error("max_context_tokens exceeded"));
         assert!(is_context_limit_error(
-            "max_tokens exceeded the allowed limit"
+            "prompt is too long: 201234 tokens > 200000 maximum"
         ));
         assert!(is_context_limit_error("context window limit reached"));
     }
@@ -371,6 +371,24 @@ mod tests {
         ));
         assert!(!is_context_limit_error(
             "context and rate limit considerations"
+        ));
+        // Must not match non-error messages mentioning max_tokens
+        assert!(!is_context_limit_error(
+            "The max_tokens parameter exceeded the recommended value"
+        ));
+        assert!(!is_context_limit_error(
+            "Set max_tokens to 4096. If you exceeded that, adjust your config."
+        ));
+    }
+
+    #[test]
+    fn is_context_limit_error_detects_actual_api_errors() {
+        // Actual Anthropic API error format
+        assert!(is_context_limit_error(
+            "prompt is too long: 201234 tokens > 200000 maximum"
+        ));
+        assert!(is_context_limit_error(
+            "Error: prompt is too long: 150000 tokens > 128000 maximum"
         ));
     }
 
