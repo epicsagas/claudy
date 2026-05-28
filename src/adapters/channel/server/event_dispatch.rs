@@ -433,15 +433,8 @@ pub(super) async fn handle_text_message(
                 )
                 .await;
 
-                return handle_context_limit_recovery(
-                    state,
-                    &scope,
-                    channel.as_ref(),
-                    &msg,
-                    yolo,
-                    &ctx_err.message,
-                )
-                .await;
+                return handle_context_limit_recovery(state, &scope, channel.as_ref(), &msg, yolo)
+                    .await;
             }
 
             process_stream_result(
@@ -465,25 +458,8 @@ pub(super) async fn handle_text_message(
                 );
                 state.active_claude.lock().await.remove(&scope);
 
-                let err_msg = OutboundMessage {
-                    conversation_id: msg.conversation_id.clone(),
-                    channel: msg.channel.clone(),
-                    text: "Context limit reached. Attempting recovery...".to_string(),
-                    message_ref: None,
-                    interaction: None,
-                };
-                let policy = RetryPolicy::for_platform(msg.channel.platform);
-                let _ = retry_send(channel.as_ref(), &err_msg, &policy).await;
-
-                return handle_context_limit_recovery(
-                    state,
-                    &scope,
-                    channel.as_ref(),
-                    &msg,
-                    yolo,
-                    &err_str,
-                )
-                .await;
+                return handle_context_limit_recovery(state, &scope, channel.as_ref(), &msg, yolo)
+                    .await;
             }
 
             tracing::error!(error = %e, "Stream error");
@@ -738,6 +714,7 @@ pub(super) async fn handle_bot_command(
                                 if r.input_tokens > 0 || r.output_tokens > 0 {
                                     cs.add_tokens(&scope, r.input_tokens, r.output_tokens);
                                 }
+                                cs.set(&scope, "AUTO_COMPACT_TRIGGERED", "false");
                             })
                             .await;
                         }
@@ -811,8 +788,8 @@ fn is_pid_alive(pid: u32) -> bool {
 /// R3/R4/R5: Attempt recovery from a context window limit error.
 ///
 /// Strategy:
-/// 1. Try sending `/compact` to a fresh session to reduce context
-/// 2. If compaction succeeds, replay the original message
+/// 1. If recovery was already attempted, report failure (prevents infinite loops)
+/// 2. Try sending `/compact` to reduce context, then replay the original message
 /// 3. If compaction fails, start a completely new session and replay
 fn handle_context_limit_recovery<'a>(
     state: &'a Arc<AppState>,
@@ -820,18 +797,15 @@ fn handle_context_limit_recovery<'a>(
     channel: &'a dyn crate::ports::channel_ports::ChannelPort,
     original_msg: &'a TextMessage,
     yolo: bool,
-    error_message: &'a str,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send + 'a>> {
     Box::pin(async move {
-        // W3 fix: prevent infinite recursion — if recovery was already attempted,
-        // skip straight to new session fallback instead of retrying compact.
         let already_attempted = {
             let cs = state.channel_state.read().await;
             cs.get(scope, "AUTO_COMPACT_TRIGGERED") == Some("true")
         };
 
         if already_attempted {
-            tracing::warn!("Recovery already attempted — skipping to new session fallback");
+            tracing::warn!("Recovery already attempted — reporting failure to user");
             with_write(&state.channel_state, |cs| {
                 cs.clear_session(scope);
                 cs.set(scope, "AUTO_COMPACT_TRIGGERED", "false");
@@ -841,25 +815,15 @@ fn handle_context_limit_recovery<'a>(
             let fallback_msg = OutboundMessage {
                 conversation_id: original_msg.conversation_id.clone(),
                 channel: original_msg.channel.clone(),
-                text: format!(
-                    "Context recovery failed. New session started — retrying your message..."
-                ),
+                text: "Context recovery failed. New session started — please resend your message."
+                    .to_string(),
                 message_ref: None,
                 interaction: None,
             };
             let policy = RetryPolicy::for_platform(original_msg.channel.platform);
             let _ = retry_send(channel, &fallback_msg, &policy).await;
 
-            return handle_text_message(
-                state,
-                TextMessage {
-                    conversation_id: original_msg.conversation_id.clone(),
-                    channel: original_msg.channel.clone(),
-                    text: original_msg.text.clone(),
-                    reply_to_id: None,
-                },
-            )
-            .await;
+            return Ok(());
         }
 
         // Mark recovery as in-progress
@@ -868,7 +832,7 @@ fn handle_context_limit_recovery<'a>(
         })
         .await;
 
-        // R4: Notify user that compaction is being attempted
+        // Notify user that compaction is being attempted
         let compacting_msg = OutboundMessage {
             conversation_id: original_msg.conversation_id.clone(),
             channel: original_msg.channel.clone(),
@@ -890,7 +854,7 @@ fn handle_context_limit_recovery<'a>(
 
         let resume_session = validate_resume_session(state, scope, resume_session).await;
 
-        // Step 1: Try compaction via a new Claude session with --resume
+        // Phase 1: Try compaction
         if let Some(ref sid) = resume_session {
             let compact_result = run_compact_command(CompactParams {
                 state,
@@ -906,95 +870,123 @@ fn handle_context_limit_recovery<'a>(
 
             match compact_result {
                 Ok(Some(result)) => {
-                    // R4: Report successful compaction
-                    let before_tokens = {
-                        let cs = state.channel_state.read().await;
-                        cs.input_tokens(scope)
-                    };
-                    let after_tokens = result.input_tokens;
-
-                    let success_msg = OutboundMessage {
-                        conversation_id: original_msg.conversation_id.clone(),
-                        channel: original_msg.channel.clone(),
-                        text: format!(
-                            "Compaction complete ({} -> {} tokens). Retrying your message...",
-                            before_tokens, after_tokens
-                        ),
-                        message_ref: None,
-                        interaction: None,
-                    };
-                    let _ = retry_send(channel, &success_msg, &policy).await;
-
-                    // Update session state from compaction result
-                    if let Some(ref new_sid) = result.session_id {
-                        let mut cs = state.channel_state.write().await;
-                        cs.set_session_id(scope, new_sid);
-                        if result.input_tokens > 0 || result.output_tokens > 0 {
-                            cs.add_tokens(scope, result.input_tokens, result.output_tokens);
-                        }
-                        cs.set(scope, "AUTO_COMPACT_TRIGGERED", "false");
-                        if let Err(e) = cs.save() {
-                            tracing::error!(error = %e, "Failed to save state after compaction");
-                        }
-                    }
-
-                    // Replay the original message
-                    return handle_text_message(
+                    return update_and_replay_after_compact(
                         state,
-                        TextMessage {
-                            conversation_id: original_msg.conversation_id.clone(),
-                            channel: original_msg.channel.clone(),
-                            text: original_msg.text.clone(),
-                            reply_to_id: None,
-                        },
+                        scope,
+                        channel,
+                        original_msg,
+                        &result,
+                        &policy,
                     )
                     .await;
                 }
                 Ok(None) => {
-                    tracing::warn!(
-                        "Compact command produced no result — falling back to new session"
-                    );
+                    tracing::warn!("Compact produced no result — falling back to new session");
                 }
                 Err(e) => {
-                    tracing::warn!(error = %e, "Compact command failed — falling back to new session");
+                    tracing::warn!(error = %e, "Compact failed — falling back to new session");
                 }
             }
         }
 
-        // R5: Fallback — start a completely new session
-        tracing::info!("Starting new session as context limit fallback");
-        {
-            let mut cs = state.channel_state.write().await;
-            cs.clear_session(scope);
-            if let Err(e) = cs.save() {
-                tracing::error!(error = %e, "Failed to clear session for fallback");
-            }
-        }
+        // Phase 2: Fallback — new session + replay
+        start_fresh_session_and_replay(state, scope, channel, original_msg).await
+    })
+}
 
-        let fallback_msg = OutboundMessage {
+/// Update session state after a successful compaction, then replay the original
+/// message in the compacted session.
+async fn update_and_replay_after_compact(
+    state: &Arc<AppState>,
+    scope: &str,
+    channel: &dyn crate::ports::channel_ports::ChannelPort,
+    original_msg: &TextMessage,
+    compact_result: &crate::adapters::channel::stream_handler::StreamResult,
+    policy: &RetryPolicy,
+) -> anyhow::Result<()> {
+    let before_tokens = {
+        let cs = state.channel_state.read().await;
+        cs.input_tokens(scope)
+    };
+    let after_tokens = compact_result.input_tokens;
+
+    let success_msg = OutboundMessage {
+        conversation_id: original_msg.conversation_id.clone(),
+        channel: original_msg.channel.clone(),
+        text: format!(
+            "Compaction complete ({} -> {} tokens). Retrying your message...",
+            before_tokens, after_tokens
+        ),
+        message_ref: None,
+        interaction: None,
+    };
+    let _ = retry_send(channel, &success_msg, policy).await;
+
+    if let Some(ref new_sid) = compact_result.session_id {
+        let mut cs = state.channel_state.write().await;
+        cs.set_session_id(scope, new_sid);
+        if compact_result.input_tokens > 0 || compact_result.output_tokens > 0 {
+            cs.add_tokens(
+                scope,
+                compact_result.input_tokens,
+                compact_result.output_tokens,
+            );
+        }
+        cs.set(scope, "AUTO_COMPACT_TRIGGERED", "false");
+        if let Err(e) = cs.save() {
+            tracing::error!(error = %e, "Failed to save state after compaction");
+        }
+    }
+
+    handle_text_message(
+        state,
+        TextMessage {
             conversation_id: original_msg.conversation_id.clone(),
             channel: original_msg.channel.clone(),
-            text: format!(
-                "Context could not be recovered ({}). New session started — retrying your message...",
-                error_message
-            ),
-            message_ref: None,
-            interaction: None,
-        };
-        let _ = retry_send(channel, &fallback_msg, &policy).await;
+            text: original_msg.text.clone(),
+            reply_to_id: None,
+        },
+    )
+    .await
+}
 
-        // Replay the original message in the new session
-        handle_text_message(
-            state,
-            TextMessage {
-                conversation_id: original_msg.conversation_id.clone(),
-                channel: original_msg.channel.clone(),
-                text: original_msg.text.clone(),
-                reply_to_id: None,
-            },
-        )
-        .await
-    })
+/// Clear the current session and replay the original message in a fresh one.
+async fn start_fresh_session_and_replay(
+    state: &Arc<AppState>,
+    scope: &str,
+    channel: &dyn crate::ports::channel_ports::ChannelPort,
+    original_msg: &TextMessage,
+) -> anyhow::Result<()> {
+    tracing::info!("Starting new session as context limit fallback");
+    {
+        let mut cs = state.channel_state.write().await;
+        cs.clear_session(scope);
+        if let Err(e) = cs.save() {
+            tracing::error!(error = %e, "Failed to clear session for fallback");
+        }
+    }
+
+    let fallback_msg = OutboundMessage {
+        conversation_id: original_msg.conversation_id.clone(),
+        channel: original_msg.channel.clone(),
+        text: "Context could not be recovered. New session started — retrying your message..."
+            .to_string(),
+        message_ref: None,
+        interaction: None,
+    };
+    let policy = RetryPolicy::for_platform(original_msg.channel.platform);
+    let _ = retry_send(channel, &fallback_msg, &policy).await;
+
+    handle_text_message(
+        state,
+        TextMessage {
+            conversation_id: original_msg.conversation_id.clone(),
+            channel: original_msg.channel.clone(),
+            text: original_msg.text.clone(),
+            reply_to_id: None,
+        },
+    )
+    .await
 }
 
 /// Parameters for launching a compaction command against an existing session.
@@ -1018,19 +1010,10 @@ async fn run_compact_command(
     {
         let mut active = params.state.active_claude.lock().await;
         if let Some(pid) = active.remove(params.scope) {
-            #[cfg(unix)]
-            {
-                let _ = std::process::Command::new("kill")
-                    .arg("-TERM")
-                    .arg(pid.to_string())
-                    .output();
-            }
-            #[cfg(windows)]
-            {
-                let _ = std::process::Command::new("taskkill")
-                    .args(["/PID", &pid.to_string(), "/F"])
-                    .output();
-            }
+            let _ = std::process::Command::new("kill")
+                .arg("-TERM")
+                .arg(pid.to_string())
+                .output();
         }
     }
 

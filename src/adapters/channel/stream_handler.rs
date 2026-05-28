@@ -30,7 +30,6 @@ pub fn is_context_limit_error(text: &str) -> bool {
         || lower.contains("context length exceeded")
         || lower.contains("max_context_tokens")
         || (lower.contains("max_tokens") && lower.contains("exceeded"))
-        || (lower.contains("context") && lower.contains("limit"))
 }
 
 pub struct StreamResult {
@@ -359,15 +358,19 @@ mod tests {
         assert!(is_context_limit_error(
             "max_tokens exceeded the allowed limit"
         ));
-        assert!(is_context_limit_error("context limit reached"));
+        assert!(is_context_limit_error("context window limit reached"));
     }
 
     #[test]
     fn is_context_limit_error_rejects_normal_messages() {
         assert!(!is_context_limit_error("Hello, how can I help?"));
         assert!(!is_context_limit_error("Step 3 완료. Step 4 진행합니다."));
+        assert!(!is_context_limit_error("The build completed successfully."));
         assert!(!is_context_limit_error(
-            "The build completed successfully."
+            "in the context of our discussion, there is a limit"
+        ));
+        assert!(!is_context_limit_error(
+            "context and rate limit considerations"
         ));
     }
 
