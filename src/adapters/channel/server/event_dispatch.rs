@@ -420,21 +420,28 @@ pub(super) async fn handle_text_message(
                     error = %ctx_err.message,
                     "Context window limit detected — attempting auto-compact recovery"
                 );
-                // W2 fix: ignore process_stream_result errors during recovery —
-                // the channel message edit is non-critical; we must proceed to recovery.
-                let _ = process_stream_result(
-                    state,
-                    &scope,
-                    channel.as_ref(),
-                    &msg,
-                    &delivery,
-                    result,
-                    yolo,
-                )
-                .await;
+                // Skip process_stream_result — sending the error text to the channel
+                // before the recovery message would confuse the user. Just clean up
+                // the PID and proceed to recovery.
+                state.active_claude.lock().await.remove(&scope);
 
                 return handle_context_limit_recovery(state, &scope, channel.as_ref(), &msg, yolo)
                     .await;
+            }
+
+            // Clear recovery flag before processing the result — even if
+            // process_stream_result fails, the recovery cycle is over and the
+            // flag should not block future auto-recovery attempts.
+            {
+                let cs = state.channel_state.read().await;
+                let is_recovery = cs.get(&scope, "AUTO_COMPACT_TRIGGERED") == Some("true");
+                if is_recovery {
+                    drop(cs);
+                    with_write(&state.channel_state, |cs| {
+                        cs.set(&scope, "AUTO_COMPACT_TRIGGERED", "false");
+                    })
+                    .await;
+                }
             }
 
             process_stream_result(
@@ -730,7 +737,9 @@ pub(super) async fn handle_bot_command(
                             interaction: None,
                         };
                         let policy = RetryPolicy::for_platform(bot_channel.platform);
-                        let _ = retry_send(adapter.as_ref(), &msg, &policy).await;
+                        if let Err(e) = retry_send(adapter.as_ref(), &msg, &policy).await {
+                            tracing::warn!(error = %e, "Failed to send compact success message");
+                        }
                     }
                     Ok(None) | Err(_) => {
                         let msg = OutboundMessage {
@@ -742,7 +751,9 @@ pub(super) async fn handle_bot_command(
                             interaction: None,
                         };
                         let policy = RetryPolicy::for_platform(bot_channel.platform);
-                        let _ = retry_send(adapter.as_ref(), &msg, &policy).await;
+                        if let Err(e) = retry_send(adapter.as_ref(), &msg, &policy).await {
+                            tracing::warn!(error = %e, "Failed to send compact failure message");
+                        }
                     }
                 }
             }
@@ -821,7 +832,9 @@ async fn handle_context_limit_recovery(
             interaction: None,
         };
         let policy = RetryPolicy::for_platform(original_msg.channel.platform);
-        let _ = retry_send(channel, &fallback_msg, &policy).await;
+        if let Err(e) = retry_send(channel, &fallback_msg, &policy).await {
+            tracing::warn!(error = %e, "Failed to send recovery failure message");
+        }
 
         return Ok(());
     }
@@ -841,7 +854,9 @@ async fn handle_context_limit_recovery(
         interaction: None,
     };
     let policy = RetryPolicy::for_platform(original_msg.channel.platform);
-    let _ = retry_send(channel, &compacting_msg, &policy).await;
+    if let Err(e) = retry_send(channel, &compacting_msg, &policy).await {
+        tracing::warn!(error = %e, "Failed to send compacting notification");
+    }
 
     // Get current session info for resume
     let (resume_session, working_dir, model) = {
@@ -923,22 +938,33 @@ async fn update_and_replay_after_compact(
         message_ref: None,
         interaction: None,
     };
-    let _ = retry_send(channel, &success_msg, policy).await;
+    if let Err(e) = retry_send(channel, &success_msg, policy).await {
+        tracing::warn!(error = %e, "Failed to send compact success notification");
+    }
 
     if let Some(ref new_sid) = compact_result.session_id {
-        let mut cs = state.channel_state.write().await;
-        cs.set_session_id(scope, new_sid);
-        if compact_result.input_tokens > 0 || compact_result.output_tokens > 0 {
-            cs.add_tokens(
-                scope,
-                compact_result.input_tokens,
-                compact_result.output_tokens,
-            );
-        }
-        cs.set(scope, "AUTO_COMPACT_TRIGGERED", "false");
-        if let Err(e) = cs.save() {
-            tracing::error!(error = %e, "Failed to save state after compaction");
-        }
+        // DO NOT reset AUTO_COMPACT_TRIGGERED here — keep it "true" so that if
+        // the replayed message also hits the context limit, the guard in
+        // handle_context_limit_recovery catches it and falls back to a new
+        // session instead of looping. The flag is cleared only after a
+        // successful non-recovery message completes (manual /compact or the
+        // replayed message succeeding without context-limit errors).
+        with_write(&state.channel_state, |cs| {
+            cs.set_session_id(scope, new_sid);
+            if compact_result.input_tokens > 0 || compact_result.output_tokens > 0 {
+                cs.add_tokens(
+                    scope,
+                    compact_result.input_tokens,
+                    compact_result.output_tokens,
+                );
+            }
+        })
+        .await;
+    } else {
+        // Compact produced no new session ID — replaying into the old
+        // context-limited session would be pointless. Fall back to fresh session.
+        tracing::warn!("Compact succeeded but produced no session ID — falling back to new session");
+        return start_fresh_session_and_replay(state, scope, channel, original_msg).await;
     }
 
     // Box to break the recursive async cycle:
@@ -963,13 +989,10 @@ async fn start_fresh_session_and_replay(
     original_msg: &TextMessage,
 ) -> anyhow::Result<()> {
     tracing::info!("Starting new session as context limit fallback");
-    {
-        let mut cs = state.channel_state.write().await;
+    with_write(&state.channel_state, |cs| {
         cs.clear_session(scope);
-        if let Err(e) = cs.save() {
-            tracing::error!(error = %e, "Failed to clear session for fallback");
-        }
-    }
+    })
+    .await;
 
     let fallback_msg = OutboundMessage {
         conversation_id: original_msg.conversation_id.clone(),
@@ -980,7 +1003,9 @@ async fn start_fresh_session_and_replay(
         interaction: None,
     };
     let policy = RetryPolicy::for_platform(original_msg.channel.platform);
-    let _ = retry_send(channel, &fallback_msg, &policy).await;
+    if let Err(e) = retry_send(channel, &fallback_msg, &policy).await {
+        tracing::warn!(error = %e, "Failed to send new session fallback message");
+    }
 
     // Box to break the recursive async cycle:
     // handle_text_message → handle_context_limit_recovery → this fn → handle_text_message
@@ -1053,10 +1078,11 @@ async fn run_compact_command(
     // Send /compact as the prompt text
     {
         use tokio::io::AsyncWriteExt;
-        if let Some(mut stdin) = claude.take_stdin() {
-            stdin.write_all(b"/compact\n").await?;
-            drop(stdin);
-        }
+        let mut stdin = claude
+            .take_stdin()
+            .ok_or_else(|| anyhow::anyhow!("Claude stdin unavailable — cannot send /compact"))?;
+        stdin.write_all(b"/compact\n").await?;
+        drop(stdin);
     }
 
     let stdout = claude.stdout();
