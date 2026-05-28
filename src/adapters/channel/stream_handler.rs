@@ -24,11 +24,17 @@ impl std::error::Error for ContextLimitError {}
 
 /// Checks whether a stream line or accumulated text indicates a context
 /// window limit error from the Claude API.
+///
+/// Known error formats:
+/// - Anthropic API: "prompt is too long: X tokens > Y maximum"
+/// - Claude Code: "context window limit"
+/// - OpenAI-compatible: "context length exceeded"
+/// - Internal: "max_context_tokens exceeded"
 pub fn is_context_limit_error(text: &str) -> bool {
     let lower = text.to_lowercase();
     lower.contains("context window limit")
         || lower.contains("context length exceeded")
-        || lower.contains("max_context_tokens")
+        || lower.contains("max_context_tokens exceeded")
         || lower.contains("prompt is too long")
 }
 
@@ -378,6 +384,13 @@ mod tests {
         ));
         assert!(!is_context_limit_error(
             "Set max_tokens to 4096. If you exceeded that, adjust your config."
+        ));
+        // "max_context_tokens" alone is not an error — must include "exceeded"
+        assert!(!is_context_limit_error(
+            "Set max_context_tokens to 128000 in your config"
+        ));
+        assert!(!is_context_limit_error(
+            "The max_context_tokens parameter controls the context window size"
         ));
     }
 

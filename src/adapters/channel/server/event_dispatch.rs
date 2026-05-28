@@ -429,7 +429,7 @@ pub(super) async fn handle_text_message(
                     .await;
             }
 
-            clear_recovery_flag(state, &scope).await;
+            clear_recovery_depth(state, &scope).await;
 
             process_stream_result(
                 state,
@@ -456,7 +456,7 @@ pub(super) async fn handle_text_message(
                     .await;
             }
 
-            clear_recovery_flag(state, &scope).await;
+            clear_recovery_depth(state, &scope).await;
 
             tracing::error!(error = %e, "Stream error");
             state.active_claude.lock().await.remove(&scope);
@@ -711,7 +711,7 @@ async fn handle_manual_compact(
             cs.input_tokens(scope)
         };
 
-        let result = run_compact_command(CompactParams {
+        let result = CompactParams {
             state,
             scope,
             channel,
@@ -720,7 +720,8 @@ async fn handle_manual_compact(
             working_dir: working_dir.as_deref(),
             model: model.as_deref(),
             yolo,
-        })
+        }
+        .run()
         .await;
 
         match result {
@@ -732,7 +733,7 @@ async fn handle_manual_compact(
                         if r.input_tokens > 0 || r.output_tokens > 0 {
                             cs.add_tokens(scope, r.input_tokens, r.output_tokens);
                         }
-                        cs.set(scope, "AUTO_COMPACT_TRIGGERED", "false");
+                        cs.reset_recovery_depth(scope);
                     })
                     .await;
                 }
@@ -766,17 +767,30 @@ async fn handle_manual_compact(
                 }
             }
         }
+    } else {
+        let msg = OutboundMessage {
+            conversation_id: ConversationId::new(),
+            channel: bot_channel.clone(),
+            text: "No active session to compact. Start a conversation first.".to_string(),
+            message_ref: None,
+            interaction: None,
+        };
+        let policy = RetryPolicy::for_platform(bot_channel.platform);
+        if let Err(e) = retry_send(channel, &msg, &policy).await {
+            tracing::warn!(error = %e, "Failed to send no-session message");
+        }
     }
     Ok(())
 }
 
-/// Clear the `AUTO_COMPACT_TRIGGERED` flag for the given scope using a single
-/// write lock. Avoids the read-drop-write TOCTOU gap that the previous pattern had.
-async fn clear_recovery_flag(state: &Arc<AppState>, scope: &str) {
-    let mut cs = state.channel_state.write().await;
-    if cs.get(scope, "AUTO_COMPACT_TRIGGERED") == Some("true") {
-        cs.set(scope, "AUTO_COMPACT_TRIGGERED", "false");
-    }
+/// Clear the recovery depth counter after a successful non-recovery message.
+async fn clear_recovery_depth(state: &Arc<AppState>, scope: &str) {
+    with_write(&state.channel_state, |cs| {
+        if cs.recovery_depth(scope) > 0 {
+            cs.reset_recovery_depth(scope);
+        }
+    })
+    .await;
 }
 
 /// Check if a process with the given PID is still alive (signal-0 probe / OpenProcess).
@@ -802,10 +816,13 @@ fn is_pid_alive(pid: u32) -> bool {
         .unwrap_or(false)
 }
 
+/// Maximum number of context-limit recovery attempts before giving up.
+const MAX_RECOVERY_DEPTH: u8 = 1;
+
 /// R3/R4/R5: Attempt recovery from a context window limit error.
 ///
 /// Strategy:
-/// 1. If recovery was already attempted, report failure (prevents infinite loops)
+/// 1. If recovery depth exceeded, report failure (prevents infinite loops)
 /// 2. Try sending `/compact` to reduce context, then replay the original message
 /// 3. If compaction fails, start a completely new session and replay
 async fn handle_context_limit_recovery(
@@ -815,16 +832,20 @@ async fn handle_context_limit_recovery(
     original_msg: &TextMessage,
     yolo: bool,
 ) -> anyhow::Result<()> {
-    let already_attempted = {
+    let policy = RetryPolicy::for_platform(original_msg.channel.platform);
+
+    let current_depth = {
         let cs = state.channel_state.read().await;
-        cs.get(scope, "AUTO_COMPACT_TRIGGERED") == Some("true")
+        cs.recovery_depth(scope)
     };
 
-    if already_attempted {
-        tracing::warn!("Recovery already attempted — reporting failure to user");
+    if current_depth >= MAX_RECOVERY_DEPTH {
+        tracing::warn!(
+            depth = current_depth,
+            "Recovery depth exceeded — reporting failure to user"
+        );
         with_write(&state.channel_state, |cs| {
             cs.clear_session(scope);
-            cs.set(scope, "AUTO_COMPACT_TRIGGERED", "false");
         })
         .await;
 
@@ -836,7 +857,6 @@ async fn handle_context_limit_recovery(
             message_ref: None,
             interaction: None,
         };
-        let policy = RetryPolicy::for_platform(original_msg.channel.platform);
         if let Err(e) = retry_send(channel, &fallback_msg, &policy).await {
             tracing::warn!(error = %e, "Failed to send recovery failure message");
         }
@@ -844,9 +864,9 @@ async fn handle_context_limit_recovery(
         return Ok(());
     }
 
-    // Mark recovery as in-progress
+    // Increment recovery depth
     with_write(&state.channel_state, |cs| {
-        cs.set(scope, "AUTO_COMPACT_TRIGGERED", "true");
+        cs.increment_recovery_depth(scope);
     })
     .await;
 
@@ -858,7 +878,6 @@ async fn handle_context_limit_recovery(
         message_ref: None,
         interaction: None,
     };
-    let policy = RetryPolicy::for_platform(original_msg.channel.platform);
     if let Err(e) = retry_send(channel, &compacting_msg, &policy).await {
         tracing::warn!(error = %e, "Failed to send compacting notification");
     }
@@ -876,7 +895,7 @@ async fn handle_context_limit_recovery(
 
     // Phase 1: Try compaction
     if let Some(ref sid) = resume_session {
-        let compact_result = run_compact_command(CompactParams {
+        let compact_result = CompactParams {
             state,
             scope,
             channel,
@@ -885,7 +904,8 @@ async fn handle_context_limit_recovery(
             working_dir: working_dir.as_deref(),
             model: model.as_deref(),
             yolo,
-        })
+        }
+        .run()
         .await;
 
         match compact_result {
@@ -910,7 +930,7 @@ async fn handle_context_limit_recovery(
     }
 
     // Phase 2: Fallback — new session + replay
-    start_fresh_session_and_replay(state, scope, channel, original_msg).await
+    start_fresh_session_and_replay(state, scope, channel, original_msg, &policy).await
 }
 
 /// Update session state after a successful compaction, then replay the original
@@ -948,10 +968,10 @@ async fn update_and_replay_after_compact(
     }
 
     if let Some(ref new_sid) = compact_result.session_id {
-        // DO NOT reset AUTO_COMPACT_TRIGGERED here — keep it "true" so that if
-        // the replayed message also hits the context limit, the guard in
-        // handle_context_limit_recovery catches it and falls back to a new
-        // session instead of looping. The flag is cleared only after a
+        // DO NOT reset recovery_depth here — keep it at the current value so
+        // that if the replayed message also hits the context limit, the guard
+        // in handle_context_limit_recovery catches it and falls back to a new
+        // session instead of looping. The counter is cleared only after a
         // successful non-recovery message completes (manual /compact or the
         // replayed message succeeding without context-limit errors).
         with_write(&state.channel_state, |cs| {
@@ -971,7 +991,7 @@ async fn update_and_replay_after_compact(
         tracing::warn!(
             "Compact succeeded but produced no session ID — falling back to new session"
         );
-        return start_fresh_session_and_replay(state, scope, channel, original_msg).await;
+        return start_fresh_session_and_replay(state, scope, channel, original_msg, policy).await;
     }
 
     // Pin the future so the compiler can determine its size —
@@ -994,6 +1014,7 @@ async fn start_fresh_session_and_replay(
     scope: &str,
     channel: &dyn crate::ports::channel_ports::ChannelPort,
     original_msg: &TextMessage,
+    policy: &RetryPolicy,
 ) -> anyhow::Result<()> {
     tracing::info!("Starting new session as context limit fallback");
     with_write(&state.channel_state, |cs| {
@@ -1009,8 +1030,7 @@ async fn start_fresh_session_and_replay(
         message_ref: None,
         interaction: None,
     };
-    let policy = RetryPolicy::for_platform(original_msg.channel.platform);
-    if let Err(e) = retry_send(channel, &fallback_msg, &policy).await {
+    if let Err(e) = retry_send(channel, &fallback_msg, policy).await {
         tracing::warn!(error = %e, "Failed to send new session fallback message");
     }
 
@@ -1040,76 +1060,85 @@ struct CompactParams<'a> {
     yolo: bool,
 }
 
-/// Run a `/compact` command against an existing session by launching a new
-/// Claude process with `--resume` and sending the compact text.
-async fn run_compact_command(
-    params: CompactParams<'_>,
-) -> anyhow::Result<Option<crate::adapters::channel::stream_handler::StreamResult>> {
-    // Kill any active process for this scope first
-    {
-        let mut active = params.state.active_claude.lock().await;
-        if let Some(pid) = active.remove(params.scope) {
-            let _ = tokio::process::Command::new("kill")
-                .arg("-TERM")
-                .arg(pid.to_string())
-                .output()
-                .await;
+impl CompactParams<'_> {
+    /// Run a `/compact` command against an existing session by launching a new
+    /// Claude process with `--resume` and sending the compact text.
+    async fn run(
+        self,
+    ) -> anyhow::Result<Option<crate::adapters::channel::stream_handler::StreamResult>> {
+        // Kill any active process for this scope first
+        {
+            let mut active = self.state.active_claude.lock().await;
+            if let Some(pid) = active.remove(self.scope) {
+                let kill_result = tokio::process::Command::new("kill")
+                    .arg("-TERM")
+                    .arg(pid.to_string())
+                    .output()
+                    .await;
+                if let Err(e) = kill_result {
+                    tracing::warn!(
+                        pid,
+                        error = %e,
+                        "Failed to send SIGTERM to active Claude process before compact"
+                    );
+                }
+            }
         }
-    }
 
-    let profile = params.state.channel_config.profile_for_channel(
-        params.channel_id.platform.as_str(),
-        &params.channel_id.channel_id,
-        params.channel_id.guild_id.as_deref(),
-    );
-    let mode = params.state.channel_config.mode_for_channel(
-        params.channel_id.platform.as_str(),
-        &params.channel_id.channel_id,
-        params.channel_id.guild_id.as_deref(),
-    );
+        let profile = self.state.channel_config.profile_for_channel(
+            self.channel_id.platform.as_str(),
+            &self.channel_id.channel_id,
+            self.channel_id.guild_id.as_deref(),
+        );
+        let mode = self.state.channel_config.mode_for_channel(
+            self.channel_id.platform.as_str(),
+            &self.channel_id.channel_id,
+            self.channel_id.guild_id.as_deref(),
+        );
 
-    let mut claude = start_claude_and_track(
-        params.state,
-        params.scope,
-        &crate::adapters::channel::claude_process::SessionConfig {
-            profile: &profile,
-            mode: mode.as_deref(),
-            resume_session: Some(params.session_id),
-            working_dir: params.working_dir,
-            model: params.model,
-            yolo: params.yolo,
-        },
-    )
-    .await?;
+        let mut claude = start_claude_and_track(
+            self.state,
+            self.scope,
+            &crate::adapters::channel::claude_process::SessionConfig {
+                profile: &profile,
+                mode: mode.as_deref(),
+                resume_session: Some(self.session_id),
+                working_dir: self.working_dir,
+                model: self.model,
+                yolo: self.yolo,
+            },
+        )
+        .await?;
 
-    // Send /compact as the prompt text
-    {
-        use tokio::io::AsyncWriteExt;
-        let mut stdin = claude
-            .take_stdin()
-            .ok_or_else(|| anyhow::anyhow!("Claude stdin unavailable — cannot send /compact"))?;
-        stdin.write_all(b"/compact\n").await?;
-        drop(stdin);
-    }
+        // Send /compact as the prompt text
+        {
+            use tokio::io::AsyncWriteExt;
+            let mut stdin = claude.take_stdin().ok_or_else(|| {
+                anyhow::anyhow!("Claude stdin unavailable — cannot send /compact")
+            })?;
+            stdin.write_all(b"/compact\n").await?;
+            drop(stdin);
+        }
 
-    let stdout = claude.stdout();
-    let result = crate::adapters::channel::stream_handler::stream_response(
-        stdout,
-        params.channel,
-        params.channel_id,
-        "compact",
-        params.state.channel_config.stream_timeout_secs,
-    )
-    .await;
+        let stdout = claude.stdout();
+        let result = crate::adapters::channel::stream_handler::stream_response(
+            stdout,
+            self.channel,
+            self.channel_id,
+            "compact",
+            self.state.channel_config.stream_timeout_secs,
+        )
+        .await;
 
-    // Clean up PID
-    params.state.active_claude.lock().await.remove(params.scope);
+        // Clean up PID
+        self.state.active_claude.lock().await.remove(self.scope);
 
-    match result {
-        Ok(r) => Ok(Some(r)),
-        Err(e) => {
-            tracing::warn!(error = %e, "Compact stream failed");
-            Err(e)
+        match result {
+            Ok(r) => Ok(Some(r)),
+            Err(e) => {
+                tracing::warn!(error = %e, "Compact stream failed");
+                Err(e)
+            }
         }
     }
 }

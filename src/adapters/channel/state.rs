@@ -161,6 +161,7 @@ impl ChannelState {
         self.set(scope, "SESSION_INPUT_TOKENS", "0");
         self.set(scope, "SESSION_OUTPUT_TOKENS", "0");
         self.set(scope, "BRANCH", "");
+        self.set(scope, "RECOVERY_DEPTH", "0");
     }
 
     pub fn waiting_for_dir(&self, scope: &str) -> bool {
@@ -173,6 +174,25 @@ impl ChannelState {
 
     pub fn clear_waiting_for_dir(&mut self, scope: &str) {
         self.set(scope, "WAITING_FOR_DIR", "false");
+    }
+
+    /// How many times context-limit recovery has been attempted for this scope.
+    pub fn recovery_depth(&self, scope: &str) -> u8 {
+        self.get(scope, "RECOVERY_DEPTH")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0)
+    }
+
+    /// Increment the recovery depth counter. Returns the new value.
+    pub fn increment_recovery_depth(&mut self, scope: &str) -> u8 {
+        let next = self.recovery_depth(scope).saturating_add(1);
+        self.set(scope, "RECOVERY_DEPTH", &next.to_string());
+        next
+    }
+
+    /// Reset the recovery depth counter to zero.
+    pub fn reset_recovery_depth(&mut self, scope: &str) {
+        self.set(scope, "RECOVERY_DEPTH", "0");
     }
 
     pub fn save(&mut self) -> anyhow::Result<()> {
@@ -477,5 +497,25 @@ mod typed_accessor_tests {
         assert_eq!(cs.input_tokens(SCOPE), 0);
         assert_eq!(cs.output_tokens(SCOPE), 0);
         assert!(cs.branch(SCOPE).is_none());
+        assert_eq!(cs.recovery_depth(SCOPE), 0);
+    }
+
+    #[test]
+    fn recovery_depth_increments_and_resets() {
+        let mut cs = test_state();
+        assert_eq!(cs.recovery_depth(SCOPE), 0);
+        let d1 = cs.increment_recovery_depth(SCOPE);
+        assert_eq!(d1, 1);
+        assert_eq!(cs.recovery_depth(SCOPE), 1);
+        cs.reset_recovery_depth(SCOPE);
+        assert_eq!(cs.recovery_depth(SCOPE), 0);
+    }
+
+    #[test]
+    fn recovery_depth_saturates() {
+        let mut cs = test_state();
+        cs.set(SCOPE, "RECOVERY_DEPTH", "255");
+        let d = cs.increment_recovery_depth(SCOPE);
+        assert_eq!(d, 255); // u8 saturating add: 255 + 1 = 255
     }
 }
