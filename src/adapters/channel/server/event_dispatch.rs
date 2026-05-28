@@ -718,13 +718,14 @@ pub(super) async fn handle_bot_command(
                             })
                             .await;
                         }
+                        let text = match (before_tokens, after_tokens) {
+                            (0, 0) => "Compaction complete.".to_string(),
+                            (b, a) => format!("Compaction complete ({} -> {} tokens).", b, a),
+                        };
                         let msg = OutboundMessage {
                             conversation_id: ConversationId::new(),
                             channel: bot_channel.clone(),
-                            text: format!(
-                                "Compaction complete ({} -> {} tokens).",
-                                before_tokens, after_tokens
-                            ),
+                            text,
                             message_ref: None,
                             interaction: None,
                         };
@@ -791,107 +792,105 @@ fn is_pid_alive(pid: u32) -> bool {
 /// 1. If recovery was already attempted, report failure (prevents infinite loops)
 /// 2. Try sending `/compact` to reduce context, then replay the original message
 /// 3. If compaction fails, start a completely new session and replay
-fn handle_context_limit_recovery<'a>(
-    state: &'a Arc<AppState>,
-    scope: &'a str,
-    channel: &'a dyn crate::ports::channel_ports::ChannelPort,
-    original_msg: &'a TextMessage,
+async fn handle_context_limit_recovery(
+    state: &Arc<AppState>,
+    scope: &str,
+    channel: &dyn crate::ports::channel_ports::ChannelPort,
+    original_msg: &TextMessage,
     yolo: bool,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send + 'a>> {
-    Box::pin(async move {
-        let already_attempted = {
-            let cs = state.channel_state.read().await;
-            cs.get(scope, "AUTO_COMPACT_TRIGGERED") == Some("true")
-        };
+) -> anyhow::Result<()> {
+    let already_attempted = {
+        let cs = state.channel_state.read().await;
+        cs.get(scope, "AUTO_COMPACT_TRIGGERED") == Some("true")
+    };
 
-        if already_attempted {
-            tracing::warn!("Recovery already attempted — reporting failure to user");
-            with_write(&state.channel_state, |cs| {
-                cs.clear_session(scope);
-                cs.set(scope, "AUTO_COMPACT_TRIGGERED", "false");
-            })
-            .await;
-
-            let fallback_msg = OutboundMessage {
-                conversation_id: original_msg.conversation_id.clone(),
-                channel: original_msg.channel.clone(),
-                text: "Context recovery failed. New session started — please resend your message."
-                    .to_string(),
-                message_ref: None,
-                interaction: None,
-            };
-            let policy = RetryPolicy::for_platform(original_msg.channel.platform);
-            let _ = retry_send(channel, &fallback_msg, &policy).await;
-
-            return Ok(());
-        }
-
-        // Mark recovery as in-progress
+    if already_attempted {
+        tracing::warn!("Recovery already attempted — reporting failure to user");
         with_write(&state.channel_state, |cs| {
-            cs.set(scope, "AUTO_COMPACT_TRIGGERED", "true");
+            cs.clear_session(scope);
+            cs.set(scope, "AUTO_COMPACT_TRIGGERED", "false");
         })
         .await;
 
-        // Notify user that compaction is being attempted
-        let compacting_msg = OutboundMessage {
+        let fallback_msg = OutboundMessage {
             conversation_id: original_msg.conversation_id.clone(),
             channel: original_msg.channel.clone(),
-            text: "Context limit reached. Compacting conversation...".to_string(),
+            text: "Context recovery failed. New session started — please resend your message."
+                .to_string(),
             message_ref: None,
             interaction: None,
         };
         let policy = RetryPolicy::for_platform(original_msg.channel.platform);
-        let _ = retry_send(channel, &compacting_msg, &policy).await;
+        let _ = retry_send(channel, &fallback_msg, &policy).await;
 
-        // Get current session info for resume
-        let (resume_session, working_dir, model) = {
-            let cs = state.channel_state.read().await;
-            let session = cs.session_id(scope).map(|s| s.to_string());
-            let cwd = cs.working_dir(scope).map(|s| s.to_string());
-            let m = cs.model(scope).map(|s| s.to_string());
-            (session, cwd, m)
-        };
+        return Ok(());
+    }
 
-        let resume_session = validate_resume_session(state, scope, resume_session).await;
+    // Mark recovery as in-progress
+    with_write(&state.channel_state, |cs| {
+        cs.set(scope, "AUTO_COMPACT_TRIGGERED", "true");
+    })
+    .await;
 
-        // Phase 1: Try compaction
-        if let Some(ref sid) = resume_session {
-            let compact_result = run_compact_command(CompactParams {
-                state,
-                scope,
-                channel,
-                channel_id: &original_msg.channel,
-                session_id: sid,
-                working_dir: working_dir.as_deref(),
-                model: model.as_deref(),
-                yolo,
-            })
-            .await;
+    // Notify user that compaction is being attempted
+    let compacting_msg = OutboundMessage {
+        conversation_id: original_msg.conversation_id.clone(),
+        channel: original_msg.channel.clone(),
+        text: "Context limit reached. Compacting conversation...".to_string(),
+        message_ref: None,
+        interaction: None,
+    };
+    let policy = RetryPolicy::for_platform(original_msg.channel.platform);
+    let _ = retry_send(channel, &compacting_msg, &policy).await;
 
-            match compact_result {
-                Ok(Some(result)) => {
-                    return update_and_replay_after_compact(
-                        state,
-                        scope,
-                        channel,
-                        original_msg,
-                        &result,
-                        &policy,
-                    )
-                    .await;
-                }
-                Ok(None) => {
-                    tracing::warn!("Compact produced no result — falling back to new session");
-                }
-                Err(e) => {
-                    tracing::warn!(error = %e, "Compact failed — falling back to new session");
-                }
+    // Get current session info for resume
+    let (resume_session, working_dir, model) = {
+        let cs = state.channel_state.read().await;
+        let session = cs.session_id(scope).map(|s| s.to_string());
+        let cwd = cs.working_dir(scope).map(|s| s.to_string());
+        let m = cs.model(scope).map(|s| s.to_string());
+        (session, cwd, m)
+    };
+
+    let resume_session = validate_resume_session(state, scope, resume_session).await;
+
+    // Phase 1: Try compaction
+    if let Some(ref sid) = resume_session {
+        let compact_result = run_compact_command(CompactParams {
+            state,
+            scope,
+            channel,
+            channel_id: &original_msg.channel,
+            session_id: sid,
+            working_dir: working_dir.as_deref(),
+            model: model.as_deref(),
+            yolo,
+        })
+        .await;
+
+        match compact_result {
+            Ok(Some(result)) => {
+                return update_and_replay_after_compact(
+                    state,
+                    scope,
+                    channel,
+                    original_msg,
+                    &result,
+                    &policy,
+                )
+                .await;
+            }
+            Ok(None) => {
+                tracing::warn!("Compact produced no result — falling back to new session");
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "Compact failed — falling back to new session");
             }
         }
+    }
 
-        // Phase 2: Fallback — new session + replay
-        start_fresh_session_and_replay(state, scope, channel, original_msg).await
-    })
+    // Phase 2: Fallback — new session + replay
+    start_fresh_session_and_replay(state, scope, channel, original_msg).await
 }
 
 /// Update session state after a successful compaction, then replay the original
@@ -910,13 +909,17 @@ async fn update_and_replay_after_compact(
     };
     let after_tokens = compact_result.input_tokens;
 
+    let text = match (before_tokens, after_tokens) {
+        (0, 0) => "Compaction complete. Retrying your message...".to_string(),
+        (b, a) => format!(
+            "Compaction complete ({} -> {} tokens). Retrying your message...",
+            b, a
+        ),
+    };
     let success_msg = OutboundMessage {
         conversation_id: original_msg.conversation_id.clone(),
         channel: original_msg.channel.clone(),
-        text: format!(
-            "Compaction complete ({} -> {} tokens). Retrying your message...",
-            before_tokens, after_tokens
-        ),
+        text,
         message_ref: None,
         interaction: None,
     };
@@ -938,7 +941,9 @@ async fn update_and_replay_after_compact(
         }
     }
 
-    handle_text_message(
+    // Box to break the recursive async cycle:
+    // handle_text_message → handle_context_limit_recovery → this fn → handle_text_message
+    Box::pin(handle_text_message(
         state,
         TextMessage {
             conversation_id: original_msg.conversation_id.clone(),
@@ -946,7 +951,7 @@ async fn update_and_replay_after_compact(
             text: original_msg.text.clone(),
             reply_to_id: None,
         },
-    )
+    ))
     .await
 }
 
@@ -977,7 +982,9 @@ async fn start_fresh_session_and_replay(
     let policy = RetryPolicy::for_platform(original_msg.channel.platform);
     let _ = retry_send(channel, &fallback_msg, &policy).await;
 
-    handle_text_message(
+    // Box to break the recursive async cycle:
+    // handle_text_message → handle_context_limit_recovery → this fn → handle_text_message
+    Box::pin(handle_text_message(
         state,
         TextMessage {
             conversation_id: original_msg.conversation_id.clone(),
@@ -985,7 +992,7 @@ async fn start_fresh_session_and_replay(
             text: original_msg.text.clone(),
             reply_to_id: None,
         },
-    )
+    ))
     .await
 }
 
@@ -1010,10 +1017,11 @@ async fn run_compact_command(
     {
         let mut active = params.state.active_claude.lock().await;
         if let Some(pid) = active.remove(params.scope) {
-            let _ = std::process::Command::new("kill")
+            let _ = tokio::process::Command::new("kill")
                 .arg("-TERM")
                 .arg(pid.to_string())
-                .output();
+                .output()
+                .await;
         }
     }
 
