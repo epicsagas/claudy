@@ -86,7 +86,7 @@ async-trait = "0.1"
 bytes = "1.11.1"
 
 # Analytics (feature-gated)
-rusqlite = { version = "0.39", features = ["bundled"], optional = true }
+rusqlite = { version = "0.40", features = ["bundled"], optional = true }
 
 # Tauri dashboard (feature-gated)
 tauri = { version = "2", optional = true , features = [] }
