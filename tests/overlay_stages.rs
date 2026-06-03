@@ -65,8 +65,10 @@ fn test_stage1_model_resolution_empty_when_no_source() {
 fn test_stage2_overlay_materialization_with_no_settings() {
     let config = AppRegistry::default();
     let result = materialize_overlay("unknown-model", &config);
-    // Default compaction threshold is always set
-    assert!(result.config_override_json.is_some());
+    // Default compaction is enabled, so env_overrides should contain the pct var
+    assert!(!result.env_overrides.is_empty());
+    let keys: Vec<&str> = result.env_overrides.iter().map(|(k, _)| k.as_str()).collect();
+    assert!(keys.contains(&"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"));
 }
 
 #[test]

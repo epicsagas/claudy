@@ -19,9 +19,9 @@ pub struct ModelResolution {
     pub source: ModelSource,
 }
 
-/// Stage 2 output: optional ANTHROPIC_CONFIG_OVERRIDE JSON blob.
+/// Stage 2 output: compaction env vars to set on the EnvMap.
 pub struct OverlayMaterialization {
-    pub config_override_json: Option<String>,
+    pub env_overrides: Vec<(String, String)>,
 }
 
 /// Stage 3 output: final env map with all patches applied.
