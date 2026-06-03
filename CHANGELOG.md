@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-06-03
+
+### Fixed
+
+- Replace unrecognized `ANTHROPIC_CONFIG_OVERRIDE` with Claude Code's actual compaction env vars (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`) so auto-compaction works with non-native providers
+- Apply safe 60% compaction fallback when `auto_compact: false` to prevent context overflow in autonomous sessions
+
+### Changed
+
+- Update rusqlite requirement from 0.39 to 0.40
+- Update gitleaks/gitleaks-action from 2.3.9 to 3.0.0
+
+## [0.3.3] - 2026-05-29
+
+### Added
+
+- Channel bridge: context limit recovery and `/compact` command fix
+
+### Changed
+
+- Remove gemini-cli from builtin agents; replace with antigravity in docs
+
+## [0.3.2] - 2026-05-20
+
+### Fixed
+
+- Remove aarch64-linux target due to ports.ubuntu.com outage
+
+## [0.3.1] - 2026-05-20
+
+### Added
+
+- Shell and PowerShell one-liner installers via cargo-dist
+
+### Changed
+
+- Make publish-crates CI job non-blocking
+- Update GitHub Actions to latest stable versions
+- Bump Swatinem/rust-cache and gitleaks/gitleaks-action
+
 ## [0.3.0] - 2026-05-16
 
 ### Added
@@ -19,6 +59,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - CLI: `ls` renamed to `list` (old name works as deprecated alias)
 - CLI: `mode rm` renamed to `mode remove` (old name works as deprecated alias)
+
+## [0.2.3] - 2026-05-13
+
+### Fixed
+
+- Remove unsupported `extra-artifacts` from dist-workspace.toml
+- Correct archive filename and extraction path in install
+
+### Added
+
+- One-liner installer scripts with SHA-256 verification
+
+### Changed
+
+- Remove aider from builtin agents
+
+## [0.2.2] - 2026-05-12
+
+### Fixed
+
+- Remove musl targets that fail due to tauri GTK dependency
+- Continue-on-error for homebrew publish (HOMEBREW_TAP_TOKEN optional)
+- Replace CODESIGN_* with APPLE_* secrets for macOS signing
+
+### Added
+
+- `cargo-binstall` metadata for pre-built binary support
+- Linux musl targets and optimized release build
+- macOS code signing and notarization
+
+### Changed
+
+- Sync all translated READMEs with English source
+- Restructure installation and update sections in README
+
+## [0.2.1] - 2026-05-10
+
+### Fixed
+
+- Add Windows-compatible `is_pid_alive` to unblock cross-platform release
+- Correct Discord components payload structure causing 50035
+- Resolve three root causes of unresponsive channel bridge (#7)
+- Seed bundled skills during install and add missing agent docs
+
+### Changed
+
+- CLI: `ls` renamed to `list` (old name works as deprecated alias)
+- CLI: `mode rm` renamed to `mode remove` (old name works as deprecated alias)
+- Promote agent bridge and analytics to top-level README sections
 
 ## [0.2.0] - 2026-05-07
 
@@ -36,7 +125,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `claudy analytics recommend` for data-driven optimization advice
 - `claudy analytics export` (JSON/CSV) for data portability
 - `/analytics-insights` skill integration inside Claude Code
-- YAML-based configuration with automatic migration from legacy `config.json`
 - Per-channel project binding and per-platform user allowlists
 - Discord slash commands and Telegram group chat support
 - OpenRouter alias provider support
