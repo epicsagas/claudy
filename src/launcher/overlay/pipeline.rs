@@ -8,9 +8,8 @@ use super::stages::{CleanupHandle, ModelResolution, ModelSource, OverlayMaterial
 type EnvResult = (Vec<String>, Box<dyn FnOnce()>);
 
 /// Prepare provider-specific environment overrides for Claude Code.
-/// Sets ANTHROPIC_MODEL, ANTHROPIC_CONFIG_OVERRIDE, etc. via env vars,
-/// letting Claude Code use its original ~/.claude/ directory (skills, plugins, etc.)
-/// without a config overlay.
+/// Sets ANTHROPIC_MODEL and compaction env vars, letting Claude Code use its
+/// original ~/.claude/ directory (skills, plugins, etc.) without a config overlay.
 pub fn prepare_provider_env(
     target: &LaunchTarget,
     args: &[String],
@@ -56,9 +55,9 @@ pub fn prepare_provider_env(
     // Stage 2: Overlay materialization
     let overlay = materialize_overlay(&resolution.session_model, config);
 
-    // Stage 3: Settings patch
-    if let Some(override_json) = overlay.config_override_json {
-        env_map.set("ANTHROPIC_CONFIG_OVERRIDE", &override_json);
+    // Stage 3: Apply compaction env vars
+    for (key, value) in overlay.env_overrides {
+        env_map.set(&key, &value);
     }
 
     // Stage 4: Cleanup (no-op for now)
@@ -123,41 +122,47 @@ pub fn resolve_model(target: &LaunchTarget, args: &[String], env_map: &EnvMap) -
     }
 }
 
-/// Stage 2: Build ANTHROPIC_CONFIG_OVERRIDE JSON for compaction/model settings.
+/// Stage 2: Build Claude Code compaction env vars.
 pub fn materialize_overlay(model: &str, config: &AppRegistry) -> OverlayMaterialization {
     OverlayMaterialization {
-        config_override_json: build_anthropic_config_override(model, config),
+        env_overrides: build_compaction_env_vars(model, config),
     }
 }
 
-fn build_anthropic_config_override(model: &str, config: &AppRegistry) -> Option<String> {
+/// Translate claudy config into Claude Code's recognized compaction env vars.
+///
+/// Mapping:
+/// - `auto_compact: true` + threshold → `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (1-100)
+/// - `auto_compact: false` → `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=60` (safe fallback)
+/// - `max_context_tokens` → `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (token count)
+fn build_compaction_env_vars(model: &str, config: &AppRegistry) -> Vec<(String, String)> {
     let settings = config.model_settings.get(model);
     let global_compaction = &config.compaction;
+    let mut vars = Vec::new();
 
-    let mut map = serde_json::Map::new();
-
-    if global_compaction.auto_compact {
-        let threshold = settings
+    let threshold = if global_compaction.auto_compact {
+        settings
             .and_then(|s| s.compaction_threshold)
-            .unwrap_or(global_compaction.threshold);
-        map.insert(
-            "autoCompactThreshold".to_string(),
-            serde_json::Value::from(threshold),
-        );
-    }
+            .unwrap_or(global_compaction.threshold)
+    } else {
+        // Safe default: always enable compaction at 60% to prevent context
+        // overflow in autonomous sessions where no explicit threshold was set.
+        0.6
+    };
+    let pct = (threshold * 100.0).round().clamp(1.0, 100.0) as u32;
+    vars.push((
+        "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE".to_string(),
+        pct.to_string(),
+    ));
 
     if let Some(max_tokens) = settings.and_then(|s| s.max_context_tokens) {
-        map.insert(
-            "maxContextTokens".to_string(),
-            serde_json::Value::from(max_tokens),
-        );
+        vars.push((
+            "CLAUDE_CODE_AUTO_COMPACT_WINDOW".to_string(),
+            max_tokens.to_string(),
+        ));
     }
 
-    if map.is_empty() {
-        None
-    } else {
-        serde_json::to_string(&serde_json::Value::Object(map)).ok()
-    }
+    vars
 }
 
 #[cfg(test)]
@@ -188,6 +193,10 @@ mod tests {
             .filter_map(|s| s.split_once('='))
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect()
+    }
+
+    fn vars_to_map(vars: Vec<(String, String)>) -> HashMap<String, String> {
+        vars.into_iter().collect()
     }
 
     #[test]
@@ -266,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn test_overlay_auto_compact_off_omits_threshold() {
+    fn test_overlay_auto_compact_off_falls_back_to_60() {
         let cfg = AppRegistry {
             compaction: crate::config::registry::ContextWindowPolicy {
                 auto_compact: false,
@@ -274,15 +283,18 @@ mod tests {
             },
             ..AppRegistry::default()
         };
-        let result = build_anthropic_config_override("any-model", &cfg);
-        assert!(
-            result.is_none(),
-            "auto_compact=false should produce no override"
+        let vars = build_compaction_env_vars("any-model", &cfg);
+        let map = vars_to_map(vars);
+        assert_eq!(
+            map.get("CLAUDE_AUTOCOMPACT_PCT_OVERRIDE")
+                .map(|s| s.as_str()),
+            Some("60")
         );
+        assert_eq!(map.get("DISABLE_AUTO_COMPACT"), None);
     }
 
     #[test]
-    fn test_overlay_auto_compact_on_includes_threshold() {
+    fn test_overlay_auto_compact_on_sets_pct() {
         let cfg = AppRegistry {
             compaction: crate::config::registry::ContextWindowPolicy {
                 auto_compact: true,
@@ -290,14 +302,16 @@ mod tests {
             },
             ..AppRegistry::default()
         };
-        let json =
-            build_anthropic_config_override("any-model", &cfg).expect("should produce override");
-        assert!(json.contains("autoCompactThreshold"));
-        assert!(json.contains("0.7"));
+        let map = vars_to_map(build_compaction_env_vars("any-model", &cfg));
+        assert_eq!(
+            map.get("CLAUDE_AUTOCOMPACT_PCT_OVERRIDE")
+                .map(|s| s.as_str()),
+            Some("70")
+        );
     }
 
     #[test]
-    fn test_overlay_max_context_tokens_applied() {
+    fn test_overlay_max_context_tokens_sets_window() {
         let mut cfg = AppRegistry::default();
         cfg.model_settings.insert(
             "glm-5".to_string(),
@@ -306,9 +320,12 @@ mod tests {
                 compaction_threshold: None,
             },
         );
-        let json = build_anthropic_config_override("glm-5", &cfg).expect("override");
-        assert!(json.contains("maxContextTokens"));
-        assert!(json.contains("128000"));
+        let map = vars_to_map(build_compaction_env_vars("glm-5", &cfg));
+        assert_eq!(
+            map.get("CLAUDE_CODE_AUTO_COMPACT_WINDOW")
+                .map(|s| s.as_str()),
+            Some("128000")
+        );
     }
 
     #[test]
@@ -327,8 +344,28 @@ mod tests {
                 compaction_threshold: Some(0.5),
             },
         );
-        let json = build_anthropic_config_override("glm-5", &cfg).expect("override");
-        assert!(json.contains("0.5"));
-        assert!(!json.contains("0.8"));
+        let map = vars_to_map(build_compaction_env_vars("glm-5", &cfg));
+        assert_eq!(
+            map.get("CLAUDE_AUTOCOMPACT_PCT_OVERRIDE")
+                .map(|s| s.as_str()),
+            Some("50")
+        );
+    }
+
+    #[test]
+    fn test_overlay_threshold_clamped_to_range() {
+        let cfg = AppRegistry {
+            compaction: crate::config::registry::ContextWindowPolicy {
+                auto_compact: true,
+                threshold: 1.5, // exceeds 1.0
+            },
+            ..AppRegistry::default()
+        };
+        let map = vars_to_map(build_compaction_env_vars("any-model", &cfg));
+        assert_eq!(
+            map.get("CLAUDE_AUTOCOMPACT_PCT_OVERRIDE")
+                .map(|s| s.as_str()),
+            Some("100")
+        );
     }
 }

@@ -63,10 +63,20 @@ fn test_stage1_model_resolution_empty_when_no_source() {
 
 #[test]
 fn test_stage2_overlay_materialization_with_no_settings() {
-    let config = AppRegistry::default();
+    let config = AppRegistry {
+        compaction: claudy::config::registry::ContextWindowPolicy {
+            auto_compact: true,
+            threshold: 0.8,
+        },
+        ..AppRegistry::default()
+    };
     let result = materialize_overlay("unknown-model", &config);
-    // Default compaction threshold is always set
-    assert!(result.config_override_json.is_some());
+    let map: HashMap<_, _> = result.env_overrides.into_iter().collect();
+    assert_eq!(
+        map.get("CLAUDE_AUTOCOMPACT_PCT_OVERRIDE")
+            .map(|s| s.as_str()),
+        Some("80")
+    );
 }
 
 #[test]
