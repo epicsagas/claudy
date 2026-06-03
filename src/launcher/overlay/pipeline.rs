@@ -145,6 +145,8 @@ fn build_compaction_env_vars(model: &str, config: &AppRegistry) -> Vec<(String, 
             .and_then(|s| s.compaction_threshold)
             .unwrap_or(global_compaction.threshold)
     } else {
+        // Safe default: always enable compaction at 60% to prevent context
+        // overflow in autonomous sessions where no explicit threshold was set.
         0.6
     };
     let pct = (threshold * 100.0).round().clamp(1.0, 100.0) as u32;
@@ -191,6 +193,10 @@ mod tests {
             .filter_map(|s| s.split_once('='))
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect()
+    }
+
+    fn vars_to_map(vars: Vec<(String, String)>) -> HashMap<String, String> {
+        vars.into_iter().collect()
     }
 
     #[test]
@@ -278,7 +284,7 @@ mod tests {
             ..AppRegistry::default()
         };
         let vars = build_compaction_env_vars("any-model", &cfg);
-        let map: HashMap<_, _> = vars.into_iter().collect();
+        let map = vars_to_map(vars);
         assert_eq!(
             map.get("CLAUDE_AUTOCOMPACT_PCT_OVERRIDE")
                 .map(|s| s.as_str()),
@@ -296,8 +302,7 @@ mod tests {
             },
             ..AppRegistry::default()
         };
-        let vars = build_compaction_env_vars("any-model", &cfg);
-        let map: HashMap<_, _> = vars.into_iter().collect();
+        let map = vars_to_map(build_compaction_env_vars("any-model", &cfg));
         assert_eq!(
             map.get("CLAUDE_AUTOCOMPACT_PCT_OVERRIDE")
                 .map(|s| s.as_str()),
@@ -315,8 +320,7 @@ mod tests {
                 compaction_threshold: None,
             },
         );
-        let vars = build_compaction_env_vars("glm-5", &cfg);
-        let map: HashMap<_, _> = vars.into_iter().collect();
+        let map = vars_to_map(build_compaction_env_vars("glm-5", &cfg));
         assert_eq!(
             map.get("CLAUDE_CODE_AUTO_COMPACT_WINDOW")
                 .map(|s| s.as_str()),
@@ -340,8 +344,7 @@ mod tests {
                 compaction_threshold: Some(0.5),
             },
         );
-        let vars = build_compaction_env_vars("glm-5", &cfg);
-        let map: HashMap<_, _> = vars.into_iter().collect();
+        let map = vars_to_map(build_compaction_env_vars("glm-5", &cfg));
         assert_eq!(
             map.get("CLAUDE_AUTOCOMPACT_PCT_OVERRIDE")
                 .map(|s| s.as_str()),
@@ -358,8 +361,7 @@ mod tests {
             },
             ..AppRegistry::default()
         };
-        let vars = build_compaction_env_vars("any-model", &cfg);
-        let map: HashMap<_, _> = vars.into_iter().collect();
+        let map = vars_to_map(build_compaction_env_vars("any-model", &cfg));
         assert_eq!(
             map.get("CLAUDE_AUTOCOMPACT_PCT_OVERRIDE")
                 .map(|s| s.as_str()),
