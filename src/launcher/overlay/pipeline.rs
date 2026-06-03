@@ -133,25 +133,25 @@ pub fn materialize_overlay(model: &str, config: &AppRegistry) -> OverlayMaterial
 ///
 /// Mapping:
 /// - `auto_compact: true` + threshold → `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (1-100)
-/// - `auto_compact: false` → `DISABLE_AUTO_COMPACT=1`
+/// - `auto_compact: false` → `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=60` (safe fallback)
 /// - `max_context_tokens` → `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (token count)
 fn build_compaction_env_vars(model: &str, config: &AppRegistry) -> Vec<(String, String)> {
     let settings = config.model_settings.get(model);
     let global_compaction = &config.compaction;
     let mut vars = Vec::new();
 
-    if global_compaction.auto_compact {
-        let threshold = settings
+    let threshold = if global_compaction.auto_compact {
+        settings
             .and_then(|s| s.compaction_threshold)
-            .unwrap_or(global_compaction.threshold);
-        let pct = (threshold * 100.0).round().clamp(1.0, 100.0) as u32;
-        vars.push((
-            "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE".to_string(),
-            pct.to_string(),
-        ));
+            .unwrap_or(global_compaction.threshold)
     } else {
-        vars.push(("DISABLE_AUTO_COMPACT".to_string(), "1".to_string()));
-    }
+        0.6
+    };
+    let pct = (threshold * 100.0).round().clamp(1.0, 100.0) as u32;
+    vars.push((
+        "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE".to_string(),
+        pct.to_string(),
+    ));
 
     if let Some(max_tokens) = settings.and_then(|s| s.max_context_tokens) {
         vars.push((
@@ -269,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    fn test_overlay_auto_compact_off_sets_disable() {
+    fn test_overlay_auto_compact_off_falls_back_to_60() {
         let cfg = AppRegistry {
             compaction: crate::config::registry::ContextWindowPolicy {
                 auto_compact: false,
@@ -280,10 +280,11 @@ mod tests {
         let vars = build_compaction_env_vars("any-model", &cfg);
         let map: HashMap<_, _> = vars.into_iter().collect();
         assert_eq!(
-            map.get("DISABLE_AUTO_COMPACT").map(|s| s.as_str()),
-            Some("1")
+            map.get("CLAUDE_AUTOCOMPACT_PCT_OVERRIDE")
+                .map(|s| s.as_str()),
+            Some("60")
         );
-        assert_eq!(map.get("CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"), None);
+        assert_eq!(map.get("DISABLE_AUTO_COMPACT"), None);
     }
 
     #[test]
