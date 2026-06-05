@@ -28,7 +28,9 @@ pub fn discover_agents(overrides: &HashMap<String, AgentConfig>) -> Vec<AgentDef
         // Check if user override exists
         if let Some(config) = overrides.get(&def.name) {
             // Override: merge user config into definition
-            def.binary = config.binary.clone();
+            if let Some(b) = &config.binary {
+                def.binary = b.clone();
+            }
             if !config.args.is_empty() {
                 def.args = config.args.clone();
             }
@@ -56,10 +58,13 @@ pub fn discover_agents(overrides: &HashMap<String, AgentConfig>) -> Vec<AgentDef
         if builtin_names.contains(name) {
             continue; // already handled above
         }
-        if which::which(&config.binary).is_ok() {
+        let Some(binary) = &config.binary else {
+            continue; // custom agents must specify a binary
+        };
+        if which::which(binary).is_ok() {
             result.push(AgentDefinition {
                 name: name.clone(),
-                binary: config.binary.clone(),
+                binary: binary.clone(),
                 args: if config.args.is_empty() {
                     vec!["{prompt}".to_string()]
                 } else {
@@ -102,7 +107,7 @@ mod tests {
         overrides.insert(
             "my-custom-agent".to_string(),
             AgentConfig {
-                binary: "nonexistent_binary_xyz_12345".to_string(),
+                binary: Some("nonexistent_binary_xyz_12345".to_string()),
                 args: vec![],
                 description: None,
                 timeout: None,
@@ -120,7 +125,7 @@ mod tests {
         overrides.insert(
             "codex".to_string(),
             AgentConfig {
-                binary: "cargo".to_string(),
+                binary: Some("cargo".to_string()),
                 args: vec![],
                 description: Some("Overridden description".to_string()),
                 timeout: Some(42),

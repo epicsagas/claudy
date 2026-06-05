@@ -13,10 +13,12 @@ pub struct AgentDefinition {
 }
 
 /// User-configurable agent override from config.yaml.
+/// All fields are optional — only the fields present override the built-in defaults.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
-    pub binary: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binary: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,

@@ -159,6 +159,8 @@ Custom providers use the `api_key_env` variable defined in their `custom_provide
 
 All configuration lives in `~/.claudy/config.yaml`. Only add the sections you need — defaults are used for anything omitted.
 
+> Full reference: [docs/config.md](docs/config.md)
+
 ```yaml
 # Provider overrides — override default model and model tiers per provider
 provider_overrides:
