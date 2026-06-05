@@ -201,7 +201,7 @@ channel:
 ## agents
 
 내장 에이전트 기본값을 재정의하거나 커스텀 에이전트를 등록합니다.  
-내장 에이전트명: `codex`, `copilot`, `agent`, `opencode`, `cline`, `goose`, `amp`, `droid`, `kiro`, `junie`, `kimi`, `vibe`, `qwen-code`, `crush`, `groq-code`, `plandex`, `kilo`, `openhands`.
+내장 에이전트명: `codex`, `copilot`, `agent`, `agy`, `opencode`, `cline`, `goose`, `amp`, `droid`, `kiro`, `junie`, `kimi`, `vibe`, `qwen-code`, `crush`, `groq-code`, `plandex`, `kilo`, `openhands`.
 
 모든 필드는 선택 사항입니다. 내장 에이전트의 경우 명시된 필드만 기본값을 덮어씁니다.  
 **커스텀 에이전트** (내장 목록에 없는 키)의 경우 `binary`는 필수입니다.

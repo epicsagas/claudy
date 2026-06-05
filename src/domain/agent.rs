@@ -57,6 +57,18 @@ pub fn builtin_agents() -> Vec<AgentDefinition> {
             description: "Cursor Agent CLI".into(),
             timeout: 120,
         },
+        AgentDefinition {
+            name: "agy".into(),
+            binary: "agy".into(),
+            args: vec![
+                "-p".into(),
+                "{prompt}".into(),
+                "--output-format".into(),
+                "text".into(),
+            ],
+            description: "Antigravity CLI (agy)".into(),
+            timeout: 120,
+        },
         // Tier 2: Open source / Independent
         AgentDefinition {
             name: "opencode".into(),

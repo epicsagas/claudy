@@ -49,7 +49,7 @@
 |--|---------|---------------|
 | 🔄 | تشغيل متعدّد المزوّدين | التبديل بين Anthropic وZ.AI وOpenRouter وOllama والنقاط النهائية المخصصة بأمر واحد |
 | 📦 | أوضاع الإعداد | عزل `CLAUDE.md` والإعدادات والمهارات والوكلاء لكل وضع — بدون تلوث متبادل |
-| 🔗 | جسر الوكلاء MCP | تفويض المهام من Claude Code إلى Gemini وCodex وAider وأكثر من 20 وكيلاً آخر |
+| 🔗 | جسر الوكلاء MCP | تفويض المهام من Claude Code إلى agy وCodex وAider وأكثر من 20 وكيلاً آخر |
 | 💬 | جسر القنوات | تشغيل بوتات Telegram وSlack وDiscord مع مطالبات أذونات تفاعلية |
 | 📊 | تحليلات الاستخدام | تتبّع استخدام التوكنات والتكاليف وأنماط الأدوات عبر لوحة تحكم Tauri محلية |
 | 🔐 | تحكّم آمن بالعمليات | تمرير SIGINT/SIGTERM، كتابة إعدادات ذرية، تخزين بيانات اعتماد بصلاحية 0600 |
@@ -377,7 +377,7 @@ claudy mcp uninstall  # إزالة claudy من إعدادات MCP لـ Claude Co
 بعد التسجيل، يمكن لـ Claude Code تفويض المهام مثل هذا:
 
 ```
-> Ask gemini to review the error handling in src/api.rs
+> Ask agy to review the error handling in src/api.rs
 > Ask codex to write unit tests for the parser module
 > Ask aider to refactor the database layer
 ```
@@ -385,7 +385,7 @@ claudy mcp uninstall  # إزالة claudy من إعدادات MCP لـ Claude Co
 يختار Claude Code الوكيل المناسب، ويمرّر الموجه، ويُعيد النتيجة. يمكنك أيضًا تحديد دليل عمل:
 
 ```json
-{ "agent": "gemini", "prompt": "Explain this module", "working_directory": "/path/to/project" }
+{ "agent": "agy", "prompt": "Explain this module", "working_directory": "/path/to/project" }
 ```
 
 ### التحقق من تسجيل MCP
@@ -402,7 +402,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp r
 
 | Agent | Binary | Headless command |
 |-------|--------|-----------------|
-| Antigravity | `gemini` | `gemini -p "..." --output-format text` |
+| Antigravity | `agy` | `agy -p "..." --output-format text` |
 | Codex CLI | `codex` | `codex exec "..."` |
 | Cursor Agent | `agent` | `agent -p "..." --output-format text` |
 | GitHub Copilot | `copilot` | `copilot -p "..."` |
@@ -614,7 +614,7 @@ claudy <profile>             # إعداداتك الافتراضية، دون ت
 claudy mcp
 
 # 2) في Claude Code، اطلب منه التفويض إلى أي وكيل مثبت:
-#    "Ask gemini to analyze this error"
+#    "Ask agy to analyze this error"
 #    "Ask aider to refactor the auth module"
 ```
 
@@ -633,7 +633,7 @@ claudy ping
 - **بوت القناة لا يستجيب**: تحقق من `~/.claudy/channel/logs/server.log` بحثًا عن أخطاء. تحقق من رمز البوت في `~/.claudy/secrets.env` وأن `allowed_users` يتضمن معرّف مستخدم الدردشة الخاص بك.
 - **مطالبة الأذونات لا تظهر**: تأكد من أن Claude CLI لا يعمل مع `--dangerously-skip-permissions`. لا تظهر المطالبة إلا عندما يحتاج Claude إلى موافقة صريحة على استخدام الأدوات.
 - **الملف الثنائي غير موجود بعد التثبيت**: راجع ملاحظة PATH في قسم [التحقق](#verify).
-- **الوكيل لا يظهر في MCP**: تأكد من أن الملف الثنائي للوكيل على `PATH` (`which gemini`). فقط الوكلاء المثبتون يظهرون في `tools/list`.
+- **الوكيل لا يظهر في MCP**: تأكد من أن الملف الثنائي للوكيل على `PATH` (`which agy`). فقط الوكلاء المثبتون يظهرون في `tools/list`.
 - **انتهاء مهلة الوكيل**: زيّد المهلة في حقل agents في `config.yaml` (الافتراضي: 120 ثانية).
 - **MCP غير مسجّل**: شغّل `claudy mcp` يدويًا مرة واحدة، أو تحقق من `~/.claude/settings.json` بحثًا عن إدخال `mcpServers.claudy`.
 - **مخرجات الوكيل مقطوعة**: الإخراج القياسي للوكيل محدود بـ 10 ميجابايت. للمخرجات الكبيرة، وجّه الوكيل للكتابة في ملف بدلاً من ذلك.

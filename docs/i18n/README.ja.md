@@ -48,7 +48,7 @@ Claudyを使えば、Anthropic、Z.AI、OpenRouter、Ollama、カスタムエン
 |--|------|-----------|
 | 🔄 | マルチプロバイダー起動 | Anthropic、Z.AI、OpenRouter、Ollama、カスタムエンドポイントを1つのコマンドで切り替え |
 | 📦 | 設定モード | `CLAUDE.md`、設定、スキル、エージェントをモードごとに分離 — 相互汚染なし |
-| 🔗 | エージェントMCPブリッジ | Claude CodeからGemini、Codex、Aiderなど20以上のエージェントにタスクを委任 |
+| 🔗 | エージェントMCPブリッジ | Claude Codeからagy、Codex、Aiderなど20以上のエージェントにタスクを委任 |
 | 💬 | チャネルブリッジ | Telegram、Slack、Discordボットをインタラクティブな権限プロンプト付きで実行 |
 | 📊 | 使用量分析 | トークン使用量、コスト、ツールパターンをローカルTauriダッシュボードで追跡 |
 | 🔐 | 安全なプロセス制御 | SIGINT/SIGTERM転送、アトミック設定書き込み、0600認証情報ストレージ |
@@ -376,7 +376,7 @@ Claude Codeはインストールされたすべてのエージェントを公開
 登録されると、Claude Codeは次のようにタスクを委任できます:
 
 ```
-> Ask gemini to review the error handling in src/api.rs
+> Ask agy to review the error handling in src/api.rs
 > Ask codex to write unit tests for the parser module
 > Ask aider to refactor the database layer
 ```
@@ -384,7 +384,7 @@ Claude Codeはインストールされたすべてのエージェントを公開
 Claude Codeが適切なエージェントを選択し、プロンプトを渡し、結果を返します。作業ディレクトリを指定することもできます:
 
 ```json
-{ "agent": "gemini", "prompt": "Explain this module", "working_directory": "/path/to/project" }
+{ "agent": "agy", "prompt": "Explain this module", "working_directory": "/path/to/project" }
 ```
 
 ### MCP登録の確認
@@ -401,7 +401,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp r
 
 | エージェント | バイナリ | ヘッドレスコマンド |
 |-------|--------|-----------------|
-| Antigravity | `gemini` | `gemini -p "..." --output-format text` |
+| Antigravity | `agy` | `agy -p "..." --output-format text` |
 | Codex CLI | `codex` | `codex exec "..."` |
 | Cursor Agent | `agent` | `agent -p "..." --output-format text` |
 | GitHub Copilot | `copilot` | `copilot -p "..."` |
@@ -613,7 +613,7 @@ claudy <profile>             # デフォルト設定、変更なし
 claudy mcp
 
 # 2) Claude Codeでインストール済みエージェントにタスクを委任:
-#    "Ask gemini to analyze this error"
+#    "Ask agy to analyze this error"
 #    "Ask aider to refactor the auth module"
 ```
 
@@ -632,7 +632,7 @@ claudy ping
 - **チャネルボットが応答しない**: `~/.claudy/channel/logs/server.log`でエラーを確認してください。`~/.claudy/secrets.env`のボットトークンと、`allowed_users`にチャットユーザーIDが含まれているか確認してください。
 - **権限プロンプトが表示されない**: Claude CLIが `--dangerously-skip-permissions` で実行されていないことを確認してください。プロンプトはClaudeがツール使用に明示的な承認を必要とする場合にのみトリガーされます。
 - **インストール後にバイナリが見つからない**: [確認](#verify)セクションのPATHに関する注意を参照してください。
-- **エージェントがMCPに表示されない**: エージェントバイナリが `PATH` にあることを確認してください (`which gemini`)。インストール済みエージェントのみが `tools/list` に表示されます。
+- **エージェントがMCPに表示されない**: エージェントバイナリが `PATH` にあることを確認してください (`which agy`)。インストール済みエージェントのみが `tools/list` に表示されます。
 - **エージェントタイムアウト**: `config.yaml`のagentsフィールドでタイムアウトを増やしてください (デフォルト: 120秒)。
 - **MCPが登録されない**: `claudy mcp`を手動で1回実行するか、`~/.claude/settings.json`で `mcpServers.claudy` エントリを確認してください。
 - **エージェント出力が切り詰められる**: エージェントstdoutは10MBに制限されています。大きな出力の場合は、エージェントがファイルに書き込むようにリダイレクトしてください。

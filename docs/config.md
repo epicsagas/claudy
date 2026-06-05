@@ -201,7 +201,7 @@ channel:
 ## agents
 
 Override built-in agent defaults or register custom agents.  
-Built-in agent names: `codex`, `copilot`, `agent`, `opencode`, `cline`, `goose`, `amp`, `droid`, `kiro`, `junie`, `kimi`, `vibe`, `qwen-code`, `crush`, `groq-code`, `plandex`, `kilo`, `openhands`.
+Built-in agent names: `codex`, `copilot`, `agent`, `agy`, `opencode`, `cline`, `goose`, `amp`, `droid`, `kiro`, `junie`, `kimi`, `vibe`, `qwen-code`, `crush`, `groq-code`, `plandex`, `kilo`, `openhands`.
 
 All fields are optional. For a built-in agent, only the fields present override the defaults.  
 For a **custom agent** (any key not in the built-in list), `binary` is required.

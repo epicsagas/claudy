@@ -48,7 +48,7 @@ Claudy permite alternar entre Anthropic, Z.AI, OpenRouter, Ollama e endpoints pe
 |--|---------|----------------|
 | 🔄 | Lançamento multiprovedor | Alterne entre Anthropic, Z.AI, OpenRouter, Ollama e endpoints personalizados em um comando |
 | 📦 | Modos de configuração | Isole `CLAUDE.md`, configurações, skills e agentes por modo — sem contaminação cruzada |
-| 🔗 | Ponte MCP de agentes | Delegue tarefas do Claude Code para Gemini, Codex, Aider e mais de 20 outros agentes |
+| 🔗 | Ponte MCP de agentes | Delegue tarefas do Claude Code para agy, Codex, Aider e mais de 20 outros agentes |
 | 💬 | Ponte de canais | Execute bots do Telegram, Slack e Discord com prompts de permissão interativos |
 | 📊 | Análise de uso | Acompanhe o uso de tokens, custos e padrões de ferramentas com um dashboard Tauri local |
 | 🔐 | Controle seguro de processos | Encaminhamento de SIGINT/SIGTERM, gravação atômica de configuração, armazenamento de credenciais com permissão 0600 |
@@ -376,7 +376,7 @@ O Claude Code verá uma ferramenta `ask_agent` que expõe todos os agentes insta
 Uma vez registrado, o Claude Code pode delegar tarefas como esta:
 
 ```
-> Ask gemini to review the error handling in src/api.rs
+> Ask agy to review the error handling in src/api.rs
 > Ask codex to write unit tests for the parser module
 > Ask aider to refactor the database layer
 ```
@@ -384,7 +384,7 @@ Uma vez registrado, o Claude Code pode delegar tarefas como esta:
 O Claude Code seleciona o agente apropriado, passa o prompt e retorna o resultado. Você também pode especificar um diretório de trabalho:
 
 ```json
-{ "agent": "gemini", "prompt": "Explain this module", "working_directory": "/path/to/project" }
+{ "agent": "agy", "prompt": "Explain this module", "working_directory": "/path/to/project" }
 ```
 
 ### Verificar registro MCP
@@ -401,7 +401,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp r
 
 | Agente | Binário | Comando headless |
 |-------|--------|-----------------|
-| Antigravity | `gemini` | `gemini -p "..." --output-format text` |
+| Antigravity | `agy` | `agy -p "..." --output-format text` |
 | Codex CLI | `codex` | `codex exec "..."` |
 | Cursor Agent | `agent` | `agent -p "..." --output-format text` |
 | GitHub Copilot | `copilot` | `copilot -p "..."` |
@@ -613,7 +613,7 @@ claudy <profile>             # sua configuração padrão, inalterada
 claudy mcp
 
 # 2) No Claude Code, peça para delegar para qualquer agente instalado:
-#    "Ask gemini to analyze this error"
+#    "Ask agy to analyze this error"
 #    "Ask aider to refactor the auth module"
 ```
 
@@ -632,7 +632,7 @@ claudy ping
 - **Bot do canal não responde**: verifique `~/.claudy/channel/logs/server.log` em busca de erros. Verifique o token do bot em `~/.claudy/secrets.env` e se `allowed_users` inclui seu ID de usuário no chat.
 - **Prompt de permissão não aparece**: certifique-se de que o Claude CLI não está sendo executado com `--dangerously-skip-permissions`. O prompt só é acionado quando o Claude precisa de aprovação explícita para uso de ferramentas.
 - **Binário não encontrado após instalação**: veja a nota sobre PATH na seção [Verificar](#verificar).
-- **Agente não aparece no MCP**: certifique-se de que o binário do agente está no `PATH` (`which gemini`). Apenas agentes instalados aparecem em `tools/list`.
+- **Agente não aparece no MCP**: certifique-se de que o binário do agente está no `PATH` (`which agy`). Apenas agentes instalados aparecem em `tools/list`.
 - **Timeout do agente**: aumente o timeout no campo agents do `config.yaml` (padrão: 120s).
 - **MCP não registrado**: execute `claudy mcp` uma vez manualmente, ou verifique `~/.claude/settings.json` pela entrada `mcpServers.claudy`.
 - **Saída do agente truncada**: o stdout do agente é limitado a 10MB. Para saídas grandes, redirecione o agente para gravar em um arquivo.

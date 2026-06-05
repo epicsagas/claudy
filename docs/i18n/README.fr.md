@@ -48,7 +48,7 @@ Claudy vous permet de basculer entre Anthropic, Z.AI, OpenRouter, Ollama et des 
 |--|---------|----------------|
 | 🔄 | Lancement multi-fournisseurs | Basculez entre Anthropic, Z.AI, OpenRouter, Ollama et des points de terminaison personnalises en une seule commande |
 | 📦 | Modes de configuration | Isolez `CLAUDE.md`, les paramètres, les compétences et les agents par mode — aucune contamination croisée |
-| 🔗 | Pont MCP d'agents | Déléguez des tâches de Claude Code à Gemini, Codex, Aider et plus de 20 autres agents |
+| 🔗 | Pont MCP d'agents | Déléguez des tâches de Claude Code à agy, Codex, Aider et plus de 20 autres agents |
 | 💬 | Pont de canaux | Exécutez des bots Telegram, Slack et Discord avec des invites de permission interactives |
 | 📊 | Analytique d'utilisation | Suivez l'utilisation des jetons, les coûts et les modèles d'outils avec un tableau de bord Tauri local |
 | 🔐 | Contrôle de processus sûr | Transmission SIGINT/SIGTERM, écritures atomiques de configuration, stockage des identifiants en mode 0600 |
@@ -376,7 +376,7 @@ Claude Code verra un outil `ask_agent` qui expose tous les agents installés.
 Une fois enregistré, Claude Code peut déléguer des tâches comme ceci :
 
 ```
-> Ask gemini to review the error handling in src/api.rs
+> Ask agy to review the error handling in src/api.rs
 > Ask codex to write unit tests for the parser module
 > Ask aider to refactor the database layer
 ```
@@ -384,7 +384,7 @@ Une fois enregistré, Claude Code peut déléguer des tâches comme ceci :
 Claude Code sélectionne l'agent approprié, transmet le prompt et renvoie le résultat. Vous pouvez également spécifier un répertoire de travail :
 
 ```json
-{ "agent": "gemini", "prompt": "Explain this module", "working_directory": "/path/to/project" }
+{ "agent": "agy", "prompt": "Explain this module", "working_directory": "/path/to/project" }
 ```
 
 ### Vérifier l'enregistrement MCP
@@ -401,7 +401,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp r
 
 | Agent | Binaire | Commande headless |
 |-------|--------|-----------------|
-| Antigravity | `gemini` | `gemini -p "..." --output-format text` |
+| Antigravity | `agy` | `agy -p "..." --output-format text` |
 | Codex CLI | `codex` | `codex exec "..."` |
 | Cursor Agent | `agent` | `agent -p "..." --output-format text` |
 | GitHub Copilot | `copilot` | `copilot -p "..."` |
@@ -613,7 +613,7 @@ claudy <profil>             # votre configuration par défaut, inchangée
 claudy mcp
 
 # 2) Dans Claude Code, demander de déléguer à un agent installé :
-#    "Ask gemini to analyze this error"
+#    "Ask agy to analyze this error"
 #    "Ask aider to refactor the auth module"
 ```
 
@@ -632,7 +632,7 @@ claudy ping
 - **Bot de canal ne répond pas** : vérifiez `~/.claudy/channel/logs/server.log` pour les erreurs. Vérifiez le jeton du bot dans `~/.claudy/secrets.env` et que `allowed_users` inclut votre identifiant d'utilisateur de chat.
 - **L'invite de permission n'apparaît pas** : assurez-vous que Claude CLI ne fonctionne pas avec `--dangerously-skip-permissions`. L'invite ne se déclenche que lorsque Claude a besoin d'une approbation explicite pour l'utilisation d'un outil.
 - **Binaire introuvable après l'installation** : consultez la note sur le PATH dans la section [Vérification](#verify).
-- **Agent non affiché dans MCP** : assurez-vous que le binaire de l'agent est dans le `PATH` (`which gemini`). Seuls les agents installés apparaissent dans `tools/list`.
+- **Agent non affiché dans MCP** : assurez-vous que le binaire de l'agent est dans le `PATH` (`which agy`). Seuls les agents installés apparaissent dans `tools/list`.
 - **Délai d'attente de l'agent dépassé** : augmentez le délai dans le champ agents de `config.yaml` (par défaut : 120s).
 - **MCP non enregistré** : exécutez `claudy mcp` une fois manuellement, ou vérifiez `~/.claude/settings.json` pour l'entrée `mcpServers.claudy`.
 - **Sortie de l'agent tronquée** : la sortie standard de l'agent est limitée à 10 Mo. Pour les grandes sorties, redirigez l'agent pour écrire dans un fichier à la place.

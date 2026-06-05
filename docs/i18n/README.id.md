@@ -48,7 +48,7 @@ Claudy memungkinkan Anda beralih antara Anthropic, Z.AI, OpenRouter, Ollama, dan
 |--|-------|-----------------|
 | 🔄 | Peluncuran multi-penyedia | Beralih antara Anthropic, Z.AI, OpenRouter, Ollama, dan endpoint kustom dalam satu perintah |
 | 📦 | Mode konfigurasi | Isolasi `CLAUDE.md`, pengaturan, skill, dan agen per mode — tanpa kontaminasi silang |
-| 🔗 | Bridge MCP agen | Delegasikan tugas dari Claude Code ke Gemini, Codex, Aider, dan 20+ agen lainnya |
+| 🔗 | Bridge MCP agen | Delegasikan tugas dari Claude Code ke agy, Codex, Aider, dan 20+ agen lainnya |
 | 💬 | Bridge channel | Jalankan bot Telegram, Slack, dan Discord dengan prompt izin interaktif |
 | 📊 | Analitik penggunaan | Lacak penggunaan token, biaya, dan pola tool dengan dasbor Tauri lokal |
 | 🔐 | Kontrol proses yang aman | Penerusan SIGINT/SIGTERM, penulisan konfigurasi atomik, penyimpanan kredensial 0600 |
@@ -376,7 +376,7 @@ Claude Code akan melihat tool `ask_agent` yang mengekspos semua agen yang terins
 Setelah terdaftar, Claude Code dapat mendelegasikan tugas seperti ini:
 
 ```
-> Ask gemini to review the error handling in src/api.rs
+> Ask agy to review the error handling in src/api.rs
 > Ask codex to write unit tests for the parser module
 > Ask aider to refactor the database layer
 ```
@@ -384,7 +384,7 @@ Setelah terdaftar, Claude Code dapat mendelegasikan tugas seperti ini:
 Claude Code memilih agen yang sesuai, meneruskan prompt, dan mengembalikan hasilnya. Anda juga dapat menentukan direktori kerja:
 
 ```json
-{ "agent": "gemini", "prompt": "Explain this module", "working_directory": "/path/to/project" }
+{ "agent": "agy", "prompt": "Explain this module", "working_directory": "/path/to/project" }
 ```
 
 ### Verifikasi pendaftaran MCP
@@ -401,7 +401,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp r
 
 | Agen | Binary | Perintah headless |
 |-------|--------|-----------------|
-| Antigravity | `gemini` | `gemini -p "..." --output-format text` |
+| Antigravity | `agy` | `agy -p "..." --output-format text` |
 | Codex CLI | `codex` | `codex exec "..."` |
 | Cursor Agent | `agent` | `agent -p "..." --output-format text` |
 | GitHub Copilot | `copilot` | `copilot -p "..."` |
@@ -613,7 +613,7 @@ claudy <profile>             # konfigurasi default Anda, tidak berubah
 claudy mcp
 
 # 2) Di Claude Code, minta untuk mendelegasikan ke agen yang terinstal:
-#    "Ask gemini to analyze this error"
+#    "Ask agy to analyze this error"
 #    "Ask aider to refactor the auth module"
 ```
 
@@ -632,7 +632,7 @@ claudy ping
 - **Bot channel tidak merespons**: periksa `~/.claudy/channel/logs/server.log` untuk kesalahan. Verifikasi token bot di `~/.claudy/secrets.env` dan pastikan `allowed_users` menyertakan ID pengguna chat Anda.
 - **Prompt izin tidak muncul**: pastikan Claude CLI tidak berjalan dengan `--dangerously-skip-permissions`. Prompt hanya muncul ketika Claude membutuhkan persetujuan eksplisit untuk penggunaan tool.
 - **Binary tidak ditemukan setelah instalasi**: lihat catatan PATH di bagian [Verifikasi](#verify).
-- **Agen tidak muncul di MCP**: pastikan binary agen ada di `PATH` (`which gemini`). Hanya agen yang terinstal yang muncul di `tools/list`.
+- **Agen tidak muncul di MCP**: pastikan binary agen ada di `PATH` (`which agy`). Hanya agen yang terinstal yang muncul di `tools/list`.
 - **Waktu habis agen**: tingkatkan timeout di field agents `config.yaml` (default: 120d).
 - **MCP tidak terdaftar**: jalankan `claudy mcp` sekali secara manual, atau periksa `~/.claude/settings.json` untuk entri `mcpServers.claudy`.
 - **Output agen terpotong**: stdout agen dibatasi hingga 10MB. Untuk output besar, arahkan agen untuk menulis ke file sebagai gantinya.
