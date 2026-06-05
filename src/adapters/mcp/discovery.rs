@@ -2,6 +2,22 @@ use std::collections::HashMap;
 
 use crate::domain::agent::{AgentConfig, AgentDefinition, builtin_agents};
 
+/// Global env var that overrides the default timeout for all agents.
+const AGENT_TIMEOUT_ENV: &str = "CLAUDY_AGENT_TIMEOUT";
+
+/// Resolve effective timeout with priority: config.yaml > env var > builtin default.
+fn effective_timeout(builtin: u64, config_timeout: Option<u64>) -> u64 {
+    if let Some(t) = config_timeout {
+        return t;
+    }
+    if let Ok(val) = std::env::var(AGENT_TIMEOUT_ENV) {
+        if let Ok(secs) = val.parse::<u64>() {
+            return secs;
+        }
+    }
+    builtin
+}
+
 /// Discover installed agents by checking PATH for each builtin agent.
 /// User overrides from config are merged (same key = override).
 pub fn discover_agents(overrides: &HashMap<String, AgentConfig>) -> Vec<AgentDefinition> {
@@ -19,10 +35,8 @@ pub fn discover_agents(overrides: &HashMap<String, AgentConfig>) -> Vec<AgentDef
             if let Some(desc) = &config.description {
                 def.description = desc.clone();
             }
-            if let Some(timeout) = config.timeout {
-                def.timeout = timeout;
-            }
         }
+        def.timeout = effective_timeout(def.timeout, overrides.get(&def.name).and_then(|c| c.timeout));
 
         // Check if binary exists on PATH
         if which::which(&def.binary).is_ok() {
@@ -52,7 +66,7 @@ pub fn discover_agents(overrides: &HashMap<String, AgentConfig>) -> Vec<AgentDef
                     .description
                     .clone()
                     .unwrap_or_else(|| format!("Custom agent: {name}")),
-                timeout: config.timeout.unwrap_or(120),
+                timeout: effective_timeout(120, config.timeout),
             });
         }
     }
@@ -117,5 +131,27 @@ mod tests {
             assert_eq!(agent.description, "Overridden description");
             assert_eq!(agent.timeout, 42);
         }
+    }
+
+    #[test]
+    fn effective_timeout_env_var_overrides_builtin() {
+        // config.yaml takes precedence over env var
+        assert_eq!(effective_timeout(120, Some(42)), 42);
+        // Env var overrides builtin default
+        unsafe { std::env::set_var("CLAUDY_AGENT_TIMEOUT", "600") };
+        assert_eq!(effective_timeout(120, None), 600);
+        // Invalid env var falls back to builtin
+        unsafe { std::env::set_var("CLAUDY_AGENT_TIMEOUT", "not-a-number") };
+        assert_eq!(effective_timeout(120, None), 120);
+        // Cleanup
+        unsafe { std::env::remove_var("CLAUDY_AGENT_TIMEOUT") };
+    }
+
+    #[test]
+    fn effective_timeout_config_beats_env_var() {
+        unsafe { std::env::set_var("CLAUDY_AGENT_TIMEOUT", "999") };
+        // Config should win over env var
+        assert_eq!(effective_timeout(120, Some(42)), 42);
+        unsafe { std::env::remove_var("CLAUDY_AGENT_TIMEOUT") };
     }
 }

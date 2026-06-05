@@ -34,7 +34,7 @@ pub fn builtin_agents() -> Vec<AgentDefinition> {
             binary: "codex".into(),
             args: vec!["exec".into(), "{prompt}".into()],
             description: "OpenAI Codex CLI (ChatGPT subscription)".into(),
-            timeout: 120,
+            timeout: 3600,
         },
         AgentDefinition {
             name: "copilot".into(),
