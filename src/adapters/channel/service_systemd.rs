@@ -52,7 +52,11 @@ impl ServiceManager for SystemdServiceManager {
         if let Some(parent) = self.unit_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&self.unit_path, unit)?;
+        crate::config::atomic::write_atomic(
+            &self.unit_path.to_string_lossy(),
+            unit.as_bytes(),
+            0o644,
+        )?;
         Command::new("systemctl")
             .args(["--user", "daemon-reload"])
             .output()?;
@@ -100,7 +104,11 @@ impl ServiceManager for SystemdServiceManager {
     fn enable(&self) -> anyhow::Result<()> {
         self.install()?;
         let unit = self.generate_unit(true);
-        std::fs::write(&self.unit_path, unit)?;
+        crate::config::atomic::write_atomic(
+            &self.unit_path.to_string_lossy(),
+            unit.as_bytes(),
+            0o644,
+        )?;
         Command::new("systemctl")
             .args(["--user", "daemon-reload"])
             .output()?;

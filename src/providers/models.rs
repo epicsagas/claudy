@@ -38,7 +38,7 @@ pub fn fetch_and_cache(cache_path: &str) -> anyhow::Result<ModelsDevPayload> {
         fs::create_dir_all(parent)?;
     }
     let json = serde_json::to_string_pretty(&payload)?;
-    fs::write(cache_path, json)?;
+    crate::config::atomic::write_atomic(cache_path, json.as_bytes(), 0o644)?;
     Ok(payload)
 }
 

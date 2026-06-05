@@ -27,20 +27,18 @@ pub fn locate_real_claude(paths: &AppPaths) -> anyhow::Result<String> {
             {
                 continue;
             }
-            return Ok(candidate
-                .to_str()
-                .expect("candidate path should be valid UTF-8")
-                .to_string());
+            return candidate.to_str().map(|s| s.to_string()).ok_or_else(|| {
+                anyhow::anyhow!("candidate path is not valid UTF-8: {:?}", candidate)
+            });
         }
     }
 
     // Fallback to claude-real in bin dir
     let bin_claude = std::path::Path::new(&paths.bin_dir).join("claude-real");
     if bin_claude.exists() {
-        return Ok(bin_claude
-            .to_str()
-            .expect("bin_claude path should be valid UTF-8")
-            .to_string());
+        return bin_claude.to_str().map(|s| s.to_string()).ok_or_else(|| {
+            anyhow::anyhow!("bin_claude path is not valid UTF-8: {:?}", bin_claude)
+        });
     }
 
     Err(anyhow::anyhow!(

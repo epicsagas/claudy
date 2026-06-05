@@ -105,7 +105,11 @@ impl ServiceManager for LaunchdServiceManager {
         if let Some(parent) = self.plist_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&self.plist_path, plist)?;
+        crate::config::atomic::write_atomic(
+            &self.plist_path.to_string_lossy(),
+            plist.as_bytes(),
+            0o644,
+        )?;
         Ok(())
     }
 
@@ -158,7 +162,11 @@ impl ServiceManager for LaunchdServiceManager {
         if let Some(parent) = self.plist_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&self.plist_path, &plist)?;
+        crate::config::atomic::write_atomic(
+            &self.plist_path.to_string_lossy(),
+            plist.as_bytes(),
+            0o644,
+        )?;
 
         let output = Command::new("launchctl")
             .args(["load", "-w", &self.plist_path.to_string_lossy()])
@@ -176,7 +184,11 @@ impl ServiceManager for LaunchdServiceManager {
         let _ = self.stop();
 
         let plist = self.generate_plist(false);
-        std::fs::write(&self.plist_path, plist)?;
+        crate::config::atomic::write_atomic(
+            &self.plist_path.to_string_lossy(),
+            plist.as_bytes(),
+            0o644,
+        )?;
         Ok(())
     }
 }

@@ -9,7 +9,7 @@ pub fn run_cli_session(argv0: &str, args: &[String]) -> anyhow::Result<i32> {
     let (launcher_profile, is_launcher) =
         crate::routing::resolver::detect_symlink_invocation(argv0);
     if is_launcher {
-        return run_launcher(&launcher_profile, args);
+        return run_profile_direct(&launcher_profile, args);
     }
 
     if !args.is_empty() {
@@ -76,18 +76,6 @@ fn run_claude_shim(args: &[String]) -> anyhow::Result<i32> {
 }
 
 fn run_profile_direct(profile: &str, args: &[String]) -> anyhow::Result<i32> {
-    let paths = crate::config::layout::discover()?;
-    let catalog = crate::providers::index::load_index()?;
-    let secrets = crate::config::vault::load_vault(&paths.secrets_file)?;
-    let mut cfg = crate::config::registry::open_registry(&paths.config_file)?;
-    cfg.ingest_legacy_secrets(&secrets, &catalog);
-    cfg.compact(&catalog);
-    crate::application::entrypoint::launch_profile_session(
-        &paths, &catalog, &cfg, &secrets, profile, args,
-    )
-}
-
-fn run_launcher(profile: &str, args: &[String]) -> anyhow::Result<i32> {
     let paths = crate::config::layout::discover()?;
     let catalog = crate::providers::index::load_index()?;
     let secrets = crate::config::vault::load_vault(&paths.secrets_file)?;
