@@ -152,6 +152,8 @@ Los proveedores personalizados usan la variable `api_key_env` definida en su ent
 
 Toda la configuración se encuentra en `~/.claudy/config.yaml`. Solo agrega las secciones que necesites — se usan valores predeterminados para todo lo omitido.
 
+> Referencia completa: [docs/config.md](../config.md)
+
 ```yaml
 # Provider overrides — override default model and model tiers per provider
 provider_overrides:

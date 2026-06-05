@@ -153,6 +153,8 @@ claudy --version
 
 सारा कॉन्फ़िगरेशन `~/.claudy/config.yaml` में रहता है। केवल आवश्यक सेक्शन जोड़ें — छोड़े गए आइटम के लिए डिफ़ॉल्ट मान उपयोग होते हैं।
 
+> पूर्ण संदर्भ: [docs/config.md](../config.md)
+
 ```yaml
 # Provider overrides — override default model and model tiers per provider
 provider_overrides:

@@ -153,6 +153,8 @@ claudy --version
 
 모든 설정은 `~/.claudy/config.yaml`에 있습니다. 필요한 섹션만 추가하세요 — 생략된 항목은 기본값이 사용됩니다.
 
+> 전체 레퍼런스: [docs/i18n/config.ko.md](config.ko.md)
+
 ```yaml
 # 프로바이더 오버라이드 — 프로바이더별 기본 모델 및 모델 티어 오버라이드
 provider_overrides:

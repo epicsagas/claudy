@@ -153,6 +153,8 @@ Benutzerdefinierte Anbieter verwenden die `api_key_env`-Variable, die in ihrem `
 
 Die gesamte Konfiguration befindet sich in `~/.claudy/config.yaml`. Nur die benötigten Abschnitte hinzufügen — für alles Ausgelassene werden Standardwerte verwendet.
 
+> Vollständige Referenz: [docs/config.md](../config.md)
+
 ```yaml
 # Anbieter-Overrides — Standardmodell und Modell-Tiers pro Anbieter überschreiben
 provider_overrides:

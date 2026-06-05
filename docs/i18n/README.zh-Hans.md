@@ -154,6 +154,8 @@ claudy --version
 
 所有配置都存放在 `~/.claudy/config.yaml` 中。只需添加你需要的部分 —— 省略的部分将使用默认值。
 
+> 完整参考: [docs/config.md](../config.md)
+
 ```yaml
 # Provider overrides — override default model and model tiers per provider
 provider_overrides:

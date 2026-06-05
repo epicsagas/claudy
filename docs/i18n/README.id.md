@@ -153,6 +153,8 @@ Penyedia kustom menggunakan variabel `api_key_env` yang didefinisikan dalam entr
 
 Semua konfigurasi berada di `~/.claudy/config.yaml`. Hanya tambahkan bagian yang Anda butuhkan — default digunakan untuk semua yang tidak disertakan.
 
+> Referensi lengkap: [docs/config.md](../config.md)
+
 ```yaml
 # Override penyedia — timpa model dan tingkat model default per penyedia
 provider_overrides:

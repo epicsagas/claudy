@@ -153,6 +153,8 @@ claudy --version
 
 すべての設定は `~/.claudy/config.yaml` にあります。必要なセクションのみ追加してください — 省略された項目にはデフォルト値が使用されます。
 
+> 全リファレンス: [docs/config.md](../config.md)
+
 ```yaml
 # プロバイダーオーバーライド — プロバイダーごとにデフォルトモデルとモデルティアをオーバーライド
 provider_overrides:

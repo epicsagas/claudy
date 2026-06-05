@@ -153,6 +153,8 @@ Provedores personalizados usam a variável `api_key_env` definida em sua entrada
 
 Toda a configuração fica em `~/.claudy/config.yaml`. Adicione apenas as seções necessárias — valores padrão são usados para qualquer campo omitido.
 
+> Referência completa: [docs/config.md](../config.md)
+
 ```yaml
 # Substituições de provedor — substitui o modelo e níveis de modelo padrão por provedor
 provider_overrides:
