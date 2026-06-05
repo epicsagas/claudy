@@ -221,7 +221,7 @@ agents:
   codex:
     timeout: 7200
 
-  # 내장 에이전트 전체 재정의
+  # 커스텀 에이전트 예시
   aider:
     binary: "aider"
     args: ["--message", "{prompt}", "--yes-always"]
