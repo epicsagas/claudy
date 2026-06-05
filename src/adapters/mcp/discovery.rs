@@ -10,10 +10,10 @@ fn effective_timeout(builtin: u64, config_timeout: Option<u64>) -> u64 {
     if let Some(t) = config_timeout {
         return t;
     }
-    if let Ok(val) = std::env::var(AGENT_TIMEOUT_ENV) {
-        if let Ok(secs) = val.parse::<u64>() {
-            return secs;
-        }
+    if let Ok(val) = std::env::var(AGENT_TIMEOUT_ENV)
+        && let Ok(secs) = val.parse::<u64>()
+    {
+        return secs;
     }
     builtin
 }
@@ -36,7 +36,10 @@ pub fn discover_agents(overrides: &HashMap<String, AgentConfig>) -> Vec<AgentDef
                 def.description = desc.clone();
             }
         }
-        def.timeout = effective_timeout(def.timeout, overrides.get(&def.name).and_then(|c| c.timeout));
+        def.timeout = effective_timeout(
+            def.timeout,
+            overrides.get(&def.name).and_then(|c| c.timeout),
+        );
 
         // Check if binary exists on PATH
         if which::which(&def.binary).is_ok() {
