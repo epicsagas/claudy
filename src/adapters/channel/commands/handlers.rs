@@ -34,6 +34,7 @@ pub async fn handle_cancel(
     channel_id: &ChannelIdentity,
     scope: &str,
     active_claude: &Arc<tokio::sync::Mutex<HashMap<String, u32>>>,
+    channel_state: &Arc<tokio::sync::RwLock<ChannelState>>,
 ) -> anyhow::Result<()> {
     let killed = {
         let mut active = active_claude.lock().await;
@@ -61,10 +62,17 @@ pub async fn handle_cancel(
             None => false,
         }
     };
+
+    // Clear any stuck UI state (e.g. "waiting for directory input" from /new flow)
+    with_write(channel_state, |cs| {
+        cs.clear_waiting_for_dir(scope);
+    })
+    .await;
+
     let msg = if killed {
         "Task cancelled."
     } else {
-        "No task running."
+        "Cancelled."
     };
     reply(channel, channel_id, msg).await
 }
@@ -309,6 +317,7 @@ pub async fn handle_new(
 ) -> anyhow::Result<()> {
     let cwd_info = with_write(state, |cs| {
         cs.clear_session(scope);
+        cs.clear_waiting_for_dir(scope);
         cs.working_dir(scope)
             .map(|s| s.to_string())
             .unwrap_or_else(|| "default workspace".to_string())

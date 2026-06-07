@@ -581,6 +581,7 @@ pub(super) async fn handle_bot_command(
                 &bot_channel,
                 &scope,
                 &state.active_claude,
+                &state.channel_state,
             )
             .await
         }
