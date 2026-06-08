@@ -73,9 +73,16 @@ pub(crate) fn config_builtin(
     }
 
     let choices = if !dynamic_choices.is_empty() {
-        &dynamic_choices
+        dynamic_choices
     } else {
-        &provider.model_choices
+        provider
+            .model_choices
+            .iter()
+            .map(|mc| providers::index::ModelDescriptor {
+                id: mc.id.clone(),
+                description: mc.description.clone(),
+            })
+            .collect()
     };
 
     if !provider.default_model.is_empty() || !choices.is_empty() || is_local {
@@ -87,7 +94,7 @@ pub(crate) fn config_builtin(
             .unwrap_or_default();
 
         let label = format!("Choose default model for {}", provider.id);
-        match select_model(ctx, &label, choices, &override_cfg.model, true)? {
+        match select_model(ctx, &label, &choices, &override_cfg.model, true)? {
             Some(answer) => {
                 override_cfg.model = answer.clone();
                 if !answer.is_empty() {
@@ -113,7 +120,7 @@ pub(crate) fn config_builtin(
         for (tier, desc) in tier_descriptions {
             let current_tier_val = tiers.get(tier).cloned().unwrap_or_default();
             let label = format!("{} ({})", tier, desc);
-            match select_model(ctx, &label, choices, &current_tier_val, false)? {
+            match select_model(ctx, &label, &choices, &current_tier_val, false)? {
                 Some(answer) => {
                     if !answer.is_empty() {
                         tiers.insert(tier.to_string(), answer.clone());
