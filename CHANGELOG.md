@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Bump `actions/checkout` from 6.0.2 to 6.0.3
+
 ## [0.3.4] - 2026-06-03
 
 ### Fixed
