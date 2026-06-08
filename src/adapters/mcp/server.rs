@@ -7,24 +7,8 @@ use serde_json::{Value, json};
 use crate::adapters::mcp::discovery;
 use crate::adapters::mcp::runner;
 use crate::config::registry::AppRegistry;
-
-/// Build a JSON-RPC 2.0 success response.
-fn rpc_response(id: &Value, result: Value) -> Value {
-    json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "result": result
-    })
-}
-
-/// Build a JSON-RPC 2.0 error response.
-fn rpc_error(id: &Value, code: i32, message: impl std::fmt::Display) -> Value {
-    json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "error": { "code": code, "message": message.to_string() }
-    })
-}
+use crate::domain::agent::AgentDefinition;
+use llm_kernel::mcp::{McpServer, ToolDescription};
 
 pub fn run_mcp_server(config_path: &Path) -> anyhow::Result<i32> {
     let cfg = AppRegistry::open(config_path)?;
@@ -34,10 +18,58 @@ pub fn run_mcp_server(config_path: &Path) -> anyhow::Result<i32> {
 
     ensure_registered_global();
 
+    let server = build_server(&agents);
+
     let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(async { server_loop(&agents).await })?;
+    rt.block_on(async { server_loop(&server, &agents).await })?;
 
     Ok(0)
+}
+
+fn build_server(agents: &[AgentDefinition]) -> McpServer {
+    let tool = build_ask_agent_tool(agents);
+    let mut server = McpServer::new("claudy-mcp", env!("CARGO_PKG_VERSION"));
+    server.register_tool(tool);
+    server
+}
+
+fn build_ask_agent_tool(agents: &[AgentDefinition]) -> ToolDescription {
+    let agent_list: Vec<String> = agents
+        .iter()
+        .map(|a| format!("- **{}**: {}", a.name, a.description))
+        .collect();
+
+    let description = if agent_list.is_empty() {
+        "Delegate a task to a local AI coding agent. No agents are currently installed.".into()
+    } else {
+        format!(
+            "Delegate a task to a local AI coding agent. Available agents:\n{}",
+            agent_list.join("\n")
+        )
+    };
+
+    ToolDescription {
+        name: "ask_agent".to_string(),
+        description,
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "agent": {
+                    "type": "string",
+                    "description": "Agent name (from the list above)"
+                },
+                "prompt": {
+                    "type": "string",
+                    "description": "The task or question for the agent"
+                },
+                "working_directory": {
+                    "type": "string",
+                    "description": "Working directory for the agent (optional)"
+                }
+            },
+            "required": ["agent", "prompt"]
+        }),
+    }
 }
 
 /// The expected claudy MCP server entry.
@@ -188,10 +220,10 @@ pub fn unregister_global() {
     unregister(&home.join(".claude.json"));
 }
 
-async fn server_loop(agents: &[crate::domain::agent::AgentDefinition]) -> anyhow::Result<()> {
+async fn server_loop(server: &McpServer, agents: &[AgentDefinition]) -> anyhow::Result<()> {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
-    let agent_map: HashMap<&str, &crate::domain::agent::AgentDefinition> =
+    let agent_map: HashMap<&str, &AgentDefinition> =
         agents.iter().map(|a| (a.name.as_str(), a)).collect();
 
     let reader = stdin.lock();
@@ -205,8 +237,11 @@ async fn server_loop(agents: &[crate::domain::agent::AgentDefinition]) -> anyhow
         let msg: Value = match serde_json::from_str(trimmed) {
             Ok(v) => v,
             Err(e) => {
-                let id = Value::Null;
-                let resp = rpc_error(&id, -32700, format!("Parse error: {}", e));
+                let resp = json!({
+                    "jsonrpc": "2.0",
+                    "id": null,
+                    "error": { "code": -32700, "message": format!("Parse error: {}", e) }
+                });
                 writeln!(stdout, "{}", resp)?;
                 stdout.flush()?;
                 continue;
@@ -214,28 +249,32 @@ async fn server_loop(agents: &[crate::domain::agent::AgentDefinition]) -> anyhow
         };
 
         let id = msg.get("id").cloned().unwrap_or(Value::Null);
-        let method = msg["method"].as_str().unwrap_or("");
-        let params = msg.get("params").cloned().unwrap_or(json!({}));
 
         // JSON-RPC 2.0: servers MUST NOT reply to notifications (requests without an id).
         if msg.get("id").is_none() {
             continue;
         }
 
+        let method = msg["method"].as_str().unwrap_or("");
+        let params = msg.get("params").cloned().unwrap_or(json!({}));
+
         let response = match method {
-            "initialize" => handle_initialize(&id),
-            // Per JSON-RPC 2.0, all notifications are skipped above; this arm is retained
-            // as a documentation marker for the initialized handshake notification.
-            "notifications/initialized" => {
-                continue;
-            }
-            "notifications/cancelled" => {
-                // Cancellation sent by the client during long-running calls; no response.
-                continue;
-            }
-            "tools/list" => handle_tools_list(&id, &agent_map),
+            "initialize" => json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": server.initialize_response()
+            }),
+            "tools/list" => json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": { "tools": server.tools() }
+            }),
             "tools/call" => handle_tools_call(&id, &params, &agent_map).await,
-            _ => rpc_error(&id, -32601, format!("Method not found: {}", method)),
+            _ => json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "error": { "code": -32601, "message": format!("Method not found: {}", method) }
+            }),
         };
 
         writeln!(stdout, "{}", response)?;
@@ -245,101 +284,50 @@ async fn server_loop(agents: &[crate::domain::agent::AgentDefinition]) -> anyhow
     Ok(())
 }
 
-fn handle_initialize(id: &Value) -> Value {
-    rpc_response(
-        id,
-        json!({
-            "protocolVersion": "2024-11-05",
-            "capabilities": {
-                "tools": {}
-            },
-            "serverInfo": {
-                "name": "claudy-mcp",
-                "version": env!("CARGO_PKG_VERSION")
-            }
-        }),
-    )
-}
-
-fn handle_tools_list(
-    id: &Value,
-    agents: &HashMap<&str, &crate::domain::agent::AgentDefinition>,
-) -> Value {
-    let agent_list: Vec<String> = agents
-        .values()
-        .map(|a| format!("- **{}**: {}", a.name, a.description))
-        .collect();
-
-    let description = if agent_list.is_empty() {
-        "Delegate a task to a local AI coding agent. No agents are currently installed.".into()
-    } else {
-        format!(
-            "Delegate a task to a local AI coding agent. Available agents:\n{}",
-            agent_list.join("\n")
-        )
-    };
-
-    rpc_response(
-        id,
-        json!({
-            "tools": [{
-                "name": "ask_agent",
-                "description": description,
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "agent": {
-                            "type": "string",
-                            "description": "Agent name (from the list above)"
-                        },
-                        "prompt": {
-                            "type": "string",
-                            "description": "The task or question for the agent"
-                        },
-                        "working_directory": {
-                            "type": "string",
-                            "description": "Working directory for the agent (optional)"
-                        }
-                    },
-                    "required": ["agent", "prompt"]
-                }
-            }]
-        }),
-    )
-}
-
 async fn handle_tools_call(
     id: &Value,
     params: &Value,
-    agents: &HashMap<&str, &crate::domain::agent::AgentDefinition>,
+    agents: &HashMap<&str, &AgentDefinition>,
 ) -> Value {
     let args = match params.get("arguments") {
         Some(a) => a,
         None => {
-            return rpc_error(id, -32602, "Missing arguments");
+            return json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "error": { "code": -32602, "message": "Missing arguments" }
+            });
         }
     };
 
     let agent_name = match args["agent"].as_str() {
         Some(n) => n,
         None => {
-            return rpc_error(id, -32602, "Missing 'agent' parameter");
+            return json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "error": { "code": -32602, "message": "Missing 'agent' parameter" }
+            });
         }
     };
 
     let prompt = match args["prompt"].as_str() {
         Some(p) if !p.is_empty() => p,
         _ => {
-            return rpc_error(id, -32602, "Missing 'prompt' parameter");
+            return json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "error": { "code": -32602, "message": "Missing 'prompt' parameter" }
+            });
         }
     };
 
     if prompt.len() > 100_000 {
-        return rpc_error(
-            id,
-            -32602,
-            "Prompt exceeds maximum length of 100,000 characters",
-        );
+        return json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "error": { "code": -32602, "message": "Prompt exceeds maximum length of 100,000 characters" }
+        });
     }
 
     let cwd = args["working_directory"].as_str().map(|s| s.to_string());
@@ -348,66 +336,65 @@ async fn handle_tools_call(
         Some(d) => (*d).clone(),
         None => {
             let available: Vec<&str> = agents.keys().copied().collect();
-            return rpc_response(
-                id,
-                json!({
+            return json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": {
                     "content": [{
                         "type": "text",
                         "text": format!("Agent '{}' is not installed. Available: {}", agent_name, available.join(", "))
                     }],
                     "isError": true
-                }),
-            );
+                }
+            });
         }
     };
 
     match runner::run_agent(&def, prompt, cwd.as_deref().map(Path::new)).await {
-        Ok(output) => rpc_response(
-            id,
-            json!({
+        Ok(output) => json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
                 "content": [{
                     "type": "text",
                     "text": output.trim()
                 }]
-            }),
-        ),
-        Err(e) => rpc_response(
-            id,
-            json!({
+            }
+        }),
+        Err(e) => json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
                 "content": [{
                     "type": "text",
                     "text": format!("Agent '{}' failed: {}", agent_name, e)
                 }],
                 "isError": true
-            }),
-        ),
+            }
+        }),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::agent::AgentDefinition;
     use serde_json::json;
     use std::collections::HashMap;
 
-    // ── handle_initialize ────────────────────────────────────────────
+    // ── build_server / build_ask_agent_tool ───────────────────────────
 
     #[test]
-    fn test_handle_initialize() {
-        let resp = handle_initialize(&json!(1));
+    fn test_build_server_initialize_response() {
+        let server = build_server(&[]);
+        let resp = server.initialize_response();
 
-        assert_eq!(resp["jsonrpc"], "2.0");
-        assert_eq!(resp["id"], 1);
-        assert_eq!(resp["result"]["protocolVersion"], "2024-11-05");
-        assert!(resp["result"]["capabilities"]["tools"].is_object());
-        assert_eq!(resp["result"]["serverInfo"]["name"], "claudy-mcp");
+        assert_eq!(resp["protocolVersion"], "2024-11-05");
+        assert!(resp["capabilities"]["tools"].is_object());
+        assert_eq!(resp["serverInfo"]["name"], "claudy-mcp");
     }
 
-    // ── handle_tools_list ────────────────────────────────────────────
-
     #[test]
-    fn test_handle_tools_list_with_agents() {
+    fn test_build_ask_agent_tool_with_agents() {
         let agent = AgentDefinition {
             name: "test-agent".into(),
             binary: "echo".into(),
@@ -415,28 +402,20 @@ mod tests {
             description: "Test agent".into(),
             timeout: 10,
         };
-        let mut map: HashMap<&str, &AgentDefinition> = HashMap::new();
-        map.insert("test-agent", &agent);
+        let agents = vec![agent];
+        let tool = build_ask_agent_tool(&agents);
 
-        let resp = handle_tools_list(&json!(2), &map);
-
-        let tools = resp["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 1);
-        assert_eq!(tools[0]["name"], "ask_agent");
-        let desc = tools[0]["description"].as_str().unwrap();
-        assert!(desc.contains("test-agent"));
-        let required = tools[0]["inputSchema"]["required"].as_array().unwrap();
-        assert!(required.iter().any(|r| r == "agent"));
-        assert!(required.iter().any(|r| r == "prompt"));
+        assert_eq!(tool.name, "ask_agent");
+        assert!(tool.description.contains("test-agent"));
     }
 
     #[test]
-    fn test_handle_tools_list_empty() {
-        let map: HashMap<&str, &AgentDefinition> = HashMap::new();
-        let resp = handle_tools_list(&json!(3), &map);
-
-        let desc = resp["result"]["tools"][0]["description"].as_str().unwrap();
-        assert!(desc.contains("No agents are currently installed"));
+    fn test_build_ask_agent_tool_empty() {
+        let tool = build_ask_agent_tool(&[]);
+        assert!(
+            tool.description
+                .contains("No agents are currently installed")
+        );
     }
 
     // ── handle_tools_call (async) ────────────────────────────────────
@@ -519,9 +498,7 @@ mod tests {
 
         let content = std::fs::read_to_string(&path).unwrap();
         let settings: serde_json::Value = serde_json::from_str(&content).unwrap();
-        // There should be exactly one claudy entry
         assert!(settings["mcpServers"]["claudy"].is_object());
-        // No duplicate keys possible in JSON, but verify the entry is stable
         assert_eq!(settings["mcpServers"]["claudy"]["command"], "claudy");
         assert_eq!(
             settings["mcpServers"]["claudy"]["args"],
@@ -606,11 +583,8 @@ mod tests {
     fn test_unregister_noop_when_no_file() {
         let dir = tempfile::TempDir::new().unwrap();
         let path = dir.path().join("nonexistent").join("settings.json");
-        // Should not panic
         unregister(&path);
     }
-
-    // ── corrupted JSON protection ────────────────────────────────────
 
     #[test]
     fn test_ensure_registered_does_not_overwrite_corrupted_json() {
@@ -622,7 +596,6 @@ mod tests {
 
         ensure_registered(&path);
 
-        // File must be left exactly as-is — NOT replaced with a fresh object.
         let content = std::fs::read_to_string(&path).unwrap();
         assert_eq!(content, corrupted);
     }
@@ -646,7 +619,6 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         let path = dir.path().join("settings.json");
 
-        // Pre-populate with the exact entry ensure_registered would write.
         let existing = json!({
             "mcpServers": {
                 "claudy": {
@@ -658,18 +630,14 @@ mod tests {
         let original = serde_json::to_string_pretty(&existing).unwrap() + "\n";
         std::fs::write(&path, &original).unwrap();
 
-        // Snapshot the file metadata before calling ensure_registered.
         let metadata_before = std::fs::metadata(&path).unwrap();
         let modified_before = metadata_before.modified().unwrap();
 
         ensure_registered(&path);
 
-        // The file content should be byte-for-byte identical (no rewrite).
         let content_after = std::fs::read_to_string(&path).unwrap();
         assert_eq!(content_after, original);
 
-        // On filesystems that support it, the modification time should not change.
-        // (This is a soft check — some FS granularity may cause false passes.)
         let metadata_after = std::fs::metadata(&path).unwrap();
         let modified_after = metadata_after.modified().unwrap();
         assert_eq!(

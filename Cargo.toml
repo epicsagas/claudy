@@ -49,6 +49,7 @@ analytics = ["rusqlite"]
 analytics-ui = ["analytics", "tauri", "tauri-build"]
 
 [dependencies]
+llm-kernel = { version = "0.3", features = ["provider", "secrets", "mcp"] }
 clap = { version = "4", features = ["derive", "env"] }
 anyhow = "1"
 thiserror = "2"

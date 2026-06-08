@@ -1,19 +1,7 @@
+// Re-export auth types from llm-kernel. ServiceDescriptor impl lives there.
+pub use llm_kernel::provider::{AuthStrategy, CapabilityProfile};
+
 use crate::domain::launch_blueprint::LaunchTarget;
-use crate::providers::index::ServiceDescriptor;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AuthStrategy {
-    None,
-    Literal,
-    Secret,
-    Unknown,
-}
-
-pub trait CapabilityProfile {
-    fn auth_strategy(&self) -> AuthStrategy;
-    fn clears_anthropic_api_key(&self) -> bool;
-    fn supports_model_tiers(&self) -> bool;
-}
 
 fn auth_mode_to_strategy(value: &str) -> AuthStrategy {
     match value {
@@ -30,20 +18,6 @@ fn clears_api_key_for_family(family: &str) -> bool {
 
 fn supports_tiers_for_family(family: &str) -> bool {
     !matches!(family, "claude_strict")
-}
-
-impl CapabilityProfile for ServiceDescriptor {
-    fn auth_strategy(&self) -> AuthStrategy {
-        auth_mode_to_strategy(&self.auth_mode)
-    }
-
-    fn clears_anthropic_api_key(&self) -> bool {
-        clears_api_key_for_family(&self.family)
-    }
-
-    fn supports_model_tiers(&self) -> bool {
-        supports_tiers_for_family(&self.family)
-    }
 }
 
 impl CapabilityProfile for LaunchTarget {
