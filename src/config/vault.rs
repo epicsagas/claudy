@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::providers::index::ProviderIndex;
 
 // Re-export SecretVault and redact_credential from llm-kernel.
@@ -7,12 +9,12 @@ pub use llm_kernel::secrets::redact_credential;
 
 // --- Free functions (public API kept for backward compat) ---
 
-pub fn load_vault(path: &str) -> anyhow::Result<SecretVault> {
-    SecretVault::load_from(path)
+pub fn load_vault(path: impl AsRef<Path>) -> anyhow::Result<SecretVault> {
+    Ok(SecretVault::load_from(path)?)
 }
 
-pub fn persist_vault(path: &str, secrets: &SecretVault) -> anyhow::Result<()> {
-    secrets.persist_to(path)
+pub fn persist_vault(path: impl AsRef<Path>, secrets: &SecretVault) -> anyhow::Result<()> {
+    Ok(secrets.persist_to(path)?)
 }
 
 /// Strip entries that were valid in older versions but are now redundant.
@@ -23,11 +25,15 @@ pub fn prune_outdated_entries(secrets: &mut SecretVault, catalog: &ProviderIndex
         .filter(|(k, v)| is_stale_legacy_entry(k, v, &builtin_keys))
         .map(|(k, _)| k.clone())
         .collect();
-    for k in stale {
-        secrets.remove(&k);
+    for k in &stale {
+        tracing::debug!(key = %k, "pruning stale vault entry");
+        secrets.remove(k);
     }
 }
 
+/// Redact a credential value for safe display.
+///
+/// Alias for [`redact_credential`]. Kept for backward compatibility.
 pub fn redact(value: &str) -> String {
     redact_credential(value)
 }
@@ -58,7 +64,7 @@ fn is_stale_legacy_entry(
 mod tests {
     use super::*;
     use crate::providers::index as providers;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
     fn load_catalog() -> providers::ProviderIndex {
         providers::load_index().expect("catalog should load")
@@ -140,5 +146,64 @@ mod tests {
             loaded.get("MY_KEY").map(|s| s.as_str()),
             Some("value with spaces\nand newlines")
         );
+    }
+
+    // --- is_stale_legacy_entry unit tests ---
+
+    #[test]
+    fn test_stale_openrouter_launcher_placeholder() {
+        let keys = HashSet::new();
+        assert!(is_stale_legacy_entry(
+            "OPENROUTER_MODEL_CLAUDY_OR_KIMI_K25",
+            "claudy-or-kimi-k25",
+            &keys,
+        ));
+    }
+
+    #[test]
+    fn test_stale_openrouter_empty_alias() {
+        let keys = HashSet::new();
+        // After normalization, "CLAUDY-OR-" prefix is stripped, leaving empty → stale
+        assert!(is_stale_legacy_entry(
+            "OPENROUTER_MODEL_CLAUDY_OR_",
+            "some-value",
+            &keys,
+        ));
+    }
+
+    #[test]
+    fn test_not_stale_openrouter_valid_model() {
+        let keys = HashSet::new();
+        assert!(!is_stale_legacy_entry(
+            "OPENROUTER_MODEL_KIMI_K25",
+            "moonshotai/kimi-k2.5",
+            &keys,
+        ));
+    }
+
+    #[test]
+    fn test_stale_claudy_base_url_for_builtin() {
+        let keys = HashSet::from(["ALIBABA_API_KEY".to_string()]);
+        assert!(is_stale_legacy_entry(
+            "CLAUDY_ALIBABA_API_KEY_BASE_URL",
+            "https://example.com/unused",
+            &keys,
+        ));
+    }
+
+    #[test]
+    fn test_not_stale_claudy_base_url_for_custom() {
+        let keys = HashSet::new(); // no builtins → custom provider URL is NOT stale
+        assert!(!is_stale_legacy_entry(
+            "CLAUDY_MYCUSTOM_API_KEY_BASE_URL",
+            "https://mycustom.example.com",
+            &keys,
+        ));
+    }
+
+    #[test]
+    fn test_not_stale_unrelated_key() {
+        let keys = HashSet::from(["ALIBABA_API_KEY".to_string()]);
+        assert!(!is_stale_legacy_entry("SOME_OTHER_KEY", "value", &keys,));
     }
 }
