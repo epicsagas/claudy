@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-06-13
+
+### Added
+
+- Integrate `llm-kernel` for provider catalog, secrets vault, and MCP protocol (#17)
+- `status` warns when an external `CLAUDE_CODE_BLOCKING_LIMIT_OVERRIDE` would cap the context window below a model's configured `max_context_tokens`
+
+### Fixed
+
+- Channel/headless sessions now inject model compaction env vars (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`), matching the interactive launch path
+- Selecting a project in a channel (Telegram/Discord) now persists it as the new session's working directory, so "New → Current project" launches in that project's context
+- Improve vault type safety, observability, and test coverage
+- Drop redundant `Ok(?)` wrappers flagged by clippy
+
 ### Changed
 
 - Bump `actions/checkout` from 6.0.2 to 6.0.3
