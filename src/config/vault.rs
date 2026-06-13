@@ -10,11 +10,11 @@ pub use llm_kernel::secrets::redact_credential;
 // --- Free functions (public API kept for backward compat) ---
 
 pub fn load_vault(path: impl AsRef<Path>) -> anyhow::Result<SecretVault> {
-    SecretVault::load_from(path)
+    Ok(SecretVault::load_from(path)?)
 }
 
 pub fn persist_vault(path: impl AsRef<Path>, secrets: &SecretVault) -> anyhow::Result<()> {
-    secrets.persist_to(path)
+    Ok(secrets.persist_to(path)?)
 }
 
 /// Strip entries that were valid in older versions but are now redundant.

@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Channel/headless sessions now inject model compaction env vars (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`), matching the interactive launch path
 - Selecting a project in a channel (Telegram/Discord) now persists it as the new session's working directory, so "New → Current project" launches in that project's context
 - Improve vault type safety, observability, and test coverage
-- Drop redundant `Ok(?)` wrappers flagged by clippy
+- Pin `llm-kernel` to 0.3.6 and commit `Cargo.lock` so CI and local builds resolve identical dependency versions (the lock was gitignored, letting CI pull a newer `llm-kernel` whose `load_from`/`persist_to` return `KernelError` instead of `anyhow::Error`, breaking the build)
 
 ### Changed
 
