@@ -37,5 +37,32 @@ pub fn run_status(ctx: &mut Context) -> anyhow::Result<i32> {
         .write_line(&format!("Bin:       {}", claudy_bin))?;
     ctx.output
         .write_line(&format!("Profiles:  {}", configured_count))?;
+
+    // Warn when an external CLAUDE_CODE_BLOCKING_LIMIT_OVERRIDE caps the context
+    // window below a configured model's max_context_tokens — the classic cause
+    // of a 1M model compacting prematurely (e.g. at 180k).
+    if let Ok(raw) = std::env::var("CLAUDE_CODE_BLOCKING_LIMIT_OVERRIDE")
+        && let Ok(blocking) = raw.trim().parse::<u64>()
+    {
+        let capped: Vec<&str> = ctx
+            .config
+            .model_settings
+            .iter()
+            .filter_map(|(model, s)| {
+                s.max_context_tokens
+                    .filter(|&max| (max as u64) > blocking)
+                    .map(|_| model.as_str())
+            })
+            .collect();
+        if !capped.is_empty() {
+            ctx.output.warn(&format!(
+                "CLAUDE_CODE_BLOCKING_LIMIT_OVERRIDE={} caps the context window below max_context_tokens for: {}. \
+                 Remove this env var (from ~/.claude/settings.json or shell) to use the full window.",
+                blocking,
+                capped.join(", ")
+            ));
+        }
+    }
+
     Ok(0)
 }
