@@ -7,4 +7,4 @@
 pub mod pipeline;
 pub mod stages;
 
-pub use pipeline::prepare_provider_env;
+pub use pipeline::{materialize_overlay, prepare_provider_env};

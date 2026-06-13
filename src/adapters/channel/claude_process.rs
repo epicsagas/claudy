@@ -60,7 +60,18 @@ pub fn start_claude_session(
 ) -> anyhow::Result<ClaudeProcess> {
     let target = crate::routing::resolver::route_profile(session.profile, catalog, config)
         .context(format!("Failed to resolve profile '{}'", session.profile))?;
-    let env = crate::launcher::envkit::build_auth_environment(&target, secrets)?;
+    let mut env = crate::launcher::envkit::build_auth_environment(&target, secrets)?;
+
+    // Inject compaction env vars (max_context_tokens / compaction_threshold) so
+    // channel/headless sessions honor `model_settings`, mirroring the
+    // interactive launch path. Without this the overlay pipeline is bypassed
+    // and Claude Code falls back to its default compaction behavior.
+    let effective_model = session.model.unwrap_or(&target.model);
+    let overlay = crate::launcher::overlay::materialize_overlay(effective_model, config);
+    for (key, value) in overlay.env_overrides {
+        env.push(format!("{key}={value}"));
+    }
+
     let claude_bin = crate::launcher::binary::find_claude_cli()?;
 
     let mut cmd = tokio::process::Command::new(claude_bin);
