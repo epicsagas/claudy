@@ -50,7 +50,15 @@ pub async fn handle_callback(ctx: CallbackContext) -> anyhow::Result<()> {
             .await
         }
         "proj" => {
-            handle_project_callback(channel.as_ref(), &channel_id, &data, callback_message_id).await
+            handle_project_callback(
+                channel.as_ref(),
+                &channel_id,
+                &data,
+                callback_message_id,
+                &scope,
+                &channel_state,
+            )
+            .await
         }
         "model" => {
             handle_model_callback(
@@ -195,7 +203,23 @@ async fn handle_project_callback(
     channel_id: &ChannelIdentity,
     encoded_dir: &str,
     callback_message_id: Option<String>,
+    scope: &str,
+    state: &Arc<tokio::sync::RwLock<ChannelState>>,
 ) -> anyhow::Result<()> {
+    // Persist the selected project as the session working dir so a subsequent
+    // "New → Current project" (or the next message) launches inside this
+    // project's context. Mirrors how switching to an existing session sets cwd.
+    if let Some(projects_dir) = super::super::sessions::claude_projects_dir() {
+        let resolved =
+            super::super::sessions::discover_project_sessions(&projects_dir, encoded_dir, 1)
+                .into_iter()
+                .next()
+                .and_then(|s| s.cwd.or(s.project_path));
+        if let Some(cwd) = resolved.filter(|c| !c.is_empty()) {
+            with_write(state, |cs| cs.set_working_dir(scope, &cwd)).await;
+        }
+    }
+
     // Dismiss the project list keyboard
     dismiss_keyboard(channel, channel_id, callback_message_id, None, "Loading...").await?;
 
@@ -386,7 +410,7 @@ async fn handle_new_callback(
                 cs.clear_waiting_for_dir(scope);
                 cs.working_dir(scope)
                     .map(|s| s.to_string())
-                    .unwrap_or_else(|| "default workspace".to_string())
+                    .unwrap_or_else(|| "none (use /projects to select one)".to_string())
             })
             .await;
             dismiss_keyboard(

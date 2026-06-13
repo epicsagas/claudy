@@ -320,7 +320,7 @@ pub async fn handle_new(
         cs.clear_waiting_for_dir(scope);
         cs.working_dir(scope)
             .map(|s| s.to_string())
-            .unwrap_or_else(|| "default workspace".to_string())
+            .unwrap_or_else(|| "none (use /projects to select one)".to_string())
     })
     .await;
 
