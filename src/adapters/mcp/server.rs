@@ -264,11 +264,27 @@ async fn server_loop(server: &McpServer, agents: &[AgentDefinition]) -> anyhow::
                 "id": id,
                 "result": server.initialize_response()
             }),
-            "tools/list" => json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": { "tools": server.tools() }
-            }),
+            "tools/list" => {
+                // llm-kernel's ToolDescription serializes `input_schema` in
+                // snake_case, but the MCP spec (2024-11-05) requires
+                // `inputSchema`. Emit each tool explicitly so clients accept it.
+                let tools: Vec<Value> = server
+                    .tools()
+                    .iter()
+                    .map(|t| {
+                        json!({
+                            "name": t.name,
+                            "description": t.description,
+                            "inputSchema": t.input_schema,
+                        })
+                    })
+                    .collect();
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": { "tools": tools }
+                })
+            }
             "tools/call" => handle_tools_call(&id, &params, &agent_map).await,
             _ => json!({
                 "jsonrpc": "2.0",
