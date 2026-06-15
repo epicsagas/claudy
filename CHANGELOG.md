@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-06-16
+
+### Fixed
+
+- Drop the unsupported `--output-format text` flag from the `agy` (Antigravity) agent mapping. agy 1.0.x has no such flag, so every `ask_agent` delegation to agy failed with `flags provided but not defined: -output-format`; agy `--print` emits plain text by default, so the flag was unnecessary. Updated the builtin definition (`agent.rs`) and the README headless-command column across all translations. The Cursor `agent` CLI (which does support the flag) is unchanged.
+
 ## [0.3.7] - 2026-06-16
 
 ### Fixed
