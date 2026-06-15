@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-06-16
+
+### Fixed
+
+- Emit `inputSchema` (camelCase) in the MCP `tools/list` response so strict MCP 2024-11-05 clients (e.g. Claude Code) accept the `ask_agent` tool instead of rejecting it with `tools[0].inputSchema: expected object, received undefined`. `llm-kernel`'s `ToolDescription` serializes the field as `input_schema` (snake_case); the server now emits each tool explicitly with the spec key.
+
+### Changed
+
+- Cross-link the `epic-harness` synergy across the README and all 10 i18n translations
+
 ## [0.3.6] - 2026-06-13
 
 ### Added
