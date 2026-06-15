@@ -237,7 +237,7 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 
 sehingga Claude membaca file konfigurasi khusus mode.
 
-Mode juga cocok secara alami untuk **framework dan toolkit Claude khusus** yang menyertakan `CLAUDE.md`, skill, agen, atau pengaturan mereka sendiri — seperti [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code), atau harness kustom lainnya. Alih-alih mencemari konfigurasi default Anda, isolasi setiap framework dalam modenya sendiri:
+Mode juga cocok secara alami untuk **framework dan toolkit Claude khusus** yang menyertakan `CLAUDE.md`, skill, agen, atau pengaturan mereka sendiri — seperti [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code), [epic-harness](https://github.com/epicsagas/epic-harness) milik kami(sebuah plugin Claude Code yang berevolusi sendiri), atau harness kustom lainnya. Alih-alih mencemari konfigurasi default Anda, isolasi setiap framework dalam modenya sendiri:
 
 ```bash
 # Buat mode khusus untuk framework
@@ -251,6 +251,8 @@ claudy <profile> gstack
 ```
 
 Setiap direktori mode adalah `CLAUDE_CONFIG_DIR` yang mandiri, sehingga framework tidak akan pernah saling berkonflik atau dengan pengaturan default Anda.
+
+> **Cocok dipasangkan dengan [epic-harness](https://github.com/epicsagas/epic-harness).** Claudy menangani lapisan operasional — berganti penyedia, isolasi konfigurasi, bridge kanal/agen — sementara epic-harness (3 perintah, 26 skill pemicu otomatis, berevolusi dari pola kegagalan Anda) menambahkan kecerdasan agen. Satu keluarga `epicsagas`; pemisahan tanggung jawab yang bersih antar mode.
 
 <details>
 <summary>Referensi perintah</summary>
@@ -587,7 +589,7 @@ claudy <profile> work --yolo
 
 ### Jalankan framework Claude khusus dalam modenya sendiri
 
-Framework seperti gstack, superpowers, atau ecc menyertakan `CLAUDE.md`, skill, dan agen mereka sendiri. Jaga agar tetap terisolasi:
+Framework seperti gstack, superpowers, ecc, atau [epic-harness](https://github.com/epicsagas/epic-harness) milik kami menyertakan `CLAUDE.md`, skill, dan agen mereka sendiri. Jaga agar tetap terisolasi:
 
 ```bash
 # Penyiapan satu kali: buat mode dan isi dengan konfigurasi framework

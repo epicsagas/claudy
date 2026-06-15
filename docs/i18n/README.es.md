@@ -236,7 +236,7 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<modo>/
 
 para que Claude lea los archivos de configuración específicos del modo.
 
-Los modos también son ideales para **frameworks y toolkits dedicados de Claude** que incluyen su propio `CLAUDE.md`, skills, agentes o ajustes — como [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code), o cualquier harness personalizado. En lugar de contaminar tu configuración predeterminada, aísla cada framework en su propio modo:
+Los modos también son ideales para **frameworks y toolkits dedicados de Claude** que incluyen su propio `CLAUDE.md`, skills, agentes o ajustes — como [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code), nuestro propio [epic-harness](https://github.com/epicsagas/epic-harness)(un plugin de Claude Code que evoluciona solo), o cualquier harness personalizado. En lugar de contaminar tu configuración predeterminada, aísla cada framework en su propio modo:
 
 ```bash
 # Crea un modo dedicado para el framework
@@ -250,6 +250,8 @@ claudy <perfil> gstack
 ```
 
 Cada directorio de modo es un `CLAUDE_CONFIG_DIR` autónomo, por lo que los frameworks nunca entran en conflicto entre sí ni con tu configuración predeterminada.
+
+> **Combina bien con [epic-harness](https://github.com/epicsagas/epic-harness).** Claudy gestiona la capa operativa — cambio de proveedor, aislamiento de configuración, puentes de canal/agente —, mientras que epic-harness (3 comandos, 26 habilidades de activación automática, que evoluciona a partir de tus patrones de fallo) aporta inteligencia de agente. Misma familia `epicsagas`; una separación limpia de responsabilidades entre modos.
 
 <details>
 <summary>Referencia de comandos</summary>
@@ -586,7 +588,7 @@ claudy <perfil> work --yolo
 
 ### Ejecutar un framework de Claude dedicado en su propio modo
 
-Frameworks como gstack, superpowers o ecc incluyen su propio `CLAUDE.md`, skills y agentes. Mantenlos aislados:
+Frameworks como gstack, superpowers, ecc o nuestro [epic-harness](https://github.com/epicsagas/epic-harness) incluyen su propio `CLAUDE.md`, skills y agentes. Mantenlos aislados:
 
 ```bash
 # Configuración inicial: crear el modo y cargar la configuración del framework

@@ -238,7 +238,7 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 
 بحيث يقرأ Claude ملفات الإعداد الخاصة بالوضع.
 
-كما أن الأوضاع مناسبة بشكل طبيعي لـ **أُطر Claude وأدواته المخصصة** التي تأتي مع `CLAUDE.md` ومهارات ووكلاء وإعدادات خاصة بها — مثل [gstack](https://github.com/garrytan/gstack) و[superpowers](https://github.com/obra/superpowers) و[ecc](https://github.com/affaan-m/everything-claude-code) أو أي نظام مخصص. بدلاً من تلويث إعداداتك الافتراضية، اعزل كل إطار في وضعه الخاص:
+كما أن الأوضاع مناسبة بشكل طبيعي لـ **أُطر Claude وأدواته المخصصة** التي تأتي مع `CLAUDE.md` ومهارات ووكلاء وإعدادات خاصة بها — مثل [gstack](https://github.com/garrytan/gstack) و[superpowers](https://github.com/obra/superpowers) و[ecc](https://github.com/affaan-m/everything-claude-code)، أو [epic-harness](https://github.com/epicsagas/epic-harness) الخاص بنا(إضافة Claude Code تتطور ذاتيًا)، أو أي نظام مخصص. بدلاً من تلويث إعداداتك الافتراضية، اعزل كل إطار في وضعه الخاص:
 
 ```bash
 # إنشاء وضع مخصص للإطار
@@ -252,6 +252,8 @@ claudy <profile> gstack
 ```
 
 كل دليل وضع هو `CLAUDE_CONFIG_DIR` مستقل بذاته، لذلك لن تتعارض الأُطر مع بعضها أو مع إعداداتك الافتراضية أبدًا.
+
+> **يتكامل بشكل ممتاز مع [epic-harness](https://github.com/epicsagas/epic-harness).** يتولى Claudy الطبقة التشغيلية — تبديل المزود، عزل الإعدادات، جسور القناة/الوكيل — بينما يضيف epic-harness (3 أوامر، 26 مهارة ذاتية التفعيل، تتطور من أنماط فشلك) ذكاء الوكيل. من عائلة `epicsagas` نفسها؛ فصل واضح للمسؤوليات عبر الأوضاع.
 
 <details>
 <summary>مرجع الأوامر</summary>
@@ -588,7 +590,7 @@ claudy <profile> work --yolo
 
 ### تشغيل إطار Claude مخصص في وضعه الخاص
 
-تأتي أُطر مثل gstack وsuperpowers وecc مع `CLAUDE.md` ومهارات ووكلاء خاصين بها. أبقِها معزولة:
+تأتي أُطر مثل gstack وsuperpowers وecc، أو [epic-harness](https://github.com/epicsagas/epic-harness) الخاص بنا، مع `CLAUDE.md` ومهارات ووكلاء خاصين بها. أبقِها معزولة:
 
 ```bash
 # إعداد لمرة واحدة: إنشاء الوضع وبذره بإعداد الإطار

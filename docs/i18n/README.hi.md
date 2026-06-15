@@ -237,7 +237,7 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 
 ताकि Claude मोड-विशिष्ट कॉन्फ़िग फ़ाइलें पढ़े।
 
-मोड समर्पित Claude फ़्रेमवर्क और टूलकिट के लिए भी एक स्वाभाविक विकल्प हैं जो अपना `CLAUDE.md`, स्किल, एजेंट, या सेटिंग्स शिप करते हैं — जैसे [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code), या कोई कस्टम हार्नेस। अपने डिफ़ॉल्ट कॉन्फ़िग को प्रदूषित करने के बजाय, प्रत्येक फ़्रेमवर्क को उसके अपने मोड में विलग करें:
+मोड समर्पित Claude फ़्रेमवर्क और टूलकिट के लिए भी एक स्वाभाविक विकल्प हैं जो अपना `CLAUDE.md`, स्किल, एजेंट, या सेटिंग्स शिप करते हैं — जैसे [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code), हमारा अपना [epic-harness](https://github.com/epicsagas/epic-harness)(एक स्व-विकसित Claude Code प्लगइन), या कोई कस्टम हार्नेस। अपने डिफ़ॉल्ट कॉन्फ़िग को प्रदूषित करने के बजाय, प्रत्येक फ़्रेमवर्क को उसके अपने मोड में विलग करें:
 
 ```bash
 # फ़्रेमवर्क के लिए समर्पित मोड बनाएँ
@@ -251,6 +251,8 @@ claudy <profile> gstack
 ```
 
 प्रत्येक मोड डायरेक्ट्री एक स्व-निहित `CLAUDE_CONFIG_DIR` है, इसलिए फ़्रेमवर्क कभी भी एक-दूसरे या आपके डिफ़ॉल्ट सेटअप के साथ संघर्ष नहीं करते।
+
+> **[epic-harness](https://github.com/epicsagas/epic-harness) के साथ बेहतरीन।** Claudy संचालन परत संभालता है — प्रदाता स्विचिंग, कॉन्फ़िग विलगन, चैनल/एजेंट ब्रिज — जबकि epic-harness (3 कमांड, 26 ऑटो-ट्रिगर स्किल, आपके विफलता पैटर्न से स्व-विकसित) एजेंट बुद्धिमत्ता जोड़ता है। एक ही `epicsagas` परिवार; मोड में ज़िम्मेदारियों का स्पष्ट विभाजन।
 
 <details>
 <summary>कमांड संदर्भ</summary>
@@ -587,7 +589,7 @@ claudy <profile> work --yolo
 
 ### समर्पित Claude फ़्रेमवर्क अपने मोड में चलाएँ
 
-gstack, superpowers, या ecc जैसे फ़्रेमवर्क अपना `CLAUDE.md`, स्किल, और एजेंट शिप करते हैं। उन्हें विलग रखें:
+gstack, superpowers, ecc, या हमारे [epic-harness](https://github.com/epicsagas/epic-harness) जैसे फ़्रेमवर्क अपना `CLAUDE.md`, स्किल, और एजेंट शिप करते हैं। उन्हें विलग रखें:
 
 ```bash
 # एक बार सेटअप: मोड बनाएँ और फ़्रेमवर्क कॉन्फ़िग से सीड करें

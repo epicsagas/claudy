@@ -238,7 +238,7 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 
 这样 Claude 就会读取特定于该模式的配置文件。
 
-模式也天然适合**专用 Claude 框架和工具包**，这些框架自带 `CLAUDE.md`、技能、代理或设置 —— 例如 [gstack](https://github.com/garrytan/gstack)、[superpowers](https://github.com/obra/superpowers)、[ecc](https://github.com/affaan-m/everything-claude-code) 或任何自定义工具链。无需污染你的默认配置，每个框架都可以隔离在自己的模式中：
+模式也天然适合**专用 Claude 框架和工具包**，这些框架自带 `CLAUDE.md`、技能、代理或设置 —— 例如 [gstack](https://github.com/garrytan/gstack)、[superpowers](https://github.com/obra/superpowers)、[ecc](https://github.com/affaan-m/everything-claude-code)、我们自己的 [epic-harness](https://github.com/epicsagas/epic-harness)(一个自我进化的 Claude Code 插件)或任何自定义工具链。无需污染你的默认配置，每个框架都可以隔离在自己的模式中：
 
 ```bash
 # 为框架创建专用模式
@@ -252,6 +252,8 @@ claudy <profile> gstack
 ```
 
 每个模式目录都是一个独立的 `CLAUDE_CONFIG_DIR`，因此框架之间不会相互冲突，也不会影响你的默认设置。
+
+> **与 [epic-harness](https://github.com/epicsagas/epic-harness) 搭配使用效果更佳。** Claudy 负责运维层——提供商切换、配置隔离、频道/代理桥接——而 epic-harness(3 个命令、26 个自动触发技能,从你的失败模式中自我进化)负责代理智能。同属 `epicsagas` 家族,在各模式间实现清晰的职责分离。
 
 <details>
 <summary>命令参考</summary>
@@ -588,7 +590,7 @@ claudy <profile> work --yolo
 
 ### 在独立模式中运行专用 Claude 框架
 
-gstack、superpowers 或 ecc 等框架自带 `CLAUDE.md`、技能和代理。将它们保持隔离：
+gstack、superpowers、ecc 或我们的 [epic-harness](https://github.com/epicsagas/epic-harness) 等框架自带 `CLAUDE.md`、技能和代理。将它们保持隔离：
 
 ```bash
 # 一次性设置：创建模式并导入框架配置

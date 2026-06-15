@@ -237,7 +237,7 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 
 これにより、Claudeはモード固有の設定ファイルを読み取ります。
 
-モードは、独自の `CLAUDE.md`、スキル、エージェント、設定を提供する**専用Claudeフレームワークやツールキット**にも適しています — 例: [gstack](https://github.com/garrytan/gstack)、[superpowers](https://github.com/obra/superpowers)、[ecc](https://github.com/affaan-m/everything-claude-code)などのカスタムハーネス。デフォルト設定を汚染する代わりに、各フレームワークを独自のモードで分離してください:
+モードは、独自の `CLAUDE.md`、スキル、エージェント、設定を提供する**専用Claudeフレームワークやツールキット**にも適しています — 例: [gstack](https://github.com/garrytan/gstack)、[superpowers](https://github.com/obra/superpowers)、[ecc](https://github.com/affaan-m/everything-claude-code)、独自の [epic-harness](https://github.com/epicsagas/epic-harness)(自己進化する Claude Code プラグイン)、その他のカスタムハーネス。デフォルト設定を汚染する代わりに、各フレームワークを独自のモードで分離してください:
 
 ```bash
 # フレームワーク用の専用モードを作成
@@ -251,6 +251,8 @@ claudy <profile> gstack
 ```
 
 各モードディレクトリは自己完結型の `CLAUDE_CONFIG_DIR` であり、フレームワーク間で競合することはありません。
+
+> **[epic-harness](https://github.com/epicsagas/epic-harness)との相性が抜群です。** Claudyは運用層を担い(プロバイダー切替、設定の分離、チャネル/エージェントブリッジ)、epic-harness(3つのコマンド、26の自動トリガースキル、失敗パターンから自己進化)がエージェントの知性を加えます。同じ `epicsagas` ファミリーで、モード単位で関心を明確に分離します。
 
 <details>
 <summary>コマンドリファレンス</summary>
@@ -587,7 +589,7 @@ claudy <profile> work --yolo
 
 ### 専用Claudeフレームワークを独自モードで実行
 
-gstack、superpowers、eccなどのフレームワークは独自の `CLAUDE.md`、スキル、エージェントを提供します。分離して保持してください:
+gstack、superpowers、ecc、または独自の [epic-harness](https://github.com/epicsagas/epic-harness) などのフレームワークは独自の `CLAUDE.md`、スキル、エージェントを提供します。分離して保持してください:
 
 ```bash
 # 一度だけ: モードを作成しフレームワーク設定をシード

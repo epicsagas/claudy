@@ -243,7 +243,7 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 
 so Claude reads mode-specific config files.
 
-Modes are also a natural fit for **dedicated Claude frameworks and toolkits** that ship their own `CLAUDE.md`, skills, agents, or settings — such as [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code), or any custom harness. Instead of polluting your default config, isolate each framework in its own mode:
+Modes are also a natural fit for **dedicated Claude frameworks and toolkits** that ship their own `CLAUDE.md`, skills, agents, or settings — such as [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code), our own [epic-harness](https://github.com/epicsagas/epic-harness) (a self-evolving Claude Code plugin), or any custom harness. Instead of polluting your default config, isolate each framework in its own mode:
 
 ```bash
 # Create a dedicated mode for the framework
@@ -257,6 +257,8 @@ claudy <profile> gstack
 ```
 
 Each mode directory is a self-contained `CLAUDE_CONFIG_DIR`, so frameworks never conflict with each other or with your default setup.
+
+> **Pairs with [epic-harness](https://github.com/epicsagas/epic-harness).** Claudy owns the operational layer — provider switching, config isolation, channel/agent bridges — while epic-harness (3 commands, 26 auto-trigger skills, self-evolving from your failure patterns) adds agent intelligence. Same `epicsagas` family; a clean split of concerns across modes.
 
 <details>
 <summary>Command Reference</summary>
@@ -606,7 +608,7 @@ claudy <profile> work --yolo
 
 ### Run a dedicated Claude framework in its own mode
 
-Frameworks like gstack, superpowers, or ecc ship their own `CLAUDE.md`, skills, and agents. Keep them isolated:
+Frameworks like gstack, superpowers, ecc, or our [epic-harness](https://github.com/epicsagas/epic-harness) ship their own `CLAUDE.md`, skills, and agents. Keep them isolated:
 
 ```bash
 # One-time setup: create the mode and seed it with the framework config

@@ -237,7 +237,7 @@ CLAUDE_CONFIG_DIR=~/.claudy/modes/<mode>/
 
 이렇게 하면 Claude가 모드별 설정 파일을 읽습니다.
 
-모드는 자체 `CLAUDE.md`, 스킬, 에이전트 또는 설정을 제공하는 **전용 Claude 프레임워크 및 툴킷**에도 자연스럽게 활용할 수 있습니다 — 예를 들어 [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code) 또는 커스텀 하네스. 기본 설정을 오염시키는 대신 각 프레임워크를 자체 모드로 격리하세요:
+모드는 자체 `CLAUDE.md`, 스킬, 에이전트 또는 설정을 제공하는 **전용 Claude 프레임워크 및 툴킷**에도 자연스럽게 활용할 수 있습니다 — 예를 들어 [gstack](https://github.com/garrytan/gstack), [superpowers](https://github.com/obra/superpowers), [ecc](https://github.com/affaan-m/everything-claude-code), 저희의 [epic-harness](https://github.com/epicsagas/epic-harness)(자가 진화하는 Claude Code 플러그인) 또는 커스텀 하네스. 기본 설정을 오염시키는 대신 각 프레임워크를 자체 모드로 격리하세요:
 
 ```bash
 # 프레임워크용 전용 모드 생성
@@ -251,6 +251,8 @@ claudy <profile> gstack
 ```
 
 각 모드 디렉토리는 자체적인 `CLAUDE_CONFIG_DIR`이므로 프레임워크 간에 또는 기본 설정과 충돌이 발생하지 않습니다.
+
+> **[epic-harness](https://github.com/epicsagas/epic-harness)와 함께 쓰면 좋습니다.** Claudy는 운영 계층(프로바이더 전환, 설정 격리, 채널/에이전트 브리지)을 담당하고, epic-harness(3개 명령, 26개 자동 트리거 스킬, 실패 패턴에서 자가 진화)가 에이전트 지능을 더합니다. 같은 `epicsagas` 패밀리로, 관심사를 모드 단위로 깔끔하게 분리합니다.
 
 <details>
 <summary>명령어 참조</summary>
@@ -587,7 +589,7 @@ claudy <profile> work --yolo
 
 ### 전용 Claude 프레임워크를 자체 모드에서 실행
 
-gstack, superpowers, ecc 같은 프레임워크는 자체 `CLAUDE.md`, 스킬, 에이전트를 제공합니다. 격리해서 유지하세요:
+gstack, superpowers, ecc, 저희의 [epic-harness](https://github.com/epicsagas/epic-harness) 같은 프레임워크는 자체 `CLAUDE.md`, 스킬, 에이전트를 제공합니다. 격리해서 유지하세요:
 
 ```bash
 # 일회성 설정: 모드를 만들고 프레임워크 설정으로 시드
