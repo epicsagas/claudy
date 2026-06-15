@@ -60,12 +60,7 @@ pub fn builtin_agents() -> Vec<AgentDefinition> {
         AgentDefinition {
             name: "agy".into(),
             binary: "agy".into(),
-            args: vec![
-                "-p".into(),
-                "{prompt}".into(),
-                "--output-format".into(),
-                "text".into(),
-            ],
+            args: vec!["-p".into(), "{prompt}".into()],
             description: "Antigravity CLI (agy)".into(),
             timeout: 120,
         },

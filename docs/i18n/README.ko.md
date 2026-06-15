@@ -403,7 +403,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | claudy mcp r
 
 | 에이전트 | 바이너리 | 헤드리스 명령어 |
 |-------|--------|----------------|
-| Antigravity | `agy` | `agy -p "..." --output-format text` |
+| Antigravity | `agy` | `agy -p "..."` |
 | Codex CLI | `codex` | `codex exec "..."` |
 | Cursor Agent | `agent` | `agent -p "..." --output-format text` |
 | GitHub Copilot | `copilot` | `copilot -p "..."` |
