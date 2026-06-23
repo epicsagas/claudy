@@ -55,6 +55,12 @@ pub fn run_session(
         print!("{}", crate::adapters::ui::output::banner(target, mode));
     }
 
+    // Sanitize the session file before launch so cross-provider artifacts
+    // (invalid thinking-block signatures and non-conforming server_tool_use IDs
+    // written by ZAI/GLM or other providers) don't cause a 400 from the
+    // Anthropic API on resume.
+    sanitize_resume_session(&args);
+
     let claude_path = find_claude_cli()?;
     let code = exec_claude_session(&claude_path, &args, &env)?;
 
@@ -154,6 +160,95 @@ fn spawn_claude(
     }
 
     Ok(cmd.status()?)
+}
+
+/// Sanitize the session that is about to be resumed.
+///
+/// Inspects the forwarded args for `--resume <id>`/`-r <id>` (explicit
+/// session) or `--continue`/`-c` (most-recent session for the current
+/// directory) and runs both sanitizers so the Anthropic API does not reject
+/// the conversation history with HTTP 400.
+fn sanitize_resume_session(args: &[String]) {
+    use crate::adapters::channel::sessions::{
+        claude_projects_dir, find_most_recent_session_id_for_cwd,
+        sanitize_session_server_tool_use_ids, sanitize_session_thinking_blocks,
+    };
+
+    let Some(projects_dir) = claude_projects_dir() else {
+        return;
+    };
+
+    let session_id = extract_resume_session_id(args).or_else(|| {
+        if has_continue_flag(args) {
+            find_most_recent_session_id_for_cwd(&projects_dir)
+        } else {
+            None
+        }
+    });
+
+    let Some(sid) = session_id else { return };
+
+    let stderr_tty = is_tty_stderr();
+
+    match sanitize_session_thinking_blocks(&projects_dir, &sid) {
+        Ok(0) => {}
+        Ok(n) if stderr_tty => {
+            let _ = writeln!(
+                std::io::stderr(),
+                "  [claudy] patched {n} thinking block(s) before resume"
+            );
+        }
+        Ok(_) => {}
+        Err(e) => {
+            let _ = writeln!(
+                std::io::stderr(),
+                "  [claudy] warning: could not patch thinking blocks: {e}"
+            );
+        }
+    }
+
+    match sanitize_session_server_tool_use_ids(&projects_dir, &sid) {
+        Ok(0) => {}
+        Ok(n) if stderr_tty => {
+            let _ = writeln!(
+                std::io::stderr(),
+                "  [claudy] patched {n} server_tool_use ID(s) before resume"
+            );
+        }
+        Ok(_) => {}
+        Err(e) => {
+            let _ = writeln!(
+                std::io::stderr(),
+                "  [claudy] warning: could not patch server_tool_use IDs: {e}"
+            );
+        }
+    }
+}
+
+/// Extract the session UUID from `--resume <uuid>`, `-r <uuid>`, or `--resume=<uuid>`.
+fn extract_resume_session_id(args: &[String]) -> Option<String> {
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--resume" | "-r" => {
+                let next = args.get(i + 1)?;
+                if !next.starts_with('-') {
+                    return Some(next.clone());
+                }
+            }
+            a if a.starts_with("--resume=") => {
+                return Some(a["--resume=".len()..].to_string());
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
+fn has_continue_flag(args: &[String]) -> bool {
+    args.iter()
+        .any(|a| matches!(a.as_str(), "--continue" | "-c"))
 }
 
 fn has_resume_flag(args: &[String]) -> bool {

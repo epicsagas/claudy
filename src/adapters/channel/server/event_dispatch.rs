@@ -347,6 +347,22 @@ pub(super) async fn handle_text_message(
                 "Could not sanitize thinking blocks; resume may fail"
             ),
         }
+        match crate::adapters::channel::sessions::sanitize_session_server_tool_use_ids(
+            &projects_dir,
+            sid,
+        ) {
+            Ok(0) => {}
+            Ok(n) => tracing::info!(
+                count = n,
+                session_id = %sid,
+                "Remapped invalid server_tool_use IDs before resume"
+            ),
+            Err(e) => tracing::warn!(
+                error = %e,
+                session_id = %sid,
+                "Could not sanitize server_tool_use IDs; resume may fail"
+            ),
+        }
     }
 
     let mut claude = match start_claude_and_track(

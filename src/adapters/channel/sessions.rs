@@ -490,6 +490,161 @@ pub fn sanitize_session_thinking_blocks(
     Ok(removed)
 }
 
+/// Rewrite non-conforming `server_tool_use` IDs in a session JSONL file.
+///
+/// ZAI and other non-Anthropic providers write `server_tool_use` blocks whose
+/// `id` field does not match the pattern `^srvtoolu_[a-zA-Z0-9_]+$` required
+/// by the Anthropic API. When Claude CLI resumes such a session the API rejects
+/// the request with HTTP 400. This function:
+///
+/// 1. Scans assistant messages for `server_tool_use` blocks with invalid IDs.
+/// 2. Builds a remapping table: old ID → valid `srvtoolu_<sanitized>` ID.
+/// 3. Rewrites every occurrence — both `server_tool_use.id` in assistant messages
+///    and the paired `server_tool_result.tool_use_id` in user messages — so the
+///    conversation remains internally consistent.
+///
+/// Returns the number of IDs remapped. Returns `Ok(0)` when the file is clean
+/// or does not exist.
+pub fn sanitize_session_server_tool_use_ids(
+    claude_projects_dir: &str,
+    session_id: &str,
+) -> anyhow::Result<usize> {
+    let Some(path) = find_session_file(claude_projects_dir, session_id) else {
+        return Ok(0);
+    };
+
+    let content = std::fs::read_to_string(&path)?;
+
+    // Pass 1: collect all non-conforming server_tool_use IDs.
+    let mut id_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut counter = 0usize;
+    for line in content.lines() {
+        let Ok(event) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        let is_assistant =
+            event.pointer("/message/role").and_then(|v| v.as_str()) == Some("assistant");
+        if !is_assistant {
+            continue;
+        }
+        let Some(arr) = event.pointer("/message/content").and_then(|v| v.as_array()) else {
+            continue;
+        };
+        for block in arr {
+            if block["type"].as_str() != Some("server_tool_use") {
+                continue;
+            }
+            let Some(id) = block["id"].as_str() else {
+                continue;
+            };
+            if id_map.contains_key(id) {
+                continue;
+            }
+            if is_valid_server_tool_use_id(id) {
+                continue;
+            }
+            // Sanitize: keep only [a-zA-Z0-9_] chars from the original ID.
+            let sanitized: String = id
+                .chars()
+                .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+                .collect();
+            let new_id = if sanitized.is_empty() {
+                format!("srvtoolu_patched{}", counter)
+            } else {
+                format!("srvtoolu_{}", sanitized)
+            };
+            id_map.insert(id.to_string(), new_id);
+            counter += 1;
+        }
+    }
+
+    if id_map.is_empty() {
+        return Ok(0);
+    }
+
+    // Pass 2: rewrite both server_tool_use.id and server_tool_result.tool_use_id.
+    let mut out = String::with_capacity(content.len());
+    for line in content.lines() {
+        let Ok(mut event) = serde_json::from_str::<serde_json::Value>(line) else {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        };
+
+        let role = event
+            .pointer("/message/role")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let mut changed_line = false;
+
+        if let Some(arr) = event
+            .pointer_mut("/message/content")
+            .and_then(|v| v.as_array_mut())
+        {
+            for block in arr.iter_mut() {
+                match role.as_str() {
+                    "assistant" if block["type"].as_str() == Some("server_tool_use") => {
+                        if let Some(old_id) = block["id"].as_str().map(|s| s.to_string())
+                            && let Some(new_id) = id_map.get(&old_id)
+                        {
+                            block["id"] = serde_json::Value::String(new_id.clone());
+                            changed_line = true;
+                        }
+                    }
+                    "user" if block["type"].as_str() == Some("server_tool_result") => {
+                        if let Some(old_id) = block["tool_use_id"].as_str().map(|s| s.to_string())
+                            && let Some(new_id) = id_map.get(&old_id)
+                        {
+                            block["tool_use_id"] = serde_json::Value::String(new_id.clone());
+                            changed_line = true;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if changed_line {
+            out.push_str(&serde_json::to_string(&event)?);
+        } else {
+            out.push_str(line);
+        }
+        out.push('\n');
+    }
+
+    // Atomic replace.
+    let parent = path.parent().unwrap_or(Path::new("."));
+    let tmp = parent.join(format!(".{}.tmp", session_id));
+    std::fs::write(&tmp, &out)?;
+    std::fs::rename(&tmp, &path)?;
+
+    Ok(id_map.len())
+}
+
+fn is_valid_server_tool_use_id(id: &str) -> bool {
+    id.starts_with("srvtoolu_")
+        && id.len() > "srvtoolu_".len()
+        && id["srvtoolu_".len()..]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// Find the most recent session ID for the current working directory.
+///
+/// Claude stores sessions under `~/.claude/projects/<encoded-cwd>/`.
+/// The encoding replaces every `/` in the path with `-`, so
+/// `/home/user/myapp` → `-home-user-myapp`.
+///
+/// Returns `None` when the current directory cannot be determined, when no
+/// project directory exists for it, or when the project has no sessions yet.
+pub fn find_most_recent_session_id_for_cwd(claude_projects_dir: &str) -> Option<String> {
+    let cwd = std::env::current_dir().ok()?;
+    let encoded = cwd.to_string_lossy().replace('/', "-");
+    let sessions = discover_project_sessions(claude_projects_dir, &encoded, 1);
+    sessions.into_iter().next().map(|s| s.session_id)
+}
+
 /// Check whether a session JSONL file exists for the given session ID
 /// within any project subdirectory of the Claude projects directory.
 pub fn session_file_exists(claude_projects_dir: &str, session_id: &str) -> bool {
@@ -687,5 +842,76 @@ mod tests {
         )
         .unwrap();
         assert_eq!(removed, 0);
+    }
+
+    #[test]
+    fn sanitize_server_tool_use_ids_remaps_invalid_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        let proj_dir = dir.path().join("-test-project");
+        std::fs::create_dir_all(&proj_dir).unwrap();
+
+        let session_id = "550e8400-e29b-41d4-a716-446655440010";
+        // zai-style ID that does not match ^srvtoolu_[a-zA-Z0-9_]+$
+        let jsonl = concat!(
+            "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"server_tool_use\",\"id\":\"toolu_glm_abc123\",\"name\":\"web_search\",\"input\":{}}]}}\n",
+            "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"server_tool_result\",\"tool_use_id\":\"toolu_glm_abc123\",\"content\":\"result\"}]}}\n",
+        );
+        std::fs::write(proj_dir.join(format!("{}.jsonl", session_id)), jsonl).unwrap();
+
+        let remapped =
+            sanitize_session_server_tool_use_ids(dir.path().to_str().unwrap(), session_id).unwrap();
+        assert_eq!(remapped, 1, "one ID should be remapped");
+
+        let patched =
+            std::fs::read_to_string(proj_dir.join(format!("{}.jsonl", session_id))).unwrap();
+        assert!(
+            !patched.contains("\"toolu_glm_abc123\""),
+            "original invalid ID must be replaced"
+        );
+        assert!(
+            patched.contains("\"srvtoolu_"),
+            "replacement ID must start with srvtoolu_"
+        );
+        // tool_use_id in user message must reference the same new ID
+        let lines: Vec<&str> = patched.lines().collect();
+        let asst: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        let user: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        let new_id = asst["message"]["content"][0]["id"].as_str().unwrap();
+        let ref_id = user["message"]["content"][0]["tool_use_id"]
+            .as_str()
+            .unwrap();
+        assert_eq!(
+            new_id, ref_id,
+            "server_tool_use.id and tool_use_id must match"
+        );
+    }
+
+    #[test]
+    fn sanitize_server_tool_use_ids_skips_valid_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        let proj_dir = dir.path().join("-test-project");
+        std::fs::create_dir_all(&proj_dir).unwrap();
+
+        let session_id = "550e8400-e29b-41d4-a716-446655440011";
+        let jsonl = "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"server_tool_use\",\"id\":\"srvtoolu_abc123\",\"name\":\"web_search\",\"input\":{}}]}}\n";
+        std::fs::write(proj_dir.join(format!("{}.jsonl", session_id)), jsonl).unwrap();
+
+        let remapped =
+            sanitize_session_server_tool_use_ids(dir.path().to_str().unwrap(), session_id).unwrap();
+        assert_eq!(remapped, 0, "valid ID must not be remapped");
+    }
+
+    #[test]
+    fn is_valid_server_tool_use_id_accepts_conforming() {
+        assert!(is_valid_server_tool_use_id("srvtoolu_abc123"));
+        assert!(is_valid_server_tool_use_id("srvtoolu_ABC_xyz_0"));
+    }
+
+    #[test]
+    fn is_valid_server_tool_use_id_rejects_nonconforming() {
+        assert!(!is_valid_server_tool_use_id("toolu_glm_abc"));
+        assert!(!is_valid_server_tool_use_id("srvtoolu_"));
+        assert!(!is_valid_server_tool_use_id("srvtoolu_abc-def"));
+        assert!(!is_valid_server_tool_use_id(""));
     }
 }
