@@ -668,10 +668,14 @@ pub fn sanitize_session(
     claude_projects_dir: &str,
     session_id: &str,
 ) -> anyhow::Result<SanitizeReport> {
-    let mut report = SanitizeReport::default();
-    report.thinking_converted = sanitize_session_thinking_blocks(claude_projects_dir, session_id)?;
-    report.server_tool_use_ids_remapped =
-        sanitize_session_server_tool_use_ids(claude_projects_dir, session_id)?;
+    let mut report = SanitizeReport {
+        thinking_converted: sanitize_session_thinking_blocks(claude_projects_dir, session_id)?,
+        server_tool_use_ids_remapped: sanitize_session_server_tool_use_ids(
+            claude_projects_dir,
+            session_id,
+        )?,
+        ..Default::default()
+    };
 
     // Strip misplaced tool_result and server_tool_use blocks from assistant messages.
     let Some(path) = find_session_file(claude_projects_dir, session_id) else {
