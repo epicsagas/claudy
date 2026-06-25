@@ -1,6 +1,6 @@
 use crate::adapters::channel::sessions::{
     SessionInfo, claude_projects_dir, count_invalid_thinking_blocks, discover_sessions,
-    sanitize_session_thinking_blocks,
+    sanitize_session,
 };
 use crate::domain::context::Context;
 
@@ -119,19 +119,24 @@ pub fn run_session_sanitize(
 
     let mut total = 0usize;
     for (s, _) in &targets {
-        match sanitize_session_thinking_blocks(&projects_dir, &s.session_id) {
-            Ok(n) => {
-                total += n;
+        match sanitize_session(&projects_dir, &s.session_id) {
+            Ok(r) if r.total() == 0 => {}
+            Ok(r) => {
+                total += r.total();
                 ctx.output.success(&format!(
-                    "{} / {} — converted {} block(s)",
+                    "{} / {} — fixed {} block(s) (thinking={}, tool_result={}, server_tool_use={}, id_remaps={})",
                     s.project_name,
                     &s.session_id[..8],
-                    n
+                    r.total(),
+                    r.thinking_converted,
+                    r.misplaced_tool_results,
+                    r.server_tool_uses,
+                    r.server_tool_use_ids_remapped,
                 ));
             }
             Err(e) => {
                 ctx.output.warn(&format!(
-                    "{} / {} — failed: {}",
+                    "{} / {} — sanitize failed: {}",
                     s.project_name,
                     &s.session_id[..8],
                     e
@@ -141,7 +146,7 @@ pub fn run_session_sanitize(
     }
 
     ctx.output
-        .info(&format!("Done. {} block(s) converted in total.", total));
+        .info(&format!("Done. {} block(s) fixed in total.", total));
     Ok(0)
 }
 

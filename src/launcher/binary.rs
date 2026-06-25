@@ -170,8 +170,7 @@ fn spawn_claude(
 /// the conversation history with HTTP 400.
 fn sanitize_resume_session(args: &[String]) {
     use crate::adapters::channel::sessions::{
-        claude_projects_dir, find_most_recent_session_id_for_cwd,
-        sanitize_session_server_tool_use_ids, sanitize_session_thinking_blocks,
+        claude_projects_dir, find_most_recent_session_id_for_cwd, sanitize_session,
     };
 
     let Some(projects_dir) = claude_projects_dir() else {
@@ -190,36 +189,24 @@ fn sanitize_resume_session(args: &[String]) {
 
     let stderr_tty = is_tty_stderr();
 
-    match sanitize_session_thinking_blocks(&projects_dir, &sid) {
-        Ok(0) => {}
-        Ok(n) if stderr_tty => {
+    match sanitize_session(&projects_dir, &sid) {
+        Ok(r) if r.total() == 0 => {}
+        Ok(r) if stderr_tty => {
             let _ = writeln!(
                 std::io::stderr(),
-                "  [claudy] patched {n} thinking block(s) before resume"
+                "  [claudy] sanitized session before resume \
+                 (thinking={}, tool_result={}, server_tool_use={}, id_remaps={})",
+                r.thinking_converted,
+                r.misplaced_tool_results,
+                r.server_tool_uses,
+                r.server_tool_use_ids_remapped,
             );
         }
         Ok(_) => {}
         Err(e) => {
             let _ = writeln!(
                 std::io::stderr(),
-                "  [claudy] warning: could not patch thinking blocks: {e}"
-            );
-        }
-    }
-
-    match sanitize_session_server_tool_use_ids(&projects_dir, &sid) {
-        Ok(0) => {}
-        Ok(n) if stderr_tty => {
-            let _ = writeln!(
-                std::io::stderr(),
-                "  [claudy] patched {n} server_tool_use ID(s) before resume"
-            );
-        }
-        Ok(_) => {}
-        Err(e) => {
-            let _ = writeln!(
-                std::io::stderr(),
-                "  [claudy] warning: could not patch server_tool_use IDs: {e}"
+                "  [claudy] warning: could not sanitize session: {e}"
             );
         }
     }

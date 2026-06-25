@@ -324,43 +324,26 @@ pub(super) async fn handle_text_message(
 
     let resume_session = validate_resume_session(state, &scope, resume_session).await;
 
-    // Strip thinking blocks with empty/invalid signatures written by non-Anthropic
-    // providers (e.g. ZAI/GLM). The Anthropic API rejects these with HTTP 400 when
-    // the session is resumed. Sanitization is a no-op when the file is already clean.
+    // Fix all Anthropic API incompatibilities written by non-Anthropic providers
+    // (GLM, ZAI, …) before handing the session to Claude CLI for --resume.
     if let (Some(sid), Some(projects_dir)) = (
         resume_session.as_deref(),
         crate::adapters::channel::sessions::claude_projects_dir(),
     ) {
-        match crate::adapters::channel::sessions::sanitize_session_thinking_blocks(
-            &projects_dir,
-            sid,
-        ) {
-            Ok(0) => {}
-            Ok(n) => tracing::info!(
-                count = n,
+        match crate::adapters::channel::sessions::sanitize_session(&projects_dir, sid) {
+            Ok(r) if r.total() == 0 => {}
+            Ok(r) => tracing::info!(
+                thinking = r.thinking_converted,
+                tool_results = r.misplaced_tool_results,
+                server_tool_uses = r.server_tool_uses,
+                id_remaps = r.server_tool_use_ids_remapped,
                 session_id = %sid,
-                "Stripped invalid thinking blocks before resume"
+                "Sanitized session before resume"
             ),
             Err(e) => tracing::warn!(
                 error = %e,
                 session_id = %sid,
-                "Could not sanitize thinking blocks; resume may fail"
-            ),
-        }
-        match crate::adapters::channel::sessions::sanitize_session_server_tool_use_ids(
-            &projects_dir,
-            sid,
-        ) {
-            Ok(0) => {}
-            Ok(n) => tracing::info!(
-                count = n,
-                session_id = %sid,
-                "Remapped invalid server_tool_use IDs before resume"
-            ),
-            Err(e) => tracing::warn!(
-                error = %e,
-                session_id = %sid,
-                "Could not sanitize server_tool_use IDs; resume may fail"
+                "Could not sanitize session; resume may fail"
             ),
         }
     }

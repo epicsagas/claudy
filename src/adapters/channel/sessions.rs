@@ -630,6 +630,105 @@ fn is_valid_server_tool_use_id(id: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
+/// Summary of fixes applied by [`sanitize_session`].
+#[derive(Debug, Default)]
+pub struct SanitizeReport {
+    /// `thinking` blocks with no/empty signature converted to `text` blocks.
+    pub thinking_converted: usize,
+    /// `tool_result` blocks stripped from `assistant` messages.
+    pub misplaced_tool_results: usize,
+    /// `server_tool_use` blocks stripped from `assistant` messages.
+    pub server_tool_uses: usize,
+    /// `server_tool_use` IDs remapped to conform to Anthropic spec.
+    pub server_tool_use_ids_remapped: usize,
+}
+
+impl SanitizeReport {
+    pub fn total(&self) -> usize {
+        self.thinking_converted
+            + self.misplaced_tool_results
+            + self.server_tool_uses
+            + self.server_tool_use_ids_remapped
+    }
+}
+
+/// Run all known session sanitizers in one pass and return a combined report.
+///
+/// Covers every Anthropic API incompatibility written by non-Anthropic providers
+/// (GLM, ZAI, …):
+///
+/// 1. `thinking` blocks with empty/missing signature → converted to `text`
+/// 2. `tool_result` in `assistant` messages → stripped
+/// 3. `server_tool_use` in `assistant` messages (webReader, analyze_image) → stripped
+/// 4. `server_tool_use` IDs with invalid format → remapped to `srvtoolu_*`
+///
+/// Returns `Ok(report)` with all counts zero when the file is already clean or
+/// does not exist.
+pub fn sanitize_session(
+    claude_projects_dir: &str,
+    session_id: &str,
+) -> anyhow::Result<SanitizeReport> {
+    let mut report = SanitizeReport::default();
+    report.thinking_converted =
+        sanitize_session_thinking_blocks(claude_projects_dir, session_id)?;
+    report.server_tool_use_ids_remapped =
+        sanitize_session_server_tool_use_ids(claude_projects_dir, session_id)?;
+
+    // Strip misplaced tool_result and server_tool_use blocks from assistant messages.
+    let Some(path) = find_session_file(claude_projects_dir, session_id) else {
+        return Ok(report);
+    };
+    let content = std::fs::read_to_string(&path)?;
+    let mut out = String::with_capacity(content.len());
+    let mut changed = false;
+
+    for line in content.lines() {
+        let Ok(mut event) = serde_json::from_str::<serde_json::Value>(line) else {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        };
+
+        let is_assistant =
+            event.pointer("/message/role").and_then(|v| v.as_str()) == Some("assistant");
+
+        if is_assistant
+            && let Some(arr) = event
+                .pointer_mut("/message/content")
+                .and_then(|v| v.as_array_mut())
+        {
+            let before = arr.len();
+            // Count per type before retain so we can attribute correctly.
+            for b in arr.iter() {
+                match b["type"].as_str() {
+                    Some("tool_result") => report.misplaced_tool_results += 1,
+                    Some("server_tool_use") => report.server_tool_uses += 1,
+                    _ => {}
+                }
+            }
+            arr.retain(|b| !matches!(b["type"].as_str(), Some("tool_result") | Some("server_tool_use")));
+            if arr.len() != before {
+                changed = true;
+                out.push_str(&serde_json::to_string(&event)?);
+                out.push('\n');
+                continue;
+            }
+        }
+
+        out.push_str(line);
+        out.push('\n');
+    }
+
+    if changed {
+        let parent = path.parent().unwrap_or(Path::new("."));
+        let tmp = parent.join(format!(".{}.tmp", session_id));
+        std::fs::write(&tmp, &out)?;
+        std::fs::rename(&tmp, &path)?;
+    }
+
+    Ok(report)
+}
+
 /// Find the most recent session ID for the current working directory.
 ///
 /// Claude stores sessions under `~/.claude/projects/<encoded-cwd>/`.
