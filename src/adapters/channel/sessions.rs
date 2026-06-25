@@ -669,8 +669,7 @@ pub fn sanitize_session(
     session_id: &str,
 ) -> anyhow::Result<SanitizeReport> {
     let mut report = SanitizeReport::default();
-    report.thinking_converted =
-        sanitize_session_thinking_blocks(claude_projects_dir, session_id)?;
+    report.thinking_converted = sanitize_session_thinking_blocks(claude_projects_dir, session_id)?;
     report.server_tool_use_ids_remapped =
         sanitize_session_server_tool_use_ids(claude_projects_dir, session_id)?;
 
@@ -706,7 +705,12 @@ pub fn sanitize_session(
                     _ => {}
                 }
             }
-            arr.retain(|b| !matches!(b["type"].as_str(), Some("tool_result") | Some("server_tool_use")));
+            arr.retain(|b| {
+                !matches!(
+                    b["type"].as_str(),
+                    Some("tool_result") | Some("server_tool_use")
+                )
+            });
             if arr.len() != before {
                 changed = true;
                 out.push_str(&serde_json::to_string(&event)?);
