@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-06-29
+
+### Fixed
+
+- Channel sessions no longer misclassify a normal assistant response that merely mentions "rate limit" / "overloaded" / "try again later" as a transient 529 API error. Transient-API recovery is now gated on the stream-json `is_error: true` flag (`classify_transient_api_error`), so the real response is never discarded and replayed 3×. The previous tautological condition that made the `is_error` branch dead code is removed. (#31)
+- Transient-API (529/429/503) recovery no longer consumes the context-limit compaction budget. The two recovery paths now use independent depth counters (`TRANSIENT_RECOVERY_DEPTH` vs `RECOVERY_DEPTH`), so a single transient retry can no longer trip the context-limit guard and clear the session instead of compacting. (#31)
+- Recovery re-entry (transient and context-limit) now kills the tracked Claude PID instead of merely untracking it, preventing a detached process from lingering and writing to the same session JSONL while the replay spawns a new one. (#31)
+
+### Changed
+
+- `sanitize_session` reads and parses the session JSONL once and threads the content through all sanitizer cores in memory, instead of re-reading/re-parsing the (potentially large) file for every sanitizer on each resume. (#31)
+- Dedupe the two transient-recovery entry blocks into a shared `enter_transient_recovery` helper, and unify the `toolu_` / `srvtoolu_` id validators under `is_valid_prefixed_id`. (#31)
+
 ## [0.3.8] - 2026-06-16
 
 ### Fixed
