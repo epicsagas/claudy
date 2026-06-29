@@ -124,7 +124,7 @@ pub fn run_session_sanitize(
             Ok(r) => {
                 total += r.total();
                 ctx.output.success(&format!(
-                    "{} / {} — fixed {} block(s) (thinking={}, tool_result={}, server_tool_use={}, id_remaps={})",
+                    "{} / {} — fixed {} block(s) (thinking={}, tool_result={}, server_tool_use={}, id_remaps={}, tool_use_ids={})",
                     s.project_name,
                     &s.session_id[..8],
                     r.total(),
@@ -132,6 +132,7 @@ pub fn run_session_sanitize(
                     r.misplaced_tool_results,
                     r.server_tool_uses,
                     r.server_tool_use_ids_remapped,
+                    r.tool_use_ids_remapped,
                 ));
             }
             Err(e) => {

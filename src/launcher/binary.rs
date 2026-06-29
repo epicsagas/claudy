@@ -195,11 +195,12 @@ fn sanitize_resume_session(args: &[String]) {
             let _ = writeln!(
                 std::io::stderr(),
                 "  [claudy] sanitized session before resume \
-                 (thinking={}, tool_result={}, server_tool_use={}, id_remaps={})",
+                 (thinking={}, tool_result={}, server_tool_use={}, id_remaps={}, tool_use_ids={})",
                 r.thinking_converted,
                 r.misplaced_tool_results,
                 r.server_tool_uses,
                 r.server_tool_use_ids_remapped,
+                r.tool_use_ids_remapped,
             );
         }
         Ok(_) => {}
