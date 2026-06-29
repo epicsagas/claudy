@@ -36,9 +36,20 @@ impl RetryPolicy {
     }
 
     pub fn delay_for_attempt(&self, attempt: u32) -> Duration {
-        let base = self.base_delay.as_millis() as u64 * 2u64.pow(attempt);
-        let capped = base.min(self.max_delay.as_millis() as u64);
-        Duration::from_millis(capped)
+        let base_ms = self.base_delay.as_millis() as u64;
+        let raw_delay = base_ms.saturating_mul(2u64.saturating_pow(attempt));
+        let capped = raw_delay.min(self.max_delay.as_millis() as u64);
+
+        if self.jitter {
+            // Full Jitter (AWS pattern): uniform random in [0, capped].
+            // Guards against an empty range (capped == 0) to avoid panicking.
+            if capped == 0 {
+                return Duration::from_millis(0);
+            }
+            Duration::from_millis(rand::random_range(0..=capped))
+        } else {
+            Duration::from_millis(capped)
+        }
     }
 }
 
@@ -262,5 +273,72 @@ mod tests {
         let result = retry_send(&mock, &msg, &policy).await;
         assert!(result.is_err());
         assert_eq!(*send_calls.lock().unwrap(), 3);
+    }
+
+    #[test]
+    fn delay_for_attempt_without_jitter_is_exponential() {
+        let policy = RetryPolicy {
+            max_attempts: 5,
+            base_delay: Duration::from_secs(1),
+            max_delay: Duration::from_secs(30),
+            jitter: false,
+        };
+        assert_eq!(policy.delay_for_attempt(0), Duration::from_secs(1)); // 1 * 2^0
+        assert_eq!(policy.delay_for_attempt(1), Duration::from_secs(2)); // 1 * 2^1
+        assert_eq!(policy.delay_for_attempt(2), Duration::from_secs(4)); // 1 * 2^2
+        assert_eq!(policy.delay_for_attempt(3), Duration::from_secs(8));
+        assert_eq!(policy.delay_for_attempt(4), Duration::from_secs(16));
+    }
+
+    #[test]
+    fn delay_for_attempt_caps_at_max() {
+        let policy = RetryPolicy {
+            max_attempts: 10,
+            base_delay: Duration::from_secs(1),
+            max_delay: Duration::from_secs(30),
+            jitter: false,
+        };
+        assert_eq!(policy.delay_for_attempt(10), Duration::from_secs(30));
+    }
+
+    #[test]
+    fn delay_for_attempt_with_jitter_stays_in_range() {
+        // Full Jitter: result must be in [0, base * 2^attempt] capped at max.
+        let policy = RetryPolicy {
+            max_attempts: 5,
+            base_delay: Duration::from_secs(1),
+            max_delay: Duration::from_secs(30),
+            jitter: true,
+        };
+        for attempt in 0..5u32 {
+            let upper = (1000u128 * 2u128.pow(attempt)).min(30_000);
+            for _ in 0..20 {
+                let got = policy.delay_for_attempt(attempt).as_millis();
+                assert!(
+                    got <= upper,
+                    "attempt {attempt}: jittered delay {got}ms exceeds cap {upper}ms"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn delay_for_attempt_with_jitter_eventually_varies() {
+        // Statistical sanity check: full jitter over many samples must produce
+        // more than one distinct value (otherwise jitter is effectively off).
+        let policy = RetryPolicy {
+            max_attempts: 5,
+            base_delay: Duration::from_secs(1),
+            max_delay: Duration::from_secs(30),
+            jitter: true,
+        };
+        let mut distinct = std::collections::HashSet::new();
+        for _ in 0..20 {
+            distinct.insert(policy.delay_for_attempt(2).as_millis());
+        }
+        assert!(
+            distinct.len() >= 2,
+            "Jitter did not produce variation over 20 samples"
+        );
     }
 }

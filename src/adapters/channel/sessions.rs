@@ -622,10 +622,154 @@ pub fn sanitize_session_server_tool_use_ids(
     Ok(id_map.len())
 }
 
+/// Rewrite non-conforming `tool_use` ids in a session JSONL file.
+///
+/// ZAI/GLM and other OpenAI-compatible providers emit `tool_use` blocks whose
+/// `id` follows the `call_<hex>` pattern instead of the Anthropic-required
+/// `toolu_[a-zA-Z0-9_]+`. When Claude CLI resumes such a session it forwards
+/// the conversation history to the Anthropic API, which rejects the malformed
+/// ids with HTTP 400. This mirrors [`sanitize_session_server_tool_use_ids`]:
+///
+/// 1. Scans assistant messages for `tool_use` blocks with invalid ids.
+/// 2. Builds a remapping table: old id → valid `toolu_<sanitized>` id.
+/// 3. Rewrites every occurrence — both `tool_use.id` in assistant messages and
+///    the paired `tool_result.tool_use_id` in user messages — so the
+///    conversation stays internally consistent.
+///
+/// Returns the number of ids remapped. Returns `Ok(0)` when the file is clean
+/// or does not exist.
+pub fn sanitize_session_tool_use_ids(
+    claude_projects_dir: &str,
+    session_id: &str,
+) -> anyhow::Result<usize> {
+    let Some(path) = find_session_file(claude_projects_dir, session_id) else {
+        return Ok(0);
+    };
+
+    let content = std::fs::read_to_string(&path)?;
+
+    // Pass 1: collect all non-conforming tool_use ids.
+    let mut id_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut counter = 0usize;
+    for line in content.lines() {
+        let Ok(event) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        let is_assistant =
+            event.pointer("/message/role").and_then(|v| v.as_str()) == Some("assistant");
+        if !is_assistant {
+            continue;
+        }
+        let Some(arr) = event.pointer("/message/content").and_then(|v| v.as_array()) else {
+            continue;
+        };
+        for block in arr {
+            if block["type"].as_str() != Some("tool_use") {
+                continue;
+            }
+            let Some(id) = block["id"].as_str() else {
+                continue;
+            };
+            if id_map.contains_key(id) {
+                continue;
+            }
+            if is_valid_tool_use_id(id) {
+                continue;
+            }
+            // Sanitize: keep only [a-zA-Z0-9_] chars from the original id.
+            let sanitized: String = id
+                .chars()
+                .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+                .collect();
+            let new_id = if sanitized.is_empty() {
+                format!("toolu_patched{}", counter)
+            } else {
+                format!("toolu_{}", sanitized)
+            };
+            id_map.insert(id.to_string(), new_id);
+            counter += 1;
+        }
+    }
+
+    if id_map.is_empty() {
+        return Ok(0);
+    }
+
+    // Pass 2: rewrite both tool_use.id and tool_result.tool_use_id.
+    let mut out = String::with_capacity(content.len());
+    for line in content.lines() {
+        let Ok(mut event) = serde_json::from_str::<serde_json::Value>(line) else {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        };
+
+        let role = event
+            .pointer("/message/role")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let mut changed_line = false;
+
+        if let Some(arr) = event
+            .pointer_mut("/message/content")
+            .and_then(|v| v.as_array_mut())
+        {
+            for block in arr.iter_mut() {
+                match role.as_str() {
+                    "assistant" if block["type"].as_str() == Some("tool_use") => {
+                        if let Some(old_id) = block["id"].as_str().map(|s| s.to_string())
+                            && let Some(new_id) = id_map.get(&old_id)
+                        {
+                            block["id"] = serde_json::Value::String(new_id.clone());
+                            changed_line = true;
+                        }
+                    }
+                    "user" if block["type"].as_str() == Some("tool_result") => {
+                        if let Some(old_id) = block["tool_use_id"].as_str().map(|s| s.to_string())
+                            && let Some(new_id) = id_map.get(&old_id)
+                        {
+                            block["tool_use_id"] = serde_json::Value::String(new_id.clone());
+                            changed_line = true;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if changed_line {
+            out.push_str(&serde_json::to_string(&event)?);
+        } else {
+            out.push_str(line);
+        }
+        out.push('\n');
+    }
+
+    // Atomic replace.
+    let parent = path.parent().unwrap_or(Path::new("."));
+    let tmp = parent.join(format!(".{}.tmp", session_id));
+    std::fs::write(&tmp, &out)?;
+    std::fs::rename(&tmp, &path)?;
+
+    Ok(id_map.len())
+}
+
 fn is_valid_server_tool_use_id(id: &str) -> bool {
     id.starts_with("srvtoolu_")
         && id.len() > "srvtoolu_".len()
         && id["srvtoolu_".len()..]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// Whether a `tool_use` block id conforms to the Anthropic pattern
+/// `toolu_[a-zA-Z0-9_]+`. Non-Anthropic providers (ZAI/GLM) emit OpenAI-style
+/// `call_<hex>` ids which the Anthropic API rejects on resume.
+fn is_valid_tool_use_id(id: &str) -> bool {
+    id.starts_with("toolu_")
+        && id.len() > "toolu_".len()
+        && id["toolu_".len()..]
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
@@ -641,6 +785,8 @@ pub struct SanitizeReport {
     pub server_tool_uses: usize,
     /// `server_tool_use` IDs remapped to conform to Anthropic spec.
     pub server_tool_use_ids_remapped: usize,
+    /// `tool_use` IDs remapped to conform to Anthropic spec (`toolu_*`).
+    pub tool_use_ids_remapped: usize,
 }
 
 impl SanitizeReport {
@@ -649,6 +795,7 @@ impl SanitizeReport {
             + self.misplaced_tool_results
             + self.server_tool_uses
             + self.server_tool_use_ids_remapped
+            + self.tool_use_ids_remapped
     }
 }
 
@@ -674,6 +821,7 @@ pub fn sanitize_session(
             claude_projects_dir,
             session_id,
         )?,
+        tool_use_ids_remapped: sanitize_session_tool_use_ids(claude_projects_dir, session_id)?,
         ..Default::default()
     };
 
@@ -1020,5 +1168,115 @@ mod tests {
         assert!(!is_valid_server_tool_use_id("srvtoolu_"));
         assert!(!is_valid_server_tool_use_id("srvtoolu_abc-def"));
         assert!(!is_valid_server_tool_use_id(""));
+    }
+
+    #[test]
+    fn is_valid_tool_use_id_accepts_conforming() {
+        assert!(is_valid_tool_use_id("toolu_01WbH7drr7XYVvBJYhemu62f"));
+        assert!(is_valid_tool_use_id("toolu_ABC_xyz_0"));
+    }
+
+    #[test]
+    fn is_valid_tool_use_id_rejects_nonconforming() {
+        // OpenAI-style ids emitted by ZAI/GLM must be rejected.
+        assert!(!is_valid_tool_use_id("call_c6e7fbb6a99d4dd98d921764"));
+        assert!(!is_valid_tool_use_id("toolu_"));
+        assert!(!is_valid_tool_use_id("toolu_abc-def"));
+        assert!(!is_valid_tool_use_id(""));
+    }
+
+    #[test]
+    fn sanitize_tool_use_ids_remaps_call_ids_on_both_sides() {
+        let dir = tempfile::tempdir().unwrap();
+        let proj_dir = dir.path().join("-test-project");
+        std::fs::create_dir_all(&proj_dir).unwrap();
+
+        let session_id = "660e8400-e29b-41d4-a716-446655440020";
+        // ZAI/GLM-style tool_use id that does not match ^toolu_[a-zA-Z0-9_]+$
+        let jsonl = concat!(
+            "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"call_c6e7fbb6a99d4dd98d921764\",\"name\":\"get_weather\",\"input\":{\"location\":\"SF\"}}]}}\n",
+            "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"call_c6e7fbb6a99d4dd98d921764\",\"content\":\"65F\"}]}}\n",
+        );
+        std::fs::write(proj_dir.join(format!("{}.jsonl", session_id)), jsonl).unwrap();
+
+        let remapped =
+            sanitize_session_tool_use_ids(dir.path().to_str().unwrap(), session_id).unwrap();
+        assert_eq!(remapped, 1, "one tool_use id should be remapped");
+
+        let patched =
+            std::fs::read_to_string(proj_dir.join(format!("{}.jsonl", session_id))).unwrap();
+        // No id field may still start with the OpenAI-style "call_" prefix.
+        assert!(
+            !patched.contains("\"id\":\"call_"),
+            "OpenAI-style tool_use id must be replaced"
+        );
+        assert!(
+            patched.contains("\"toolu_"),
+            "replacement id must start with toolu_"
+        );
+
+        // tool_use.id and tool_result.tool_use_id must reference the same new id
+        let lines: Vec<&str> = patched.lines().collect();
+        let asst: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        let user: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        let new_id = asst["message"]["content"][0]["id"].as_str().unwrap();
+        let ref_id = user["message"]["content"][0]["tool_use_id"]
+            .as_str()
+            .unwrap();
+        assert_eq!(
+            new_id, ref_id,
+            "tool_use.id and tool_use_id must match after remap"
+        );
+    }
+
+    #[test]
+    fn sanitize_tool_use_ids_skips_conforming_toolu_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        let proj_dir = dir.path().join("-test-project");
+        std::fs::create_dir_all(&proj_dir).unwrap();
+
+        let session_id = "660e8400-e29b-41d4-a716-446655440021";
+        // Already-conforming Anthropic session must be untouched (regression guard).
+        let jsonl = "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01WbH7drr7XYVvBJYhemu62f\",\"name\":\"get_weather\",\"input\":{}}]}}\n";
+        std::fs::write(proj_dir.join(format!("{}.jsonl", session_id)), jsonl).unwrap();
+
+        let remapped =
+            sanitize_session_tool_use_ids(dir.path().to_str().unwrap(), session_id).unwrap();
+        assert_eq!(remapped, 0, "conforming toolu_ id must not be remapped");
+    }
+
+    #[test]
+    fn sanitize_tool_use_ids_does_not_touch_server_tool_use() {
+        let dir = tempfile::tempdir().unwrap();
+        let proj_dir = dir.path().join("-test-project");
+        std::fs::create_dir_all(&proj_dir).unwrap();
+
+        let session_id = "660e8400-e29b-41d4-a716-446655440022";
+        // server_tool_use blocks have their own sanitizer; this one must be left
+        // for sanitize_session_server_tool_use_ids and not touched here.
+        let jsonl = "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"server_tool_use\",\"id\":\"toolu_glm_abc123\",\"name\":\"web_search\",\"input\":{}}]}}\n";
+        std::fs::write(proj_dir.join(format!("{}.jsonl", session_id)), jsonl).unwrap();
+
+        let remapped =
+            sanitize_session_tool_use_ids(dir.path().to_str().unwrap(), session_id).unwrap();
+        assert_eq!(remapped, 0, "server_tool_use must not be remapped here");
+
+        let patched =
+            std::fs::read_to_string(proj_dir.join(format!("{}.jsonl", session_id))).unwrap();
+        assert!(
+            patched.contains("toolu_glm_abc123"),
+            "server_tool_use content must be untouched"
+        );
+    }
+
+    #[test]
+    fn sanitize_tool_use_ids_returns_zero_for_missing_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let removed = sanitize_session_tool_use_ids(
+            dir.path().to_str().unwrap(),
+            "nonexistent-0000-0000-0000-000000000000",
+        )
+        .unwrap();
+        assert_eq!(removed, 0);
     }
 }

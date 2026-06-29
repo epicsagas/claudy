@@ -337,6 +337,7 @@ pub(super) async fn handle_text_message(
                 tool_results = r.misplaced_tool_results,
                 server_tool_uses = r.server_tool_uses,
                 id_remaps = r.server_tool_use_ids_remapped,
+                tool_use_ids = r.tool_use_ids_remapped,
                 session_id = %sid,
                 "Sanitized session before resume"
             ),
@@ -398,7 +399,24 @@ pub(super) async fn handle_text_message(
         interaction: None,
     };
     let policy = RetryPolicy::for_platform(msg.channel.platform);
-    let delivery = retry_send(channel.as_ref(), &thinking_msg, &policy).await?;
+    let delivery = match retry_send(channel.as_ref(), &thinking_msg, &policy).await {
+        Ok(d) => d,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to send thinking message");
+            // The Claude process is already spawned and tracked. Clean it up so
+            // the PID does not linger and block subsequent messages with "Busy".
+            kill_tracked_process(state, &scope).await;
+            let err_msg = OutboundMessage {
+                conversation_id: msg.conversation_id.clone(),
+                channel: msg.channel.clone(),
+                text: format!("Failed to initialize response: {}", e),
+                message_ref: None,
+                interaction: None,
+            };
+            let _ = retry_send(channel.as_ref(), &err_msg, &policy).await;
+            return Err(e);
+        }
+    };
 
     let stdout = claude.stdout();
     let stream_result = crate::adapters::channel::stream_handler::stream_response(
@@ -428,6 +446,25 @@ pub(super) async fn handle_text_message(
                     .await;
             }
 
+            // Transient API error (529/429/503/overloaded): retry the same
+            // session after a backoff delay. Lower priority than context-limit.
+            let transient = result.transient_api_error.clone();
+            if let Some(ref api_err) = transient {
+                tracing::warn!(
+                    error = %api_err.message,
+                    "Transient API error detected — attempting backoff recovery"
+                );
+                state.active_claude.lock().await.remove(&scope);
+                return handle_transient_api_recovery(
+                    state,
+                    &scope,
+                    channel.as_ref(),
+                    &msg,
+                    &api_err.message,
+                )
+                .await;
+            }
+
             clear_recovery_depth(state, &scope).await;
 
             process_stream_result(
@@ -453,6 +490,24 @@ pub(super) async fn handle_text_message(
 
                 return handle_context_limit_recovery(state, &scope, channel.as_ref(), &msg, yolo)
                     .await;
+            }
+
+            // Transient API error surfaced as a generic stream error
+            // (e.g. a timeout message that includes a 529 pattern).
+            if crate::adapters::channel::stream_handler::is_transient_api_error(&err_str) {
+                tracing::warn!(
+                    error = %err_str,
+                    "Transient API error in stream error — attempting backoff recovery"
+                );
+                state.active_claude.lock().await.remove(&scope);
+                return handle_transient_api_recovery(
+                    state,
+                    &scope,
+                    channel.as_ref(),
+                    &msg,
+                    &err_str,
+                )
+                .await;
             }
 
             clear_recovery_depth(state, &scope).await;
@@ -792,6 +847,28 @@ async fn clear_recovery_depth(state: &Arc<AppState>, scope: &str) {
     .await;
 }
 
+/// Kill the tracked Claude process for a scope (best-effort).
+///
+/// Removes the PID from `active_claude` and sends SIGTERM. Used to clean up a
+/// spawned process when the surrounding pipeline fails so the PID does not
+/// linger and block subsequent messages with the "Busy" guard.
+async fn kill_tracked_process(state: &Arc<AppState>, scope: &str) {
+    if let Some(pid) = state.active_claude.lock().await.remove(scope) {
+        let kill_result = tokio::process::Command::new("kill")
+            .arg("-TERM")
+            .arg(pid.to_string())
+            .output()
+            .await;
+        if let Err(e) = kill_result {
+            tracing::warn!(
+                pid,
+                error = %e,
+                "Failed to kill Claude process during cleanup"
+            );
+        }
+    }
+}
+
 /// Check if a process with the given PID is still alive (signal-0 probe / OpenProcess).
 /// Returns `true` if the process exists (including the EPERM case where it is
 /// alive but owned by another user). Returns `false` only on ESRCH (no such process).
@@ -817,6 +894,17 @@ fn is_pid_alive(pid: u32) -> bool {
 
 /// Maximum number of context-limit recovery attempts before giving up.
 const MAX_RECOVERY_DEPTH: u8 = 1;
+
+/// Maximum number of transient-API (529/429/503/overloaded) recovery attempts
+/// before giving up. These errors are typically transient, so allow more
+/// retries than context-limit recovery.
+const MAX_TRANSIENT_RECOVERY_DEPTH: u8 = 3;
+
+/// Backoff schedule for transient API error recovery (seconds).
+/// Index 0 = first retry delay; growth is exponential (base * 2^attempt)
+/// with full jitter applied by `RetryPolicy::delay_for_attempt`.
+const TRANSIENT_BACKOFF_BASE_SECS: u64 = 2;
+const TRANSIENT_BACKOFF_MAX_SECS: u64 = 30;
 
 /// R3/R4/R5: Attempt recovery from a context window limit error.
 ///
@@ -921,6 +1009,97 @@ async fn handle_context_limit_recovery(
 
     // Phase 2: Fallback — new session + replay
     start_fresh_session_and_replay(state, scope, channel, original_msg).await
+}
+
+/// Attempt recovery from a transient API error (529/429/503/overloaded).
+///
+/// Strategy:
+/// 1. Show the raw error text to the user (per design: do not replace with a
+///    friendly message — surface the actual API error for transparency).
+/// 2. If recovery depth exceeded, give up and reset the counter.
+/// 3. Otherwise increment the shared `recovery_depth`, compute a jittered
+///    exponential backoff delay, notify the user, sleep, then replay the
+///    original message. `handle_text_message` reads SESSION_ID from state and
+///    passes it as `--resume`, so this naturally retries the same session.
+async fn handle_transient_api_recovery(
+    state: &Arc<AppState>,
+    scope: &str,
+    channel: &dyn crate::ports::channel_ports::ChannelPort,
+    original_msg: &TextMessage,
+    error_message: &str,
+) -> anyhow::Result<()> {
+    let current_depth = {
+        let cs = state.channel_state.read().await;
+        cs.recovery_depth(scope)
+    };
+
+    // Surface the raw API error text to the user.
+    send_channel_text(channel, &original_msg.channel, error_message).await;
+
+    if current_depth >= MAX_TRANSIENT_RECOVERY_DEPTH {
+        tracing::warn!(
+            depth = current_depth,
+            "Transient API recovery depth exceeded — giving up"
+        );
+        with_write(&state.channel_state, |cs| {
+            cs.reset_recovery_depth(scope);
+        })
+        .await;
+        send_channel_text(
+            channel,
+            &original_msg.channel,
+            "API continues to be overloaded after multiple retries. Please try again later.",
+        )
+        .await;
+        return Ok(());
+    }
+
+    let new_depth = with_write(&state.channel_state, |cs| {
+        cs.increment_recovery_depth(scope)
+    })
+    .await;
+
+    // Compute a jittered exponential backoff delay.
+    let policy = RetryPolicy {
+        max_attempts: MAX_TRANSIENT_RECOVERY_DEPTH as u32,
+        base_delay: std::time::Duration::from_secs(TRANSIENT_BACKOFF_BASE_SECS),
+        max_delay: std::time::Duration::from_secs(TRANSIENT_BACKOFF_MAX_SECS),
+        jitter: true,
+    };
+    // depth 1 -> attempt 0 (base delay), depth 2 -> attempt 1, depth 3 -> attempt 2.
+    let delay = policy.delay_for_attempt(new_depth.saturating_sub(1) as u32);
+
+    send_channel_text(
+        channel,
+        &original_msg.channel,
+        format!(
+            "Retrying in {}s (attempt {}/{})...",
+            delay.as_secs(),
+            new_depth,
+            MAX_TRANSIENT_RECOVERY_DEPTH
+        ),
+    )
+    .await;
+
+    tracing::info!(
+        depth = new_depth,
+        delay_secs = delay.as_secs(),
+        "Transient API recovery: backing off before retry"
+    );
+    tokio::time::sleep(delay).await;
+
+    // Replay the original message. Box::pin is required because
+    // handle_text_message is recursive through this recovery path.
+    Box::pin(handle_text_message(
+        state,
+        TextMessage {
+            conversation_id: original_msg.conversation_id.clone(),
+            channel: original_msg.channel.clone(),
+            text: original_msg.text.clone(),
+            reply_to_id: None,
+        },
+    ))
+    .await
 }
 
 /// Update session state after a successful compaction, then replay the original
@@ -1037,20 +1216,7 @@ struct CompactParams<'a> {
 impl CompactParams<'_> {
     /// Kill the tracked Claude process for this scope (best-effort).
     async fn kill_tracked_process(&self) {
-        if let Some(pid) = self.state.active_claude.lock().await.remove(self.scope) {
-            let kill_result = tokio::process::Command::new("kill")
-                .arg("-TERM")
-                .arg(pid.to_string())
-                .output()
-                .await;
-            if let Err(e) = kill_result {
-                tracing::warn!(
-                    pid,
-                    error = %e,
-                    "Failed to kill Claude process during compact cleanup"
-                );
-            }
-        }
+        kill_tracked_process(self.state, self.scope).await;
     }
 
     /// Run a `/compact` command against an existing session by launching a new
