@@ -411,6 +411,17 @@ fn find_session_file(claude_projects_dir: &str, session_id: &str) -> Option<std:
     })
 }
 
+/// Atomically replace a session JSONL file: write to a sibling temp file then
+/// rename. Shared by every sanitizer so the on-crash write semantics are
+/// identical.
+fn write_session_atomic(path: &Path, session_id: &str, content: &str) -> anyhow::Result<()> {
+    let parent = path.parent().unwrap_or(Path::new("."));
+    let tmp = parent.join(format!(".{}.tmp", session_id));
+    std::fs::write(&tmp, content)?;
+    std::fs::rename(&tmp, path)?;
+    Ok(())
+}
+
 /// Strip thinking blocks with empty or missing signatures from a session JSONL file.
 ///
 /// ZAI and other non-Anthropic providers write thinking blocks without valid
@@ -429,6 +440,17 @@ pub fn sanitize_session_thinking_blocks(
     };
 
     let content = std::fs::read_to_string(&path)?;
+    let (new_content, removed) = sanitize_thinking_blocks_in_content(&content)?;
+    if let Some(out) = new_content {
+        write_session_atomic(&path, session_id, &out)?;
+    }
+    Ok(removed)
+}
+
+/// Pure transformation core of [`sanitize_session_thinking_blocks`]: converts
+/// signature-less `thinking` blocks to `text`. Returns `(Some(new_content), n)`
+/// when anything changed, `(None, 0)` otherwise. Performs no I/O.
+fn sanitize_thinking_blocks_in_content(content: &str) -> anyhow::Result<(Option<String>, usize)> {
     let mut removed = 0usize;
     let mut out = String::with_capacity(content.len());
     let mut changed = false;
@@ -478,16 +500,9 @@ pub fn sanitize_session_thinking_blocks(
     }
 
     if !changed {
-        return Ok(0);
+        return Ok((None, 0));
     }
-
-    // Atomic replace: write to a sibling temp file then rename.
-    let parent = path.parent().unwrap_or(Path::new("."));
-    let tmp = parent.join(format!(".{}.tmp", session_id));
-    std::fs::write(&tmp, &out)?;
-    std::fs::rename(&tmp, &path)?;
-
-    Ok(removed)
+    Ok((Some(out), removed))
 }
 
 /// Rewrite non-conforming `server_tool_use` IDs in a session JSONL file.
@@ -514,7 +529,17 @@ pub fn sanitize_session_server_tool_use_ids(
     };
 
     let content = std::fs::read_to_string(&path)?;
+    let (new_content, remapped) = sanitize_server_tool_use_ids_in_content(&content)?;
+    if let Some(out) = new_content {
+        write_session_atomic(&path, session_id, &out)?;
+    }
+    Ok(remapped)
+}
 
+/// Pure transformation core of [`sanitize_session_server_tool_use_ids`]. No I/O.
+fn sanitize_server_tool_use_ids_in_content(
+    content: &str,
+) -> anyhow::Result<(Option<String>, usize)> {
     // Pass 1: collect all non-conforming server_tool_use IDs.
     let mut id_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     let mut counter = 0usize;
@@ -559,7 +584,7 @@ pub fn sanitize_session_server_tool_use_ids(
     }
 
     if id_map.is_empty() {
-        return Ok(0);
+        return Ok((None, 0));
     }
 
     // Pass 2: rewrite both server_tool_use.id and server_tool_result.tool_use_id.
@@ -613,13 +638,7 @@ pub fn sanitize_session_server_tool_use_ids(
         out.push('\n');
     }
 
-    // Atomic replace.
-    let parent = path.parent().unwrap_or(Path::new("."));
-    let tmp = parent.join(format!(".{}.tmp", session_id));
-    std::fs::write(&tmp, &out)?;
-    std::fs::rename(&tmp, &path)?;
-
-    Ok(id_map.len())
+    Ok((Some(out), id_map.len()))
 }
 
 /// Rewrite non-conforming `tool_use` ids in a session JSONL file.
@@ -647,7 +666,15 @@ pub fn sanitize_session_tool_use_ids(
     };
 
     let content = std::fs::read_to_string(&path)?;
+    let (new_content, remapped) = sanitize_tool_use_ids_in_content(&content)?;
+    if let Some(out) = new_content {
+        write_session_atomic(&path, session_id, &out)?;
+    }
+    Ok(remapped)
+}
 
+/// Pure transformation core of [`sanitize_session_tool_use_ids`]. No I/O.
+fn sanitize_tool_use_ids_in_content(content: &str) -> anyhow::Result<(Option<String>, usize)> {
     // Pass 1: collect all non-conforming tool_use ids.
     let mut id_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     let mut counter = 0usize;
@@ -692,7 +719,7 @@ pub fn sanitize_session_tool_use_ids(
     }
 
     if id_map.is_empty() {
-        return Ok(0);
+        return Ok((None, 0));
     }
 
     // Pass 2: rewrite both tool_use.id and tool_result.tool_use_id.
@@ -746,32 +773,28 @@ pub fn sanitize_session_tool_use_ids(
         out.push('\n');
     }
 
-    // Atomic replace.
-    let parent = path.parent().unwrap_or(Path::new("."));
-    let tmp = parent.join(format!(".{}.tmp", session_id));
-    std::fs::write(&tmp, &out)?;
-    std::fs::rename(&tmp, &path)?;
+    Ok((Some(out), id_map.len()))
+}
 
-    Ok(id_map.len())
+/// Whether `id` starts with `prefix` and is followed by one or more
+/// `[a-zA-Z0-9_]` chars — the shared shape of Anthropic-spec block ids.
+fn is_valid_prefixed_id(id: &str, prefix: &str) -> bool {
+    id.starts_with(prefix)
+        && id.len() > prefix.len()
+        && id[prefix.len()..]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 fn is_valid_server_tool_use_id(id: &str) -> bool {
-    id.starts_with("srvtoolu_")
-        && id.len() > "srvtoolu_".len()
-        && id["srvtoolu_".len()..]
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    is_valid_prefixed_id(id, "srvtoolu_")
 }
 
 /// Whether a `tool_use` block id conforms to the Anthropic pattern
 /// `toolu_[a-zA-Z0-9_]+`. Non-Anthropic providers (ZAI/GLM) emit OpenAI-style
 /// `call_<hex>` ids which the Anthropic API rejects on resume.
 fn is_valid_tool_use_id(id: &str) -> bool {
-    id.starts_with("toolu_")
-        && id.len() > "toolu_".len()
-        && id["toolu_".len()..]
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    is_valid_prefixed_id(id, "toolu_")
 }
 
 /// Summary of fixes applied by [`sanitize_session`].
@@ -815,21 +838,57 @@ pub fn sanitize_session(
     claude_projects_dir: &str,
     session_id: &str,
 ) -> anyhow::Result<SanitizeReport> {
-    let mut report = SanitizeReport {
-        thinking_converted: sanitize_session_thinking_blocks(claude_projects_dir, session_id)?,
-        server_tool_use_ids_remapped: sanitize_session_server_tool_use_ids(
-            claude_projects_dir,
-            session_id,
-        )?,
-        tool_use_ids_remapped: sanitize_session_tool_use_ids(claude_projects_dir, session_id)?,
-        ..Default::default()
+    let Some(path) = find_session_file(claude_projects_dir, session_id) else {
+        return Ok(SanitizeReport::default());
     };
 
-    // Strip misplaced tool_result and server_tool_use blocks from assistant messages.
-    let Some(path) = find_session_file(claude_projects_dir, session_id) else {
-        return Ok(report);
-    };
-    let content = std::fs::read_to_string(&path)?;
+    // Read the file ONCE and run every sanitizer's pure transformation core
+    // in memory, threading the content through each stage. Only write back
+    // once at the end if any stage changed it. This avoids re-reading and
+    // re-parsing the (potentially large) JSONL for every sanitizer.
+    let mut content = std::fs::read_to_string(&path)?;
+    let mut report = SanitizeReport::default();
+
+    let (next, n) = sanitize_thinking_blocks_in_content(&content)?;
+    report.thinking_converted = n;
+    if let Some(c) = next {
+        content = c;
+    }
+
+    let (next, n) = sanitize_server_tool_use_ids_in_content(&content)?;
+    report.server_tool_use_ids_remapped = n;
+    if let Some(c) = next {
+        content = c;
+    }
+
+    let (next, n) = sanitize_tool_use_ids_in_content(&content)?;
+    report.tool_use_ids_remapped = n;
+    if let Some(c) = next {
+        content = c;
+    }
+
+    let (next, stripped) = strip_misplaced_blocks_in_content(&content)?;
+    report.misplaced_tool_results = stripped.misplaced_tool_results;
+    report.server_tool_uses = stripped.server_tool_uses;
+    if let Some(c) = next {
+        content = c;
+    }
+
+    if report.total() > 0 {
+        write_session_atomic(&path, session_id, &content)?;
+    }
+
+    Ok(report)
+}
+
+/// Pure transformation core that strips misplaced `tool_result` and
+/// `server_tool_use` blocks from `assistant` messages. Returns
+/// `(Some(new_content), counts)` when anything changed, `(None, zeros)`
+/// otherwise. No I/O.
+fn strip_misplaced_blocks_in_content(
+    content: &str,
+) -> anyhow::Result<(Option<String>, SanitizeReport)> {
+    let mut stripped = SanitizeReport::default();
     let mut out = String::with_capacity(content.len());
     let mut changed = false;
 
@@ -852,8 +911,8 @@ pub fn sanitize_session(
             // Count per type before retain so we can attribute correctly.
             for b in arr.iter() {
                 match b["type"].as_str() {
-                    Some("tool_result") => report.misplaced_tool_results += 1,
-                    Some("server_tool_use") => report.server_tool_uses += 1,
+                    Some("tool_result") => stripped.misplaced_tool_results += 1,
+                    Some("server_tool_use") => stripped.server_tool_uses += 1,
                     _ => {}
                 }
             }
@@ -876,13 +935,10 @@ pub fn sanitize_session(
     }
 
     if changed {
-        let parent = path.parent().unwrap_or(Path::new("."));
-        let tmp = parent.join(format!(".{}.tmp", session_id));
-        std::fs::write(&tmp, &out)?;
-        std::fs::rename(&tmp, &path)?;
+        Ok((Some(out), stripped))
+    } else {
+        Ok((None, SanitizeReport::default()))
     }
-
-    Ok(report)
 }
 
 /// Find the most recent session ID for the current working directory.

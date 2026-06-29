@@ -55,14 +55,17 @@ pub fn is_context_limit_error(text: &str) -> bool {
         || lower.contains("prompt is too long")
 }
 
-/// Checks whether a stream line or error text indicates a transient,
-/// retryable API error from the Claude API that warrants a backoff retry.
+/// Checks whether error text indicates a transient, retryable API error from
+/// the Claude API that warrants a backoff retry.
+///
+/// This is intended to be called ONLY on text from a stream-json event that is
+/// already flagged `is_error: true` — never on a normal assistant result, whose
+/// body may legitimately contain words like "overloaded" or "rate limit".
 ///
 /// Known transient patterns (case-insensitive):
-/// - HTTP 5xx/429: "api error: 5", "error: 529", "error: 429", "error: 503"
+/// - HTTP status: "api error: 529", "error: 429", "error: 503", "error: 500"
 /// - Overloaded / capacity: "overloaded", "service may be temporarily"
 /// - Rate limiting: "rate limit", "too many requests"
-/// - Generic retry hints: "try again later", "please try again"
 ///
 /// IMPORTANT: Must NOT match context-limit errors — those have their own
 /// dedicated recovery path and must take precedence over this one.
@@ -75,18 +78,36 @@ pub fn is_transient_api_error(text: &str) -> bool {
     let lower = text.to_lowercase();
     // HTTP status code prefixes ("API Error: 529", "Error: 503", etc.)
     lower.contains("api error: 5")
+        || lower.contains("error: 500")
+        || lower.contains("error: 502")
+        || lower.contains("error: 503")
         || lower.contains("error: 529")
         || lower.contains("error: 429")
-        || lower.contains("error: 503")
         // Overloaded / capacity
         || lower.contains("overloaded")
         || lower.contains("service may be temporarily")
         // Rate limiting
         || lower.contains("rate limit")
         || lower.contains("too many requests")
-        // Generic retry hints
-        || lower.contains("try again later")
-        || lower.contains("please try again")
+}
+
+/// Decide whether a stream-json `result` event represents a transient API
+/// error worth a backoff retry.
+///
+/// The `is_error` gate is the critical safety check: a NORMAL assistant result
+/// (where Claude legitimately discusses "rate limit" / "overloaded" / etc.) has
+/// `is_error == false` and must NEVER be classified as transient — otherwise
+/// the real response is discarded and replayed up to 3 times. Only an event the
+/// CLI itself flags as an error is eligible, and even then only when its text
+/// matches a known transient pattern.
+///
+/// Returns `Some(message)` when the event should trigger transient recovery.
+fn classify_transient_api_error(is_error: bool, text: &str) -> Option<String> {
+    if is_error && is_transient_api_error(text) {
+        Some(text.to_string())
+    } else {
+        None
+    }
 }
 
 pub struct StreamResult {
@@ -376,22 +397,20 @@ async fn process_line(
                     message: err.to_string(),
                 });
             }
-            // Transient API error check (529/429/503/overloaded). Only when no
-            // context-limit was detected (context-limit takes precedence) and
-            // the result either matches a transient pattern or is flagged as an
-            // error via stream-json's "is_error": true field. The final
-            // is_transient_api_error() guard prevents false positives (e.g. a
-            // normal response that happens to mention "try again later").
+            // Transient API error check (529/429/503/overloaded). Gated on
+            // stream-json's `is_error: true` (see [`classify_transient_api_error`])
+            // so that a NORMAL assistant result that merely happens to mention a
+            // transient pattern is never misclassified as a 529. Without this gate
+            // the real response would be discarded and replayed up to 3 times.
+            //
+            // Context-limit takes precedence and is checked first above.
             if state.context_limit.is_none() {
-                let candidate_text = result_text.as_deref().or_else(|| event["error"].as_str());
                 let is_error = event["is_error"].as_bool().unwrap_or(false);
+                let candidate_text = result_text.as_deref().or_else(|| event["error"].as_str());
                 if let Some(text) = candidate_text
-                    && (is_error || is_transient_api_error(text))
-                    && is_transient_api_error(text)
+                    && let Some(msg) = classify_transient_api_error(is_error, text)
                 {
-                    *state.transient_api_error = Some(TransientApiError {
-                        message: text.to_string(),
-                    });
+                    *state.transient_api_error = Some(TransientApiError { message: msg });
                 }
             }
             if let Some(text) = result_text {
@@ -602,5 +621,32 @@ mod tests {
             transient_api_error: None,
         };
         assert!(result.transient_api_error.is_none());
+    }
+
+    #[test]
+    fn classify_transient_does_not_flag_normal_response_with_transient_words() {
+        // Regression guard (finding #1/#3): a NORMAL assistant result (is_error
+        // == false) that merely mentions a transient pattern must NOT be flagged
+        // — otherwise the real response is discarded and replayed up to 3 times.
+        assert!(classify_transient_api_error(false, "rate limit exceeded").is_none());
+        assert!(classify_transient_api_error(false, "the API is overloaded").is_none());
+        assert!(
+            classify_transient_api_error(false, "Error: 529 please try again later").is_none(),
+            "is_error gate must suppress classification even when text matches"
+        );
+    }
+
+    #[test]
+    fn classify_transient_flags_error_result_with_transient_pattern() {
+        // An is_error result whose text matches a transient pattern IS flagged.
+        assert!(classify_transient_api_error(true, "API Error: 529 overloaded").is_some());
+        assert!(classify_transient_api_error(true, "Error: 429 Too Many Requests").is_some());
+    }
+
+    #[test]
+    fn classify_transient_ignores_non_transient_error() {
+        // An is_error result that does NOT match a transient pattern is left
+        // alone (it may be a real, non-retryable error).
+        assert!(classify_transient_api_error(true, "Invalid request body").is_none());
     }
 }

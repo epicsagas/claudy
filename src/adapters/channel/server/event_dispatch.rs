@@ -439,8 +439,8 @@ pub(super) async fn handle_text_message(
                 );
                 // Skip process_stream_result — sending the error text to the channel
                 // before the recovery message would confuse the user. Just clean up
-                // the PID and proceed to recovery.
-                state.active_claude.lock().await.remove(&scope);
+                // the PID (kill, not just untrack) and proceed to recovery.
+                kill_tracked_process(state, &scope).await;
 
                 return handle_context_limit_recovery(state, &scope, channel.as_ref(), &msg, yolo)
                     .await;
@@ -450,17 +450,13 @@ pub(super) async fn handle_text_message(
             // session after a backoff delay. Lower priority than context-limit.
             let transient = result.transient_api_error.clone();
             if let Some(ref api_err) = transient {
-                tracing::warn!(
-                    error = %api_err.message,
-                    "Transient API error detected — attempting backoff recovery"
-                );
-                state.active_claude.lock().await.remove(&scope);
-                return handle_transient_api_recovery(
+                return enter_transient_recovery(
                     state,
                     &scope,
                     channel.as_ref(),
                     &msg,
                     &api_err.message,
+                    "Transient API error detected — attempting backoff recovery",
                 )
                 .await;
             }
@@ -486,7 +482,7 @@ pub(super) async fn handle_text_message(
                     error = %err_str,
                     "Context window limit in stream error — attempting recovery"
                 );
-                state.active_claude.lock().await.remove(&scope);
+                kill_tracked_process(state, &scope).await;
 
                 return handle_context_limit_recovery(state, &scope, channel.as_ref(), &msg, yolo)
                     .await;
@@ -495,17 +491,13 @@ pub(super) async fn handle_text_message(
             // Transient API error surfaced as a generic stream error
             // (e.g. a timeout message that includes a 529 pattern).
             if crate::adapters::channel::stream_handler::is_transient_api_error(&err_str) {
-                tracing::warn!(
-                    error = %err_str,
-                    "Transient API error in stream error — attempting backoff recovery"
-                );
-                state.active_claude.lock().await.remove(&scope);
-                return handle_transient_api_recovery(
+                return enter_transient_recovery(
                     state,
                     &scope,
                     channel.as_ref(),
                     &msg,
                     &err_str,
+                    "Transient API error in stream error — attempting backoff recovery",
                 )
                 .await;
             }
@@ -837,11 +829,14 @@ async fn handle_manual_compact(
     Ok(())
 }
 
-/// Clear the recovery depth counter after a successful non-recovery message.
+/// Clear both recovery depth counters after a successful non-recovery message.
 async fn clear_recovery_depth(state: &Arc<AppState>, scope: &str) {
     with_write(&state.channel_state, |cs| {
         if cs.recovery_depth(scope) > 0 {
             cs.reset_recovery_depth(scope);
+        }
+        if cs.transient_recovery_depth(scope) > 0 {
+            cs.reset_transient_recovery_depth(scope);
         }
     })
     .await;
@@ -867,6 +862,24 @@ async fn kill_tracked_process(state: &Arc<AppState>, scope: &str) {
             );
         }
     }
+}
+
+/// Enter transient-API recovery: log, kill the tracked process (so it does not
+/// linger detached while the replay spawns a new one), then delegate to
+/// [`handle_transient_api_recovery`]. Shared by the Ok-branch (structured
+/// `transient_api_error`) and Err-branch (substring-matched stream error) call
+/// sites so the PID-cleanup invariant lives in one place.
+async fn enter_transient_recovery(
+    state: &Arc<AppState>,
+    scope: &str,
+    channel: &dyn crate::ports::channel_ports::ChannelPort,
+    original_msg: &TextMessage,
+    error_message: &str,
+    log_message: &str,
+) -> anyhow::Result<()> {
+    tracing::warn!(error = %error_message, "{log_message}");
+    kill_tracked_process(state, scope).await;
+    handle_transient_api_recovery(state, scope, channel, original_msg, error_message).await
 }
 
 /// Check if a process with the given PID is still alive (signal-0 probe / OpenProcess).
@@ -1016,11 +1029,14 @@ async fn handle_context_limit_recovery(
 /// Strategy:
 /// 1. Show the raw error text to the user (per design: do not replace with a
 ///    friendly message — surface the actual API error for transparency).
-/// 2. If recovery depth exceeded, give up and reset the counter.
-/// 3. Otherwise increment the shared `recovery_depth`, compute a jittered
+/// 2. If transient recovery depth exceeded, give up and reset the counter.
+/// 3. Otherwise increment `transient_recovery_depth`, compute a jittered
 ///    exponential backoff delay, notify the user, sleep, then replay the
 ///    original message. `handle_text_message` reads SESSION_ID from state and
 ///    passes it as `--resume`, so this naturally retries the same session.
+///
+/// Uses a SEPARATE counter from context-limit recovery so the two recovery
+/// paths cannot exhaust each other's budget.
 async fn handle_transient_api_recovery(
     state: &Arc<AppState>,
     scope: &str,
@@ -1030,7 +1046,7 @@ async fn handle_transient_api_recovery(
 ) -> anyhow::Result<()> {
     let current_depth = {
         let cs = state.channel_state.read().await;
-        cs.recovery_depth(scope)
+        cs.transient_recovery_depth(scope)
     };
 
     // Surface the raw API error text to the user.
@@ -1042,7 +1058,7 @@ async fn handle_transient_api_recovery(
             "Transient API recovery depth exceeded — giving up"
         );
         with_write(&state.channel_state, |cs| {
-            cs.reset_recovery_depth(scope);
+            cs.reset_transient_recovery_depth(scope);
         })
         .await;
         send_channel_text(
@@ -1055,7 +1071,7 @@ async fn handle_transient_api_recovery(
     }
 
     let new_depth = with_write(&state.channel_state, |cs| {
-        cs.increment_recovery_depth(scope)
+        cs.increment_transient_recovery_depth(scope)
     })
     .await;
 

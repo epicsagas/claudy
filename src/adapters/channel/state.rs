@@ -164,6 +164,7 @@ impl ChannelState {
         // RECOVERY_DEPTH is reset here as part of full session reset.
         // reset_recovery_depth() after clear_session() is harmless but redundant.
         self.set(scope, "RECOVERY_DEPTH", "0");
+        self.set(scope, "TRANSIENT_RECOVERY_DEPTH", "0");
     }
 
     pub fn waiting_for_dir(&self, scope: &str) -> bool {
@@ -195,6 +196,32 @@ impl ChannelState {
     /// Reset the recovery depth counter to zero.
     pub fn reset_recovery_depth(&mut self, scope: &str) {
         self.set(scope, "RECOVERY_DEPTH", "0");
+    }
+
+    // --- Transient-API recovery depth ---
+    //
+    // A SEPARATE counter from context-limit recovery depth. The two recovery
+    // paths must not share a budget: a transient (529/429/503) retry that bumps
+    // the shared counter would otherwise exhaust the context-limit recovery
+    // budget and cause a session to be cleared instead of compacted.
+
+    /// How many transient-API recovery attempts have been made for this scope.
+    pub fn transient_recovery_depth(&self, scope: &str) -> u8 {
+        self.get(scope, "TRANSIENT_RECOVERY_DEPTH")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0)
+    }
+
+    /// Increment the transient recovery depth counter. Returns the new value.
+    pub fn increment_transient_recovery_depth(&mut self, scope: &str) -> u8 {
+        let next = self.transient_recovery_depth(scope).saturating_add(1);
+        self.set(scope, "TRANSIENT_RECOVERY_DEPTH", &next.to_string());
+        next
+    }
+
+    /// Reset the transient recovery depth counter to zero.
+    pub fn reset_transient_recovery_depth(&mut self, scope: &str) {
+        self.set(scope, "TRANSIENT_RECOVERY_DEPTH", "0");
     }
 
     pub fn save(&mut self) -> anyhow::Result<()> {
@@ -519,5 +546,39 @@ mod typed_accessor_tests {
         cs.set(SCOPE, "RECOVERY_DEPTH", "255");
         let d = cs.increment_recovery_depth(SCOPE);
         assert_eq!(d, 255); // u8 saturating add: 255 + 1 = 255
+    }
+
+    #[test]
+    fn transient_recovery_depth_is_independent_of_context_recovery_depth() {
+        // Regression guard (finding #2): the two recovery paths must NOT share a
+        // budget. Bumping the transient counter must leave context recovery depth
+        // at zero, and vice versa.
+        let mut cs = test_state();
+        assert_eq!(cs.recovery_depth(SCOPE), 0);
+        assert_eq!(cs.transient_recovery_depth(SCOPE), 0);
+
+        let _ = cs.increment_transient_recovery_depth(SCOPE);
+        assert_eq!(cs.transient_recovery_depth(SCOPE), 1);
+        assert_eq!(
+            cs.recovery_depth(SCOPE),
+            0,
+            "transient increment must not touch context recovery depth"
+        );
+
+        let _ = cs.increment_recovery_depth(SCOPE);
+        assert_eq!(cs.recovery_depth(SCOPE), 1);
+        assert_eq!(
+            cs.transient_recovery_depth(SCOPE),
+            1,
+            "context increment must not touch transient recovery depth"
+        );
+
+        cs.reset_transient_recovery_depth(SCOPE);
+        assert_eq!(cs.transient_recovery_depth(SCOPE), 0);
+        assert_eq!(cs.recovery_depth(SCOPE), 1);
+
+        cs.clear_session(SCOPE);
+        assert_eq!(cs.recovery_depth(SCOPE), 0);
+        assert_eq!(cs.transient_recovery_depth(SCOPE), 0);
     }
 }
