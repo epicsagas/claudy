@@ -82,6 +82,11 @@ pub trait AnalyticsStore: Send + Sync {
         project_id: Option<i64>,
     ) -> anyhow::Result<CostMetrics>;
 
+    fn aggregate_prompt_efficiency(&self, limit: u32) -> anyhow::Result<Vec<PromptEfficiency>>;
+    fn detect_tool_patterns(&self, min_frequency: u32) -> anyhow::Result<Vec<ToolPattern>>;
+    fn compare_model_performance(&self) -> anyhow::Result<Vec<ModelPerformance>>;
+    fn aggregate_session_comparisons(&self, limit: u32) -> anyhow::Result<Vec<SessionComparison>>;
+
     fn recalculate_costs(&self) -> anyhow::Result<u64>;
 }
 

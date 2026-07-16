@@ -247,6 +247,10 @@ pub struct InsightsSummary {
     pub notable_sessions: Vec<SessionCostHighlight>,
     pub cost_analysis: InsightsCostAnalysis,
     pub cache_efficiency: InsightsCacheEfficiency,
+    pub prompt_efficiency: Vec<PromptEfficiency>,
+    pub tool_patterns: Vec<ToolPattern>,
+    pub model_performance: Vec<ModelPerformance>,
+    pub session_comparisons: Vec<SessionComparison>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -257,6 +257,33 @@ impl AnalyticsStore for SqliteAnalyticsStore {
         )
     }
 
+    fn aggregate_prompt_efficiency(
+        &self,
+        limit: u32,
+    ) -> anyhow::Result<Vec<crate::domain::analytics::PromptEfficiency>> {
+        crate::adapters::analytics::sqlite_store::analytics_queries::aggregate_prompt_efficiency_impl(self, limit)
+    }
+
+    fn detect_tool_patterns(
+        &self,
+        min_frequency: u32,
+    ) -> anyhow::Result<Vec<crate::domain::analytics::ToolPattern>> {
+        crate::adapters::analytics::sqlite_store::analytics_queries::detect_tool_patterns_impl(self, min_frequency)
+    }
+
+    fn compare_model_performance(
+        &self,
+    ) -> anyhow::Result<Vec<crate::domain::analytics::ModelPerformance>> {
+        crate::adapters::analytics::sqlite_store::analytics_queries::compare_model_performance_impl(self)
+    }
+
+    fn aggregate_session_comparisons(
+        &self,
+        limit: u32,
+    ) -> anyhow::Result<Vec<crate::domain::analytics::SessionComparison>> {
+        crate::adapters::analytics::sqlite_store::analytics_queries::aggregate_session_comparisons_impl(self, limit)
+    }
+
     fn recalculate_costs(&self) -> anyhow::Result<u64> {
         crate::adapters::analytics::sqlite_store::pricing_repo::recalculate_costs_impl(self)
     }

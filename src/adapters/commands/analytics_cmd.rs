@@ -287,6 +287,11 @@ fn run_insights(
     let cost_metrics = store.aggregate_cost_metrics(effective_days, project_id)?;
     let token_trends = store.aggregate_token_trends(effective_days, project_id)?;
     let tool_dist = store.aggregate_tool_distribution(Some(effective_days), project_id)?;
+    // Previously-stubbed aggregations, now backed by real SQL (multi-provider).
+    let prompt_efficiency = store.aggregate_prompt_efficiency(20)?;
+    let tool_patterns = store.detect_tool_patterns(3)?;
+    let model_performance = store.compare_model_performance()?;
+    let session_comparisons = store.aggregate_session_comparisons(20)?;
 
     let daily_costs: Vec<InsightsDailyCost> = token_trends
         .into_iter()
@@ -360,6 +365,10 @@ fn run_insights(
             hit_ratio: dashboard.cache_hit_ratio,
             savings_usd: cost_metrics.cache_savings_usd,
         },
+        prompt_efficiency,
+        tool_patterns,
+        model_performance,
+        session_comparisons,
     };
 
     let json = serde_json::to_string(&summary)?;

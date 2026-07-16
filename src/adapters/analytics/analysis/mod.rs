@@ -50,19 +50,19 @@ impl AnalysisEngine for SqliteAnalysisEngine {
         self.store.aggregate_dashboard_stats(days, project_id)
     }
 
-    fn compute_prompt_efficiency(&self, _limit: u32) -> anyhow::Result<Vec<PromptEfficiency>> {
-        Ok(vec![])
+    fn compute_prompt_efficiency(&self, limit: u32) -> anyhow::Result<Vec<PromptEfficiency>> {
+        self.store.aggregate_prompt_efficiency(limit)
     }
 
-    fn detect_tool_patterns(&self, _min_frequency: u32) -> anyhow::Result<Vec<ToolPattern>> {
-        Ok(vec![])
+    fn detect_tool_patterns(&self, min_frequency: u32) -> anyhow::Result<Vec<ToolPattern>> {
+        self.store.detect_tool_patterns(min_frequency)
     }
 
     fn compare_model_performance(&self) -> anyhow::Result<Vec<ModelPerformance>> {
-        Ok(vec![])
+        self.store.compare_model_performance()
     }
 
-    fn get_session_comparisons(&self, _limit: u32) -> anyhow::Result<Vec<SessionComparison>> {
-        Ok(vec![])
+    fn get_session_comparisons(&self, limit: u32) -> anyhow::Result<Vec<SessionComparison>> {
+        self.store.aggregate_session_comparisons(limit)
     }
 }

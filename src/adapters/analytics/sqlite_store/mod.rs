@@ -470,4 +470,109 @@ mod tests {
             metrics.cache_savings_usd
         );
     }
+
+    // Seed a session with turns/tokens/tool_calls for the four aggregations.
+    fn seed_for_aggregations(store: &SqliteAnalyticsStore) -> i64 {
+        let pid = store.upsert_project("-t-proj", "tproj", Some("/t/proj")).unwrap();
+        let sid = store
+            .upsert_session(&NewSession {
+                session_uuid: "agg-1".into(),
+                project_id: pid,
+                source_file: "/t/a.jsonl".into(),
+                cwd: Some("/t".into()),
+                model: Some("claude-sonnet-4-6".into()),
+                first_message: Some("hi".into()),
+                started_at: Some("2026-01-01T00:00:00".into()),
+            })
+            .unwrap();
+        store.update_session_completion(sid, "2026-01-01T01:00:00", 2, 0.50, 3_600_000).unwrap();
+        let t1 = store
+            .insert_turn(&NewTurn {
+                session_id: sid, turn_number: 1, prompt_text: None, response_text: None,
+                model: Some("claude-sonnet-4-6".into()), duration_ms: Some(1000), started_at: None,
+            })
+            .unwrap();
+        let t2 = store
+            .insert_turn(&NewTurn {
+                session_id: sid, turn_number: 2, prompt_text: None, response_text: None,
+                model: Some("claude-sonnet-4-6".into()), duration_ms: Some(2000), started_at: None,
+            })
+            .unwrap();
+        for turn_id in [t1, t2] {
+            store
+                .insert_token_usage(&NewTokenUsage {
+                    turn_id, model: "claude-sonnet-4-6".into(),
+                    input_tokens: 1000, output_tokens: 500,
+                    cache_creation_input_tokens: 0, cache_read_input_tokens: 500,
+                    estimated_cost_usd: 0.25,
+                })
+                .unwrap();
+        }
+        store
+            .insert_tool_call(&NewToolCall {
+                turn_id: t1, tool_use_id: "tu1".into(), tool_name: "Read".into(),
+                input_summary: None, is_error: false, result_summary: None, duration_ms: None,
+            })
+            .unwrap();
+        store
+            .insert_tool_call(&NewToolCall {
+                turn_id: t1, tool_use_id: "tu2".into(), tool_name: "Edit".into(),
+                input_summary: None, is_error: true, result_summary: None, duration_ms: None,
+            })
+            .unwrap();
+        sid
+    }
+
+    #[test]
+    fn test_aggregate_prompt_efficiency() {
+        let store = test_store();
+        seed_for_aggregations(&store);
+        let rows = store.aggregate_prompt_efficiency(10).unwrap();
+        assert_eq!(rows.len(), 1);
+        let r = &rows[0];
+        assert_eq!(r.project_name, "tproj");
+        assert_eq!(r.total_input_tokens, 2000);
+        assert_eq!(r.total_output_tokens, 1000);
+        assert_eq!(r.tool_call_count, 2);
+        assert!((r.cost_usd - 0.50).abs() < 0.001);
+        // cache_hit_ratio = 1000 read / (2000 in + 1000 read) = 1/3
+        assert!((r.cache_hit_ratio - 1.0 / 3.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_detect_tool_patterns() {
+        let store = test_store();
+        seed_for_aggregations(&store);
+        let rows = store.detect_tool_patterns(1).unwrap();
+        // one adjacent bigram: Read -> Edit
+        let found = rows.iter().find(|p| p.sequence == vec!["Read".to_string(), "Edit".to_string()]);
+        assert!(found.is_some(), "Read->Edit bigram expected, got {:?}", rows);
+        let p = found.unwrap();
+        assert_eq!(p.frequency, 1);
+        assert!(p.error_rate > 0.0, "Edit had is_error=true -> error_rate > 0");
+        assert!(p.is_anti_pattern, "Read->Edit flagged as anti-pattern");
+    }
+
+    #[test]
+    fn test_compare_model_performance() {
+        let store = test_store();
+        seed_for_aggregations(&store);
+        let rows = store.compare_model_performance().unwrap();
+        let m = rows.iter().find(|m| m.model == "claude-sonnet-4-6").expect("model row");
+        assert_eq!(m.total_sessions, 1);
+        assert!((m.avg_input_tokens - 1000.0).abs() < 0.01);
+        assert!((m.avg_output_tokens - 500.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_aggregate_session_comparisons() {
+        let store = test_store();
+        let sid = seed_for_aggregations(&store);
+        let rows = store.aggregate_session_comparisons(10).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].session_uuid, "agg-1");
+        assert_eq!(rows[0].duration_ms, 3_600_000);
+        assert!((rows[0].total_cost_usd - 0.50).abs() < 0.001);
+        let _ = sid;
+    }
 }

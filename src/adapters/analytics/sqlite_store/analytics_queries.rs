@@ -469,3 +469,190 @@ fn query_most_expensive_session(
         }),
     )
 }
+
+// ---------------------------------------------------------------------------
+// Analysis queries for the four previously-stubbed aggregations.
+// ---------------------------------------------------------------------------
+
+/// Per-session prompt efficiency: token/tool economics + cache utilization.
+pub(super) fn aggregate_prompt_efficiency_impl(
+    store: &SqliteAnalyticsStore,
+    limit: u32,
+) -> anyhow::Result<Vec<PromptEfficiency>> {
+    let conn = store.lock()?;
+    let mut stmt = conn.prepare(
+        "SELECT s.session_uuid, p.display_name,
+                COALESCE(s.total_turns, 0),
+                COALESCE(SUM(tu.input_tokens), 0),
+                COALESCE(SUM(tu.output_tokens), 0),
+                (SELECT COUNT(*) FROM tool_calls tc JOIN turns t2 ON tc.turn_id = t2.id
+                 WHERE t2.session_id = s.id),
+                COALESCE(SUM(tu.cache_read_input_tokens), 0),
+                COALESCE(SUM(tu.estimated_cost_usd), 0.0)
+         FROM sessions s
+         JOIN projects p ON s.project_id = p.id
+         LEFT JOIN turns t ON t.session_id = s.id
+         LEFT JOIN token_usage tu ON tu.turn_id = t.id
+         WHERE s.total_turns > 0
+         GROUP BY s.id
+         ORDER BY COALESCE(SUM(tu.estimated_cost_usd), 0.0) DESC
+         LIMIT ?1",
+    )?;
+    let mut out = Vec::new();
+    let rows = stmt.query_map(params![limit], |row| {
+        let input_tokens: i64 = row.get(3)?;
+        let output_tokens: i64 = row.get(4)?;
+        let tool_calls: i64 = row.get(5)?;
+        let cache_read: i64 = row.get(6)?;
+        let total_tok = (input_tokens + output_tokens).max(1) as f64;
+        let cache_denom = (input_tokens + cache_read).max(1) as f64;
+        Ok(PromptEfficiency {
+            session_uuid: row.get(0)?,
+            project_name: row.get(1)?,
+            total_turns: row.get(2)?,
+            total_input_tokens: input_tokens,
+            total_output_tokens: output_tokens,
+            tool_call_count: tool_calls,
+            tool_overhead_ratio: tool_calls as f64 / total_tok,
+            cache_hit_ratio: cache_read as f64 / cache_denom,
+            cost_usd: row.get(7)?,
+        })
+    })?;
+    for r in rows {
+        out.push(r?);
+    }
+    Ok(out)
+}
+
+/// Most frequent adjacent tool-name bigrams; flags known anti-patterns.
+pub(super) fn detect_tool_patterns_impl(
+    store: &SqliteAnalyticsStore,
+    min_frequency: u32,
+) -> anyhow::Result<Vec<ToolPattern>> {
+    let conn = store.lock()?;
+    // Build per-turn ordered tool-name sequences, then count adjacent bigrams.
+    let mut stmt = conn.prepare(
+        "SELECT turn_id, tool_name FROM tool_calls ORDER BY turn_id, id",
+    )?;
+    let mut cur_turn: Option<i64> = None;
+    let mut prev_name: Option<String> = None;
+    let mut counts: std::collections::HashMap<(String, String), (i64, i64)> =
+        std::collections::HashMap::new(); // (freq, errors)
+    let rows = stmt.query_map([], |row| {
+        Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+    })?;
+    // error lookup per turn
+    let mut err_stmt = conn.prepare(
+        "SELECT turn_id, SUM(is_error) FROM tool_calls GROUP BY turn_id",
+    )?;
+    let mut turn_errors: std::collections::HashMap<i64, i64> = std::collections::HashMap::new();
+    let err_rows = err_stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))?;
+    for r in err_rows {
+        let (t, e) = r?;
+        turn_errors.insert(t, e);
+    }
+    drop(err_stmt);
+    for r in rows {
+        let (turn, name) = r?;
+        if Some(turn) != cur_turn {
+            cur_turn = Some(turn);
+            prev_name = None;
+        }
+        if let Some(prev) = prev_name.take() {
+            let e = *turn_errors.get(&turn).unwrap_or(&0);
+            let entry = counts.entry((prev, name.clone())).or_insert((0, 0));
+            entry.0 += 1;
+            entry.1 += e;
+        }
+        prev_name = Some(name);
+    }
+    let mut out: Vec<ToolPattern> = counts
+        .into_iter()
+        .filter(|(_, v)| v.0 >= min_frequency as i64)
+        .map(|((a, b), (freq, errs))| {
+            // Anti-pattern heuristic: repeated identical tool, or edit-read churn.
+            let anti = a == b || (a == "Edit" && b == "Read") || (a == "Read" && b == "Edit");
+            ToolPattern {
+                sequence: vec![a, b],
+                frequency: freq,
+                error_rate: if freq > 0 { errs as f64 / freq as f64 } else { 0.0 },
+                is_anti_pattern: anti,
+            }
+        })
+        .collect();
+    out.sort_by(|x, y| y.frequency.cmp(&x.frequency));
+    Ok(out)
+}
+
+/// Per-model averages over sessions that used it.
+pub(super) fn compare_model_performance_impl(
+    store: &SqliteAnalyticsStore,
+) -> anyhow::Result<Vec<ModelPerformance>> {
+    let conn = store.lock()?;
+    let mut stmt = conn.prepare(
+        "SELECT tu.model,
+                AVG(t.duration_ms),
+                AVG(tu.input_tokens),
+                AVG(tu.output_tokens),
+                AVG(s.total_cost_usd),
+                COUNT(DISTINCT s.id),
+                AVG(tu.cache_read_input_tokens)
+         FROM token_usage tu
+         JOIN turns t ON tu.turn_id = t.id
+         JOIN sessions s ON t.session_id = s.id
+         WHERE tu.model IS NOT NULL AND tu.model <> '<synthetic>'
+         GROUP BY tu.model
+         ORDER BY COUNT(DISTINCT s.id) DESC",
+    )?;
+    let mut out = Vec::new();
+    let rows = stmt.query_map([], |row| {
+        let avg_in: f64 = row.get::<_, Option<f64>>(2)?.unwrap_or(0.0);
+        let cache: f64 = row.get::<_, Option<f64>>(6)?.unwrap_or(0.0);
+        let denom = avg_in + cache;
+        Ok(ModelPerformance {
+            model: row.get(0)?,
+            avg_duration_ms: row.get::<_, Option<f64>>(1)?.unwrap_or(0.0),
+            avg_input_tokens: avg_in,
+            avg_output_tokens: row.get::<_, Option<f64>>(3)?.unwrap_or(0.0),
+            avg_cost_per_session: row.get::<_, Option<f64>>(4)?.unwrap_or(0.0),
+            total_sessions: row.get::<_, i64>(5)?,
+            cache_hit_ratio: if denom > 0.0 { cache / denom } else { 0.0 },
+        })
+    })?;
+    for r in rows {
+        out.push(r?);
+    }
+    Ok(out)
+}
+
+/// Top sessions by cost/duration for cross-session comparison.
+pub(super) fn aggregate_session_comparisons_impl(
+    store: &SqliteAnalyticsStore,
+    limit: u32,
+) -> anyhow::Result<Vec<SessionComparison>> {
+    let conn = store.lock()?;
+    let mut stmt = conn.prepare(
+        "SELECT s.session_uuid, p.display_name, s.started_at,
+                COALESCE(s.total_duration_ms, 0), COALESCE(s.total_cost_usd, 0.0),
+                COALESCE(s.total_turns, 0), s.model
+         FROM sessions s JOIN projects p ON s.project_id = p.id
+         WHERE s.total_cost_usd IS NOT NULL
+         ORDER BY s.total_cost_usd DESC LIMIT ?1",
+    )?;
+    let mut out = Vec::new();
+    let rows = stmt.query_map(params![limit], |row| {
+        Ok(SessionComparison {
+            session_uuid: row.get(0)?,
+            project_name: row.get(1)?,
+            started_at: row.get(2)?,
+            duration_ms: row.get(3)?,
+            total_cost_usd: row.get(4)?,
+            total_turns: row.get(5)?,
+            model: row.get(6)?,
+        })
+    })?;
+    for r in rows {
+        out.push(r?);
+    }
+    Ok(out)
+}
