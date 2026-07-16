@@ -675,6 +675,30 @@ cargo run --example test_dashboard --features analytics-ui
 cargo run --features analytics-ui -- analytics dashboard
 ```
 
+## Roadmap
+
+claudy does not maintain a separate roadmap document; direction is tracked through
+[issues](https://github.com/epicsagas/claudy/issues), [milestones](https://github.com/epicsagas/claudy/milestones), and this section.
+
+**Active focus**
+
+- **Usage Analytics** (work in progress) — token counts and cost estimates are not
+  yet fully accurate; refinements are planned for upcoming releases. The
+  `/analytics-insights` integration and dashboard are the primary surface here.
+- **Channel resilience** — hardening transient-API (529/429/503) recovery and
+  cross-provider session continuity. Recent work gated recovery on the
+  stream-json `is_error` flag and separated the transient/context-limit budgets;
+  follow-ups improve observability of the recovery path.
+
+**Recently shipped (0.4.0)**
+
+- Opt-in shell-environment loading for spawned processes (`CLAUDY_SHELL_ENV`) (#41)
+- Symlinked project-directory resolution (#40)
+- `llm-kernel` 0.10 → 0.20 alignment (#42) and `quick-xml` security advisory clearance
+
+If you want to propose or track a feature, please open an issue with the
+`enhancement` label.
+
 ## Contributing
 
 Contributions are welcome! Here is how to get started:

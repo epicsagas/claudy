@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-16
+
+### Added
+
+- Opt-in shell-environment loading for spawned processes. When `CLAUDY_SHELL_ENV=1` (or `true`), the login-shell environment (`$SHELL -l -c 'env -0'`) is merged into the Claude CLI / MCP agent runner processes, so PATH additions and exports defined only in `~/.zshrc` / `~/.bash_profile` / `~/.profile` are visible to claudy even when it was launched from a non-login context (GUI, launchd, IDE task). Existing process values always win (merge is `entry().or_insert()`); off by default. (#41, #44)
+
+### Fixed
+
+- Symlinked project directories are now resolved before launching Claude. A configured project dir (channel `channel_projects`, `default_project`, or platform override) that points through a symlink is canonicalized via `dunce::canonicalize` in both the channel launch path and the MCP agent runner, so dotfile/vault-managed layouts land at their real target. Falls back to the raw path on canonicalization failure so the existing `is_dir()` guard is never hardened into a new error path. (#40, #43)
+
+### Changed
+
+- Upgrade `llm-kernel` 0.10 → 0.20 and adapt to the new `McpServer::initialize_response(requested_version: Option<&str>)` signature — the runtime `initialize` handler now passes the client's requested `protocolVersion` through for proper MCP version negotiation. Aligns claudy with the latest llm-kernel, resolving cross-project version fragmentation. (#42)
+- Bump `plist` 1.9.0 → 1.10.0 to clear `quick-xml` RUSTSEC-2026-0194 / RUSTSEC-2026-0195 (high, 7.5 — quadratic duplicate-attribute check + unbounded namespace-declaration allocation). `quick-xml` is pulled transitively via `plist` → `tauri`.
+- Add `dunce` as a direct dependency (already transitively present via `tauri`) for Windows-safe symlink canonicalization.
+- Dependency bumps: `anyhow` 1.0.102 → 1.0.103, `uuid` 1.23.3 → 1.23.4, `which` 8.0.3 → 8.0.5, `serial_test` 3.4.0 → 3.5.0, `tower-http` 0.6 → 0.7, `tokio-tungstenite` 0.29 → 0.30, `ed25519-dalek` 2 → 3, and `dtolnay/rust-toolchain` GitHub Action. (#34, #36, #37, #38, #39)
+
+### Verified
+
+- Confirmed end-to-end that cross-provider resume (ZAI/GLM → Claude `--resume`) works after `tool_use` id sanitization; `call_<hex>` ids are rewritten to `toolu_*` before resume with no HTTP 400. (#33)
+- Confirmed the stream-json `is_error: true` gate fires correctly on real 529 (overloaded) events from the z.ai gateway — the transient-API recovery path runs to completion (3 backoff retries → depth exceeded → user notified), not a silent fail. (#32)
+
 ## [0.3.11] - 2026-06-29
 
 ### Fixed
