@@ -98,7 +98,14 @@ pub fn start_claude_session(
             path.is_dir(),
             "working_dir does not exist or is not a directory: {dir}"
         );
-        cmd.current_dir(path);
+        // Resolve symlinks so a configured project dir that points through a
+        // symlink (common for dotfile/vault-managed layouts) lands at its real
+        // target. `dunce::canonicalize` mirrors `std::fs::canonicalize` on
+        // Unix and strips the `\\?\` prefix std adds on Windows. Fall back to
+        // the raw path if canonicalization fails so we never harden the
+        // existing `is_dir()` guard into a new error path (issue #40).
+        let resolved = resolve_working_dir(path);
+        cmd.current_dir(&resolved);
     }
 
     if let Some(model_name) = session.model {
@@ -133,4 +140,50 @@ pub fn start_claude_session(
         stdout,
         stderr,
     })
+}
+
+/// Resolve a project working directory, following symlinks to the real target.
+///
+/// `dunce::canonicalize` mirrors `std::fs::canonicalize` on Unix (resolves all
+/// symlinks, collapses `..`) and additionally strips the `\\?\` verbatim prefix
+/// that `std` prepends on Windows. If canonicalization fails (e.g. a dangling
+/// symlink component) the raw path is returned unchanged so this never turns a
+/// passing `is_dir()` guard into a new error path. See issue #40.
+pub fn resolve_working_dir(path: &std::path::Path) -> std::path::PathBuf {
+    dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_working_dir;
+
+    /// A symlinked project directory must resolve to its real target (issue #40).
+    #[test]
+    fn resolve_working_dir_follows_symlink() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let real = tmp.path().join("real_project");
+        std::fs::create_dir(&real).expect("mkdir real");
+        std::fs::write(real.join("marker"), b"x").expect("write marker");
+
+        let link = tmp.path().join("link_project");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&real, &link).expect("symlink");
+        // Symlink support is Unix-only in claudy; skip elsewhere.
+        #[cfg(not(unix))]
+        return;
+
+        let resolved = resolve_working_dir(&link);
+        assert_ne!(resolved, link, "symlink was not resolved");
+        assert_eq!(resolved, real, "resolved path should point at the real dir");
+        assert!(resolved.join("marker").exists());
+    }
+
+    /// Canonicalization failure must fall back to the raw path, not error.
+    #[test]
+    fn resolve_working_dir_falls_back_on_failure() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dangling = tmp.path().join("does_not_exist");
+        // Raw path returned verbatim — no panic, no error.
+        assert_eq!(resolve_working_dir(&dangling), dangling);
+    }
 }
