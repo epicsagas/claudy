@@ -259,11 +259,16 @@ async fn server_loop(server: &McpServer, agents: &[AgentDefinition]) -> anyhow::
         let params = msg.get("params").cloned().unwrap_or(json!({}));
 
         let response = match method {
-            "initialize" => json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": server.initialize_response()
-            }),
+            "initialize" => {
+                // MCP spec: the client sends its requested protocol version in
+                // `params.protocolVersion`; llm-kernel negotiates against it.
+                let requested_version = params.get("protocolVersion").and_then(Value::as_str);
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": server.initialize_response(requested_version)
+                })
+            }
             "tools/list" => {
                 // llm-kernel's ToolDescription serializes `input_schema` in
                 // snake_case, but the MCP spec (2024-11-05) requires
@@ -402,7 +407,9 @@ mod tests {
     #[test]
     fn test_build_server_initialize_response() {
         let server = build_server(&[]);
-        let resp = server.initialize_response();
+        // A supported version the client asked for is echoed back (llm-kernel
+        // negotiates against the requested version).
+        let resp = server.initialize_response(Some("2024-11-05"));
 
         assert_eq!(resp["protocolVersion"], "2024-11-05");
         assert!(resp["capabilities"]["tools"].is_object());
