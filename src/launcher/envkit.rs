@@ -61,8 +61,22 @@ pub struct EnvironmentAssembler {
 impl EnvironmentAssembler {
     pub fn inherit() -> Self {
         let mut vars = HashMap::new();
+        // Start from the current process environment.
         for (k, v) in std::env::vars() {
             vars.insert(k, v);
+        }
+        // Opt-in: when CLAUDY_SHELL_ENV is truthy, additionally pull in the
+        // user's login-shell environment (PATH additions and exports from
+        // ~/.zprofile / ~/.zshrc / ~/.bash_profile / ~/.profile). Only keys the
+        // current process does NOT already have are merged, so claudy's own
+        // values (provider env, explicit overrides) always win. This is
+        // off by default: sourcing a shell can be slow and can pull in
+        // unexpected state under GUI/launchd contexts. Sourcing failures are
+        // swallowed — this must never become a new error path. See issue #41.
+        if let Some(shell_vars) = (shell_env_enabled().then(load_login_shell_env)).flatten() {
+            for (k, v) in shell_vars {
+                vars.entry(k).or_insert(v);
+            }
         }
         Self { vars }
     }
@@ -163,6 +177,59 @@ pub fn is_homebrew() -> bool {
         .ok()
         .and_then(|exe| std::fs::canonicalize(exe).ok())
         .is_some_and(|resolved| resolved.to_string_lossy().contains("/Cellar/"))
+}
+
+/// Whether to merge the user's login-shell environment into spawned processes.
+///
+/// Off by default; enabled by `CLAUDY_SHELL_ENV=1` (or `true`). See issue #41.
+fn shell_env_enabled() -> bool {
+    matches!(
+        std::env::var("CLAUDY_SHELL_ENV").ok().as_deref(),
+        Some("1") | Some("true") | Some("TRUE")
+    )
+}
+
+/// Capture the user's login-shell environment by evaluating `$SHELL -l -c env`.
+///
+/// Returns `None` on any failure (no `$SHELL`, spawn error, non-UTF-8 output, or
+/// a non-zero exit) so callers can treat this as best-effort. Login mode (`-l`)
+/// sources `~/.zprofile` / `~/.bash_profile` / `~/.profile`; we deliberately do
+/// NOT pass `-i` (interactive), which depends on a TTY and can hang. Unix-only.
+#[cfg(unix)]
+fn load_login_shell_env() -> Option<HashMap<String, String>> {
+    use std::process::Command;
+
+    let shell = std::env::var("SHELL").ok().filter(|s| !s.is_empty())?;
+    // `env -0` emits NUL-separated KEY=VALUE pairs, robust against values that
+    // contain newlines.
+    let output = Command::new(&shell)
+        .args(["-l", "-c", "env -0"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let mut vars = HashMap::new();
+    for chunk in output.stdout.split(|&b| b == 0) {
+        if chunk.is_empty() {
+            continue;
+        }
+        let Ok(s) = std::str::from_utf8(chunk) else {
+            continue;
+        };
+        if let Some((k, v)) = s.split_once('=') {
+            vars.insert(k.to_string(), v.to_string());
+        }
+    }
+    Some(vars)
+}
+
+#[cfg(not(unix))]
+fn load_login_shell_env() -> Option<HashMap<String, String>> {
+    None
 }
 
 #[cfg(test)]
@@ -350,5 +417,94 @@ mod tests {
         };
         let result = build_auth_environment(&target, &SecretVault::empty());
         assert!(result.is_err());
+    }
+
+    // ── CLAUDY_SHELL_ENV opt-in (issue #41) ─────────────────────────────
+
+    #[test]
+    #[serial_test::serial]
+    fn test_shell_env_disabled_by_default() {
+        unsafe {
+            env::remove_var("CLAUDY_SHELL_ENV");
+        }
+        assert!(!shell_env_enabled());
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_shell_env_opt_in_truthy_values() {
+        for val in ["1", "true", "TRUE"] {
+            unsafe {
+                env::set_var("CLAUDY_SHELL_ENV", val);
+            }
+            assert!(
+                shell_env_enabled(),
+                "CLAUDY_SHELL_ENV={val} should enable shell env"
+            );
+        }
+        unsafe {
+            env::remove_var("CLAUDY_SHELL_ENV");
+        }
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_shell_env_opt_in_rejects_other_values() {
+        for val in ["0", "false", "yes", ""] {
+            unsafe {
+                env::set_var("CLAUDY_SHELL_ENV", val);
+            }
+            assert!(
+                !shell_env_enabled(),
+                "CLAUDY_SHELL_ENV={val:?} should NOT enable shell env"
+            );
+        }
+        unsafe {
+            env::remove_var("CLAUDY_SHELL_ENV");
+        }
+    }
+
+    /// End-to-end: with CLAUDY_SHELL_ENV=1 and a real $SHELL, the login-shell
+    /// env is captured and the inherit() merge fills in keys the process
+    /// doesn't already have (e.g. HOME) without clobbering existing ones.
+    /// Unix-only; skipped when no $SHELL is set.
+    #[cfg(unix)]
+    #[test]
+    #[serial_test::serial]
+    fn test_inherit_merges_login_shell_env_when_enabled() {
+        let Some(shell) = env::var("SHELL").ok().filter(|s| !s.is_empty()) else {
+            eprintln!("skipping: $SHELL not set");
+            return;
+        };
+        // Sanity: the configured shell must actually exist for the test to be
+        // meaningful (CI runners always have one).
+        assert!(
+            std::path::Path::new(&shell).exists(),
+            "test premise: $SHELL ({shell}) should exist"
+        );
+
+        unsafe {
+            env::set_var("CLAUDY_SHELL_ENV", "1");
+        }
+        let merged = EnvironmentAssembler::inherit();
+        unsafe {
+            env::remove_var("CLAUDY_SHELL_ENV");
+        }
+
+        // A login shell always exports HOME — it should be present after merge.
+        assert!(
+            merged.vars.contains_key("HOME"),
+            "HOME missing from merged env; shell sourcing likely failed"
+        );
+
+        // Existing process values must survive: PATH is inherited from the
+        // process first and only filled-in if absent, so the merged value must
+        // equal what the process already had.
+        if let Ok(path) = env::var("PATH") {
+            assert_eq!(
+                merged.vars.get("PATH").map(String::as_str),
+                Some(path.as_str())
+            );
+        }
     }
 }
