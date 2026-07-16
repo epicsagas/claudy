@@ -30,7 +30,11 @@ pub async fn run_agent(
         .stderr(std::process::Stdio::piped());
 
     if let Some(dir) = cwd {
-        cmd.current_dir(dir);
+        // Resolve symlinks so an agent run launched against a symlinked
+        // project dir lands at its real target (issue #40). Shared with the
+        // channel launch path via `resolve_working_dir`.
+        let resolved = crate::adapters::channel::claude_process::resolve_working_dir(dir);
+        cmd.current_dir(&resolved);
     }
 
     let mut child = cmd
