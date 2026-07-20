@@ -333,6 +333,9 @@ fn unsupported() -> anyhow::Result<i32> {
 
 /// Build a PATH string including common binary locations (mirrors the channel
 /// service path builder so the scheduler can locate the Claude CLI if needed).
+/// macOS-only: the LaunchAgent plist needs an explicit PATH; systemd units
+/// inherit the user environment.
+#[cfg(target_os = "macos")]
 fn build_service_path() -> String {
     let home = dirs::home_dir()
         .map(|p| p.display().to_string())
