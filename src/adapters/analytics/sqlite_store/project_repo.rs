@@ -6,7 +6,9 @@ use super::SqliteAnalyticsStore;
 
 impl AnalyticsStore for SqliteAnalyticsStore {
     fn initialize_schema(&self) -> anyhow::Result<()> {
-        self.lock()?.execute_batch(super::SCHEMA)?;
+        let mut conn = self.lock()?;
+        conn.execute_batch(super::SCHEMA)?;
+        super::migrations::apply(&mut conn)?;
         Ok(())
     }
 
@@ -268,13 +270,18 @@ impl AnalyticsStore for SqliteAnalyticsStore {
         &self,
         min_frequency: u32,
     ) -> anyhow::Result<Vec<crate::domain::analytics::ToolPattern>> {
-        crate::adapters::analytics::sqlite_store::analytics_queries::detect_tool_patterns_impl(self, min_frequency)
+        crate::adapters::analytics::sqlite_store::analytics_queries::detect_tool_patterns_impl(
+            self,
+            min_frequency,
+        )
     }
 
     fn compare_model_performance(
         &self,
     ) -> anyhow::Result<Vec<crate::domain::analytics::ModelPerformance>> {
-        crate::adapters::analytics::sqlite_store::analytics_queries::compare_model_performance_impl(self)
+        crate::adapters::analytics::sqlite_store::analytics_queries::compare_model_performance_impl(
+            self,
+        )
     }
 
     fn aggregate_session_comparisons(
@@ -286,5 +293,15 @@ impl AnalyticsStore for SqliteAnalyticsStore {
 
     fn recalculate_costs(&self) -> anyhow::Result<u64> {
         crate::adapters::analytics::sqlite_store::pricing_repo::recalculate_costs_impl(self)
+    }
+
+    fn ingestion_freshness(&self) -> anyhow::Result<crate::domain::analytics::FreshnessReport> {
+        crate::adapters::analytics::sqlite_store::session_repo::ingestion_freshness_impl(self)
+    }
+
+    fn backfill_null_turn_models(&self, session_id: i64, model: &str) -> anyhow::Result<u64> {
+        crate::adapters::analytics::sqlite_store::session_repo::backfill_null_turn_models_impl(
+            self, session_id, model,
+        )
     }
 }

@@ -88,6 +88,12 @@ pub trait AnalyticsStore: Send + Sync {
     fn aggregate_session_comparisons(&self, limit: u32) -> anyhow::Result<Vec<SessionComparison>>;
 
     fn recalculate_costs(&self) -> anyhow::Result<u64>;
+
+    /// Latest turn start and per-source last-seen, for freshness reporting.
+    fn ingestion_freshness(&self) -> anyhow::Result<FreshnessReport>;
+
+    /// Best-effort backfill of NULL `turns.model` from the session model (R4).
+    fn backfill_null_turn_models(&self, session_id: i64, model: &str) -> anyhow::Result<u64>;
 }
 
 pub trait PricingStore: Send + Sync {

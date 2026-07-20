@@ -46,6 +46,7 @@ pub fn parse_and_ingest(
     path_str: &str,
     _full: bool,
     pricing_store: Option<&dyn PricingStore>,
+    source_kind: Option<&str>,
 ) -> anyhow::Result<IngestionStats> {
     let file = std::fs::File::open(file_path)?;
     let reader = BufReader::new(file);
@@ -94,6 +95,11 @@ pub fn parse_and_ingest(
                     .and_then(|m| m.get("content"))
                     .and_then(|c| c.as_str())
                     .is_some_and(|c| c.starts_with('/'));
+                // R4: neutral "author" flag derived purely from transcript
+                // metadata the parser already inspects. Meta/command injections
+                // are skipped below, so persisted turns are human-authored by
+                // construction; this records that invariant explicitly.
+                let human_authored = !(is_meta || is_command);
 
                 if is_meta || is_command {
                     continue;
@@ -118,6 +124,7 @@ pub fn parse_and_ingest(
                         model: current_model.clone(),
                         first_message: text.as_ref().map(|t| redact_secrets(t)),
                         started_at: ts,
+                        source_kind: source_kind.map(|s| s.to_string()),
                     })?;
                     session_id = Some(sid);
                     stats.sessions_created += 1;
@@ -142,6 +149,7 @@ pub fn parse_and_ingest(
                     model: current_model.clone(),
                     duration_ms: None,
                     started_at: ts,
+                    human_authored,
                 })?;
                 pending_turn_id = Some(tid);
                 let _ = text; // text already used in insert_turn above
@@ -315,6 +323,15 @@ pub fn parse_and_ingest(
             store.update_session_completion(sid, ended, turn_number, total_cost, total_duration)
         {
             tracing::warn!(error = %e, session_id = %sid, "failed to update session completion");
+        }
+
+        // R4: best-effort backfill of any turns whose model is NULL (e.g. the
+        // opening turn created before the first assistant event set the model)
+        // from the session model captured during parsing.
+        if let Some(model) = current_model.as_deref()
+            && let Err(e) = store.backfill_null_turn_models(sid, model)
+        {
+            tracing::warn!(error = %e, session_id = %sid, "failed to backfill turn models");
         }
     }
 

@@ -2,7 +2,7 @@ use crate::domain::analytics::{
     InsightsCacheEfficiency, InsightsCostAnalysis, InsightsDailyCost, InsightsOverview,
     InsightsPeriod, InsightsSummary, SessionCostHighlight,
 };
-use crate::domain::commands::AnalyticsAction;
+use crate::domain::commands::{AnalyticsAction, ScheduleAction};
 use crate::domain::context::Context;
 use crate::ports::analytics_ports::AnalyticsStore;
 
@@ -30,6 +30,8 @@ pub fn run_analytics(ctx: &mut Context, action: AnalyticsAction) -> anyhow::Resu
             project.as_deref(),
         ),
         AnalyticsAction::Recalculate => run_recalculate(ctx),
+        AnalyticsAction::Status { stale_days, json } => run_status(ctx, stale_days, json),
+        AnalyticsAction::Schedule { action } => run_schedule(ctx, action),
     }
 }
 
@@ -92,7 +94,10 @@ fn run_ingest(ctx: &mut Context, full: bool, project: Option<&str>) -> anyhow::R
 
     ctx.output.info("Starting ingestion...");
 
-    let result = crate::adapters::analytics::ingestion::run_ingestion(db_path, full, project)?;
+    let sources =
+        crate::adapters::analytics::ingestion::IngestionSources::from_config(&ctx.config.analytics);
+    let result =
+        crate::adapters::analytics::ingestion::run_ingestion(db_path, full, project, &sources)?;
 
     ctx.output.info(&format!(
         "Ingestion complete in {}ms: {} files scanned, {} ingested | {} sessions, {} turns, {} token records, {} tool calls",
@@ -374,6 +379,79 @@ fn run_insights(
     let json = serde_json::to_string(&summary)?;
     println!("{json}");
     Ok(0)
+}
+
+/// `analytics status` — ingestion freshness / staleness alarm (R3).
+/// Wording stays claudy-local ("sessions recorded"); no downstream terms.
+fn run_status(ctx: &mut Context, stale_days: i64, json: bool) -> anyhow::Result<i32> {
+    use chrono::{Local, NaiveDate};
+
+    let db_path = &ctx.paths.analytics_db;
+    let store = crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore::open(db_path)?;
+    store.initialize_schema()?;
+    let report = store.ingestion_freshness()?;
+
+    // days_stale derived from the leading YYYY-MM-DD of the latest turn (robust
+    // to trailing time/zone variation). None when there is no data yet.
+    let days_stale: Option<i64> = report
+        .latest_turn_at
+        .as_deref()
+        .and_then(|ts| ts.get(..10))
+        .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
+        .map(|latest_date| (Local::now().date_naive() - latest_date).num_days().max(0));
+
+    // An empty DB is not "stale" — it just has no data yet. Staleness only
+    // triggers when data exists but is older than the threshold.
+    let stale = stale_days > 0 && days_stale.map(|d| d > stale_days).unwrap_or(false);
+
+    if json {
+        let body = serde_json::json!({
+            "latest_turn_at": report.latest_turn_at,
+            "total_turns": report.total_turns,
+            "days_stale": days_stale,
+            "stale": stale,
+            "per_source": report.per_source,
+        });
+        println!("{body}");
+    } else {
+        match (&report.latest_turn_at, days_stale) {
+            (Some(ts), Some(d)) => {
+                let plural = if d == 1 { "" } else { "s" };
+                ctx.output.info(&format!(
+                    "last session recorded: {ts} ({d} day{plural} ago)"
+                ));
+            }
+            _ => ctx.output.info("no sessions recorded yet"),
+        }
+        if !report.per_source.is_empty() {
+            let parts: Vec<String> = report
+                .per_source
+                .iter()
+                .map(|s| {
+                    let when = s
+                        .last_seen
+                        .as_deref()
+                        .and_then(|t| t.get(..10))
+                        .unwrap_or("?");
+                    format!("{} → {}", s.label, when)
+                })
+                .collect();
+            ctx.output.info(&format!("sources: {}", parts.join(" · ")));
+        }
+        if stale {
+            let d = days_stale.unwrap_or(0);
+            ctx.output.warn(&format!(
+                "STALE: no sessions recorded in {d} days — ingestion may have stopped"
+            ));
+        }
+    }
+
+    if stale { Ok(1) } else { Ok(0) }
+}
+
+/// `analytics schedule {install,uninstall,status}` — hourly ingestion (R1).
+fn run_schedule(ctx: &mut Context, action: ScheduleAction) -> anyhow::Result<i32> {
+    crate::adapters::analytics::schedule::run_schedule(ctx, action)
 }
 
 #[cfg(test)]

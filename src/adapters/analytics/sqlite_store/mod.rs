@@ -2,6 +2,7 @@ use rusqlite::{Connection, params};
 use std::sync::{Mutex, MutexGuard};
 
 mod analytics_queries;
+mod migrations;
 mod pricing_repo;
 mod project_repo;
 mod session_repo;
@@ -35,7 +36,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     total_duration_ms INTEGER DEFAULT 0,
     source_file       TEXT    NOT NULL,
     file_modified_at  TEXT,
-    ingested_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+    ingested_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+    source_kind       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at);
@@ -50,7 +52,8 @@ CREATE TABLE IF NOT EXISTS turns (
     model           TEXT,
     duration_ms     INTEGER,
     started_at      TEXT,
-    ingested_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+    ingested_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+    human_authored  INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id);
 CREATE INDEX IF NOT EXISTS idx_turns_model ON turns(model);
@@ -232,6 +235,7 @@ mod tests {
                 model: Some("claude-sonnet".into()),
                 first_message: Some("hello".into()),
                 started_at: Some("2026-01-01T00:00:00".into()),
+                source_kind: None,
             })
             .unwrap();
         assert!(sid > 0);
@@ -259,6 +263,7 @@ mod tests {
                 model: None,
                 first_message: None,
                 started_at: None,
+                source_kind: None,
             })
             .unwrap();
         let tid = store
@@ -270,6 +275,7 @@ mod tests {
                 model: Some("sonnet".into()),
                 duration_ms: Some(3_600_000),
                 started_at: Some("2026-01-01".into()),
+                human_authored: true,
             })
             .unwrap();
         store
@@ -301,6 +307,7 @@ mod tests {
                 model: None,
                 first_message: None,
                 started_at: None,
+                source_kind: None,
             })
             .unwrap();
         let tid = store
@@ -312,6 +319,7 @@ mod tests {
                 model: None,
                 duration_ms: None,
                 started_at: None,
+                human_authored: true,
             })
             .unwrap();
         store
@@ -431,6 +439,7 @@ mod tests {
                 model: Some("claude-haiku-test".into()),
                 first_message: None,
                 started_at: Some("2026-01-01T00:00:00".into()),
+                source_kind: None,
             })
             .unwrap();
         store
@@ -445,6 +454,7 @@ mod tests {
                 model: Some("claude-haiku-test".into()),
                 duration_ms: None,
                 started_at: Some("2026-01-01T00:00:00".into()),
+                human_authored: true,
             })
             .unwrap();
         store
@@ -473,7 +483,9 @@ mod tests {
 
     // Seed a session with turns/tokens/tool_calls for the four aggregations.
     fn seed_for_aggregations(store: &SqliteAnalyticsStore) -> i64 {
-        let pid = store.upsert_project("-t-proj", "tproj", Some("/t/proj")).unwrap();
+        let pid = store
+            .upsert_project("-t-proj", "tproj", Some("/t/proj"))
+            .unwrap();
         let sid = store
             .upsert_session(&NewSession {
                 session_uuid: "agg-1".into(),
@@ -483,41 +495,69 @@ mod tests {
                 model: Some("claude-sonnet-4-6".into()),
                 first_message: Some("hi".into()),
                 started_at: Some("2026-01-01T00:00:00".into()),
+                source_kind: None,
             })
             .unwrap();
-        store.update_session_completion(sid, "2026-01-01T01:00:00", 2, 0.50, 3_600_000).unwrap();
+        store
+            .update_session_completion(sid, "2026-01-01T01:00:00", 2, 0.50, 3_600_000)
+            .unwrap();
         let t1 = store
             .insert_turn(&NewTurn {
-                session_id: sid, turn_number: 1, prompt_text: None, response_text: None,
-                model: Some("claude-sonnet-4-6".into()), duration_ms: Some(1000), started_at: None,
+                session_id: sid,
+                turn_number: 1,
+                prompt_text: None,
+                response_text: None,
+                model: Some("claude-sonnet-4-6".into()),
+                duration_ms: Some(1000),
+                started_at: None,
+                human_authored: true,
             })
             .unwrap();
         let t2 = store
             .insert_turn(&NewTurn {
-                session_id: sid, turn_number: 2, prompt_text: None, response_text: None,
-                model: Some("claude-sonnet-4-6".into()), duration_ms: Some(2000), started_at: None,
+                session_id: sid,
+                turn_number: 2,
+                prompt_text: None,
+                response_text: None,
+                model: Some("claude-sonnet-4-6".into()),
+                duration_ms: Some(2000),
+                started_at: None,
+                human_authored: true,
             })
             .unwrap();
         for turn_id in [t1, t2] {
             store
                 .insert_token_usage(&NewTokenUsage {
-                    turn_id, model: "claude-sonnet-4-6".into(),
-                    input_tokens: 1000, output_tokens: 500,
-                    cache_creation_input_tokens: 0, cache_read_input_tokens: 500,
+                    turn_id,
+                    model: "claude-sonnet-4-6".into(),
+                    input_tokens: 1000,
+                    output_tokens: 500,
+                    cache_creation_input_tokens: 0,
+                    cache_read_input_tokens: 500,
                     estimated_cost_usd: 0.25,
                 })
                 .unwrap();
         }
         store
             .insert_tool_call(&NewToolCall {
-                turn_id: t1, tool_use_id: "tu1".into(), tool_name: "Read".into(),
-                input_summary: None, is_error: false, result_summary: None, duration_ms: None,
+                turn_id: t1,
+                tool_use_id: "tu1".into(),
+                tool_name: "Read".into(),
+                input_summary: None,
+                is_error: false,
+                result_summary: None,
+                duration_ms: None,
             })
             .unwrap();
         store
             .insert_tool_call(&NewToolCall {
-                turn_id: t1, tool_use_id: "tu2".into(), tool_name: "Edit".into(),
-                input_summary: None, is_error: true, result_summary: None, duration_ms: None,
+                turn_id: t1,
+                tool_use_id: "tu2".into(),
+                tool_name: "Edit".into(),
+                input_summary: None,
+                is_error: true,
+                result_summary: None,
+                duration_ms: None,
             })
             .unwrap();
         sid
@@ -545,11 +585,20 @@ mod tests {
         seed_for_aggregations(&store);
         let rows = store.detect_tool_patterns(1).unwrap();
         // one adjacent bigram: Read -> Edit
-        let found = rows.iter().find(|p| p.sequence == vec!["Read".to_string(), "Edit".to_string()]);
-        assert!(found.is_some(), "Read->Edit bigram expected, got {:?}", rows);
+        let found = rows
+            .iter()
+            .find(|p| p.sequence == vec!["Read".to_string(), "Edit".to_string()]);
+        assert!(
+            found.is_some(),
+            "Read->Edit bigram expected, got {:?}",
+            rows
+        );
         let p = found.unwrap();
         assert_eq!(p.frequency, 1);
-        assert!(p.error_rate > 0.0, "Edit had is_error=true -> error_rate > 0");
+        assert!(
+            p.error_rate > 0.0,
+            "Edit had is_error=true -> error_rate > 0"
+        );
         assert!(p.is_anti_pattern, "Read->Edit flagged as anti-pattern");
     }
 
@@ -558,7 +607,10 @@ mod tests {
         let store = test_store();
         seed_for_aggregations(&store);
         let rows = store.compare_model_performance().unwrap();
-        let m = rows.iter().find(|m| m.model == "claude-sonnet-4-6").expect("model row");
+        let m = rows
+            .iter()
+            .find(|m| m.model == "claude-sonnet-4-6")
+            .expect("model row");
         assert_eq!(m.total_sessions, 1);
         assert!((m.avg_input_tokens - 1000.0).abs() < 0.01);
         assert!((m.avg_output_tokens - 500.0).abs() < 0.01);
