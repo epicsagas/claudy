@@ -270,7 +270,10 @@ fn systemd_unit_paths() -> anyhow::Result<(PathBuf, PathBuf)> {
 #[cfg(target_os = "linux")]
 fn generate_service(claudy_bin: &std::path::Path, log_dir: &std::path::Path) -> String {
     let exec = claudy_bin.display();
-    let log_file = log_dir.join("analytics-ingest.log").display();
+    let log_file = log_dir
+        .join("analytics-ingest.log")
+        .to_string_lossy()
+        .to_string();
     format!(
         r#"[Unit]
 Description=Claudy analytics ingestion (hourly)
