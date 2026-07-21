@@ -34,6 +34,8 @@ pub trait AnalyticsStore: Send + Sync {
 
     fn insert_turn(&self, turn: &NewTurn) -> anyhow::Result<Option<i64>>;
     fn get_turns_by_session(&self, session_id: i64) -> anyhow::Result<Vec<TurnRecord>>;
+    /// Number of turns already stored for a session (for incremental resume).
+    fn get_turn_count(&self, session_id: i64) -> anyhow::Result<i64>;
 
     fn insert_token_usage(&self, usage: &NewTokenUsage) -> anyhow::Result<()>;
 

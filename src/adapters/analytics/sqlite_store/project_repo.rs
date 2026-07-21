@@ -136,6 +136,12 @@ impl AnalyticsStore for SqliteAnalyticsStore {
         )
     }
 
+    fn get_turn_count(&self, session_id: i64) -> anyhow::Result<i64> {
+        crate::adapters::analytics::sqlite_store::session_repo::get_turn_count_impl(
+            self, session_id,
+        )
+    }
+
     fn insert_token_usage(
         &self,
         usage: &crate::domain::analytics::NewTokenUsage,
