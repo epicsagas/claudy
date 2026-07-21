@@ -209,13 +209,15 @@ fn ingest_source_dir(
             };
             match jsonl_parser::parse_and_ingest(
                 store,
-                project_id,
-                &file_path,
-                &path_str,
-                full,
                 Some(store),
-                Some(source.label),
-                start_offset,
+                jsonl_parser::IngestFileArgs {
+                    project_id,
+                    file_path: &file_path,
+                    path_str: &path_str,
+                    full,
+                    source_kind: Some(source.label),
+                    start_byte_offset: start_offset,
+                },
             ) {
                 Ok(stats) => {
                     result.files_ingested += 1;
@@ -757,6 +759,163 @@ mod tests {
             store.get_turns_by_session(session.id).unwrap().len(),
             2,
             "no dropped turn, no duplicate"
+        );
+    }
+
+    /// Regression test: `update_session_completion` runs every ingest with only
+    /// *that run's* totals. Before the fix, an incremental resume overwrote the
+    /// session's cumulative `total_cost_usd`/`total_duration_ms` with just the
+    /// appended portion's totals instead of preserving the running total.
+    #[test]
+    fn test_incremental_resume_preserves_session_totals() {
+        use std::io::Write;
+        let tmp = TempDir::new().unwrap();
+        let live = tmp.path().join("projects");
+        let proj_dir = live.join("-proj");
+        std::fs::create_dir_all(&proj_dir).unwrap();
+        let file = proj_dir.join("sess-totals.jsonl");
+
+        // First turn: large token usage so its cost dwarfs the appended turn's,
+        // plus a "result" event recording the session's duration so far. No
+        // cost_usd on the result event, so total_cost_usd comes purely from the
+        // assistant usage estimate (isolating the accumulation being tested).
+        let user1 = r#"{"type":"user","timestamp":"2026-07-21T12:00:00Z","message":{"role":"user","content":"first"}}"#;
+        let assistant1 = r#"{"type":"assistant","timestamp":"2026-07-21T12:00:01Z","message":{"role":"assistant","model":"claude-sonnet-5","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":1000000,"output_tokens":500000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}"#;
+        let result1 = r#"{"type":"result","timestamp":"2026-07-21T12:00:02Z","duration_ms":5000}"#;
+        std::fs::write(&file, format!("{user1}\n{assistant1}\n{result1}\n")).unwrap();
+
+        let db = tmp.path().join("analytics.db");
+        let sources = IngestionSources {
+            sources: vec![IngestionSource {
+                path: live.clone(),
+                label: "live",
+            }],
+            archive_root: None,
+            archive_on_ingest: false,
+        };
+
+        run_ingestion(db.to_str().unwrap(), true, None, &sources).unwrap();
+
+        let store = crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore::open(
+            db.to_str().unwrap(),
+        )
+        .unwrap();
+        store.initialize_schema().unwrap();
+        let session1 = store
+            .get_session_by_uuid("sess-totals")
+            .unwrap()
+            .expect("session");
+        assert_eq!(
+            session1.total_duration_ms, 5000,
+            "first ingest records the result event's duration"
+        );
+        assert!(
+            session1.total_cost_usd > 0.0,
+            "first ingest records a nonzero cost for the large first turn"
+        );
+
+        // Append a second turn WITHOUT a new "result" event — mimicking the
+        // hourly scheduler catching a session mid-stream, between completions.
+        let user2 = r#"{"type":"user","timestamp":"2026-07-21T13:00:00Z","message":{"role":"user","content":"second"}}"#;
+        let assistant2 = r#"{"type":"assistant","timestamp":"2026-07-21T13:00:01Z","message":{"role":"assistant","model":"claude-sonnet-5","content":[{"type":"text","text":"ok2"}],"usage":{"input_tokens":1,"output_tokens":1,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}"#;
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file)
+            .unwrap()
+            .write_all(format!("{user2}\n{assistant2}\n").as_bytes())
+            .unwrap();
+        let mtime_handle = std::fs::File::options().write(true).open(&file).unwrap();
+        mtime_handle
+            .set_times(
+                std::fs::FileTimes::new().set_modified(
+                    std::time::SystemTime::now() + std::time::Duration::from_secs(120),
+                ),
+            )
+            .unwrap();
+
+        run_ingestion(db.to_str().unwrap(), false, None, &sources).unwrap();
+
+        let session2 = store
+            .get_session_by_uuid("sess-totals")
+            .unwrap()
+            .expect("session");
+        assert!(
+            session2.total_cost_usd >= session1.total_cost_usd,
+            "incremental resume must accumulate onto the prior total_cost_usd; \
+             a regression would reset it to just the tiny appended turn's cost, \
+             far below the large first turn's cost"
+        );
+        assert_eq!(
+            session2.total_duration_ms, 5000,
+            "with no new result event in the appended portion, the prior \
+             total_duration_ms must be preserved, not zeroed out"
+        );
+    }
+
+    /// Regression test: if a file shrinks between ingests (truncation/rotation),
+    /// the persisted checkpoint offset must clamp to the new file length rather
+    /// than stay stuck at the old (now out-of-range) offset — otherwise a later
+    /// grow-back would resume too far in and silently skip the gap.
+    #[test]
+    fn test_shrunk_file_offset_clamped_not_stuck() {
+        let tmp = TempDir::new().unwrap();
+        let live = tmp.path().join("projects");
+        std::fs::create_dir_all(&live).unwrap();
+
+        let file = write_session_jsonl(&live, "-proj", "sess-shrink");
+        let db = tmp.path().join("analytics.db");
+        let sources = IngestionSources {
+            sources: vec![IngestionSource {
+                path: live.clone(),
+                label: "live",
+            }],
+            archive_root: None,
+            archive_on_ingest: false,
+        };
+
+        run_ingestion(db.to_str().unwrap(), true, None, &sources).unwrap();
+
+        let store = crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore::open(
+            db.to_str().unwrap(),
+        )
+        .unwrap();
+        store.initialize_schema().unwrap();
+        let path_str = file.to_string_lossy().to_string();
+        let original_len = file.metadata().unwrap().len() as i64;
+        assert_eq!(
+            store
+                .get_checkpoint(&path_str)
+                .unwrap()
+                .expect("checkpoint")
+                .byte_offset,
+            original_len
+        );
+
+        // Shrink the file (simulating truncation/rotation) and bump mtime so
+        // the scheduler re-parses it.
+        let user1 = r#"{"type":"user","timestamp":"2026-07-21T12:00:00Z","message":{"role":"user","content":"hello"}}"#;
+        std::fs::write(&file, format!("{user1}\n")).unwrap();
+        let shrunk_len = file.metadata().unwrap().len() as i64;
+        assert!(shrunk_len < original_len, "test file must actually shrink");
+        let mtime_handle = std::fs::File::options().write(true).open(&file).unwrap();
+        mtime_handle
+            .set_times(
+                std::fs::FileTimes::new().set_modified(
+                    std::time::SystemTime::now() + std::time::Duration::from_secs(120),
+                ),
+            )
+            .unwrap();
+
+        run_ingestion(db.to_str().unwrap(), false, None, &sources).unwrap();
+
+        let cp = store
+            .get_checkpoint(&path_str)
+            .unwrap()
+            .expect("checkpoint");
+        assert_eq!(
+            cp.byte_offset, shrunk_len,
+            "byte_offset must clamp to the shrunk file's length, not stay stuck \
+             at the old (now out-of-range) offset"
         );
     }
 }

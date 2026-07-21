@@ -43,20 +43,31 @@ pub struct IngestionStats {
     pub byte_offset: i64,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "inputs are independent; collapse into a ParseContext struct if a 9th is added (tracked by #53)"
-)]
+/// Per-file inputs to [`parse_and_ingest`], grouped to keep the function's
+/// argument count under clippy's threshold now that R1 added `start_byte_offset`.
+pub struct IngestFileArgs<'a> {
+    pub project_id: i64,
+    pub file_path: &'a Path,
+    pub path_str: &'a str,
+    pub full: bool,
+    pub source_kind: Option<&'a str>,
+    pub start_byte_offset: i64,
+}
+
 pub fn parse_and_ingest(
     store: &dyn AnalyticsStore,
-    project_id: i64,
-    file_path: &Path,
-    path_str: &str,
-    full: bool,
     pricing_store: Option<&dyn PricingStore>,
-    source_kind: Option<&str>,
-    start_byte_offset: i64,
+    args: IngestFileArgs<'_>,
 ) -> anyhow::Result<IngestionStats> {
+    let IngestFileArgs {
+        project_id,
+        file_path,
+        path_str,
+        full,
+        source_kind,
+        start_byte_offset,
+    } = args;
+
     // R1: resume from the last committed byte offset. Clamp to file length so a
     // file that shrank since the last ingest re-parses from a safe point.
     let mut file = std::fs::File::open(file_path)?;
@@ -76,9 +87,12 @@ pub fn parse_and_ingest(
         turns_created: 0,
         token_records_created: 0,
         tool_calls_created: 0,
-        // Default to the resume point; only fully-read, newline-terminated
-        // lines advance it (R3). On a clean EOF it reaches end-of-file.
-        byte_offset: start_byte_offset.max(0),
+        // Default to the *clamped* resume point, not the raw requested offset:
+        // if the file shrank since the last ingest, persisting the unclamped
+        // offset would leave the checkpoint stuck past EOF forever (a later
+        // grow-back would then resume too far in and skip the gap). Only
+        // fully-read, newline-terminated lines advance it further (R3).
+        byte_offset: start as i64,
     };
 
     let mut turn_number: i32 = 0;
@@ -167,11 +181,22 @@ pub fn parse_and_ingest(
                     })?;
                     session_id = Some(sid);
                     stats.sessions_created += 1;
-                    // Incremental resume: continue numbering after the turns
-                    // already stored for this session so appended turns don't
-                    // collide with turn_number 1 and get gated away (R1/#53).
                     if !full {
+                        // Incremental resume: continue numbering after the turns
+                        // already stored for this session so appended turns don't
+                        // collide with turn_number 1 and get gated away (R1/#53).
                         turn_number = store.get_turn_count(sid)? as i32;
+                        // Seed the running cost/duration totals from the session's
+                        // previously-persisted values. Only this run's appended
+                        // lines are parsed, so without this the end-of-function
+                        // `update_session_completion` call would overwrite the
+                        // session's true totals with just the appended portion.
+                        // A "result" event later in this run (if any) still wins,
+                        // since it assigns the authoritative cumulative value.
+                        if let Some(existing) = store.get_session_by_uuid(&session_uuid)? {
+                            total_cost = existing.total_cost_usd;
+                            total_duration = existing.total_duration_ms;
+                        }
                     }
                 }
 
