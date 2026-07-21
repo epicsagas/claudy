@@ -53,7 +53,8 @@ CREATE TABLE IF NOT EXISTS turns (
     duration_ms     INTEGER,
     started_at      TEXT,
     ingested_at     TEXT    NOT NULL DEFAULT (datetime('now')),
-    human_authored  INTEGER DEFAULT 0
+    human_authored  INTEGER DEFAULT 0,
+    UNIQUE(session_id, turn_number)
 );
 CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id);
 CREATE INDEX IF NOT EXISTS idx_turns_model ON turns(model);
@@ -277,6 +278,7 @@ mod tests {
                 started_at: Some("2026-01-01".into()),
                 human_authored: true,
             })
+            .unwrap()
             .unwrap();
         store
             .insert_token_usage(&NewTokenUsage {
@@ -321,6 +323,7 @@ mod tests {
                 started_at: None,
                 human_authored: true,
             })
+            .unwrap()
             .unwrap();
         store
             .insert_tool_call(&NewToolCall {
@@ -456,6 +459,7 @@ mod tests {
                 started_at: Some("2026-01-01T00:00:00".into()),
                 human_authored: true,
             })
+            .unwrap()
             .unwrap();
         store
             .insert_token_usage(&NewTokenUsage {
@@ -512,6 +516,7 @@ mod tests {
                 started_at: None,
                 human_authored: true,
             })
+            .unwrap()
             .unwrap();
         let t2 = store
             .insert_turn(&NewTurn {
@@ -524,6 +529,7 @@ mod tests {
                 started_at: None,
                 human_authored: true,
             })
+            .unwrap()
             .unwrap();
         for turn_id in [t1, t2] {
             store

@@ -26,6 +26,13 @@ pub struct IngestionSources {
 
 impl IngestionSources {
     pub fn from_config(settings: &crate::config::registry::AnalyticsSettings) -> Self {
+        // The first source is the live source (re-parsed whenever its mtime
+        // advances); later sources are archive fallbacks that only fill gaps.
+        // An empty `sources` list is a misconfiguration — fall back to the
+        // defaults so a live source is never silently absent.
+        if settings.sources.is_empty() {
+            return Self::defaults();
+        }
         let sources = settings
             .sources
             .iter()
@@ -94,7 +101,7 @@ pub fn run_ingestion(
         && let Some(live) = sources.sources.first()
         && let Err(e) = archive_live_source(&live.path, archive_root)
     {
-        eprintln!("[archive] copy failed (ingestion continues): {e}");
+        tracing::warn!(error = %e, "archive copy failed; ingestion continues");
     }
 
     let start = Instant::now();
@@ -122,9 +129,11 @@ pub fn run_ingestion(
         .and_then(|f| f.latest_turn_at)
         .and_then(|ts| ts.get(..10).map(|s| s.to_string()))
         .unwrap_or_else(|| "unknown".to_string());
-    eprintln!(
-        "[ingest] {} turns added across {} files (latest {})",
-        result.turns_created, result.files_ingested, latest,
+    tracing::info!(
+        turns = result.turns_created,
+        files = result.files_ingested,
+        latest = %latest,
+        "ingest run complete",
     );
 
     Ok(result)
@@ -260,7 +269,14 @@ fn walk_jsonl(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
         // and infinite recursion via symlink loops (panic). Audit MEDIUM.
         let meta = match std::fs::symlink_metadata(&path) {
             Ok(m) => m,
-            Err(_) => continue,
+            Err(e) => {
+                tracing::warn!(
+                    path = %path.display(),
+                    error = %e,
+                    "skipping unreadable entry during archive walk"
+                );
+                continue;
+            }
         };
         if meta.is_symlink() {
             continue;
@@ -468,5 +484,78 @@ mod tests {
         );
         assert!(sources.archive_root.is_some());
         assert!(sources.archive_on_ingest);
+    }
+
+    /// Regression: re-ingesting an already-ingested live file — even with
+    /// `full=true`, which bypasses the mtime checkpoint and forces a re-parse of
+    /// the whole file — must NOT duplicate turns, token-usage, or tool-calls.
+    /// Without UNIQUE(session_id, turn_number) + the new-turn gate, this is the
+    /// exact compounding duplication the hourly scheduler would trigger on every
+    /// actively-growing transcript.
+    #[test]
+    fn test_live_reingest_does_not_duplicate() {
+        use std::io::Write;
+        let tmp = TempDir::new().unwrap();
+        let live = tmp.path().join("projects");
+        std::fs::create_dir_all(&live).unwrap();
+
+        let file = write_session_jsonl(&live, "-proj", "sess-live");
+        let db = tmp.path().join("analytics.db");
+        let sources = IngestionSources {
+            sources: vec![IngestionSource {
+                path: live.clone(),
+                label: "live",
+            }],
+            archive_root: None,
+            archive_on_ingest: false,
+        };
+
+        // First ingest: one user turn -> one turn + one token-usage row.
+        let r1 = run_ingestion(db.to_str().unwrap(), true, None, &sources).unwrap();
+        assert_eq!(r1.turns_created, 1);
+        assert!(r1.token_records_created >= 1);
+
+        // Re-ingest with full=true: forces a re-parse of the same file. The
+        // UNIQUE(session_id, turn_number) gate must turn every turn insert into a
+        // no-op, and the parser must skip re-inserting each existing turn's children.
+        let r2 = run_ingestion(db.to_str().unwrap(), true, None, &sources).unwrap();
+        assert_eq!(r2.turns_created, 0, "no duplicate turns on full re-ingest");
+        assert_eq!(
+            r2.token_records_created, 0,
+            "no duplicate token-usage on full re-ingest"
+        );
+
+        let store = crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore::open(
+            db.to_str().unwrap(),
+        )
+        .unwrap();
+        store.initialize_schema().unwrap();
+        let session = store
+            .get_session_by_uuid("sess-live")
+            .unwrap()
+            .expect("session present");
+        assert_eq!(
+            store.get_turns_by_session(session.id).unwrap().len(),
+            1,
+            "exactly one turn persisted, no duplicates"
+        );
+
+        // Append a new user+assistant pair and re-ingest: only the new turn is added.
+        let user = r#"{"type":"user","timestamp":"2026-07-20T11:00:00Z","message":{"role":"user","content":"again"}}"#;
+        let assistant = r#"{"type":"assistant","timestamp":"2026-07-20T11:00:01Z","message":{"role":"assistant","model":"claude-sonnet-5","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":3,"output_tokens":2,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}"#;
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file)
+            .unwrap()
+            .write_all(format!("{user}\n{assistant}\n").as_bytes())
+            .unwrap();
+
+        let r3 = run_ingestion(db.to_str().unwrap(), true, None, &sources).unwrap();
+        assert_eq!(r3.turns_created, 1, "only the appended turn is added");
+        assert_eq!(
+            store.get_turns_by_session(session.id).unwrap().len(),
+            2,
+            "two turns total after append"
+        );
     }
 }

@@ -384,7 +384,7 @@ fn run_insights(
 /// `analytics status` — ingestion freshness / staleness alarm (R3).
 /// Wording stays claudy-local ("sessions recorded"); no downstream terms.
 fn run_status(ctx: &mut Context, stale_days: i64, json: bool) -> anyhow::Result<i32> {
-    use chrono::{Local, NaiveDate};
+    use chrono::{NaiveDate, Utc};
 
     let db_path = &ctx.paths.analytics_db;
     let store = crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore::open(db_path)?;
@@ -398,7 +398,7 @@ fn run_status(ctx: &mut Context, stale_days: i64, json: bool) -> anyhow::Result<
         .as_deref()
         .and_then(|ts| ts.get(..10))
         .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
-        .map(|latest_date| (Local::now().date_naive() - latest_date).num_days().max(0));
+        .map(|latest_date| (Utc::now().date_naive() - latest_date).num_days().max(0));
 
     // An empty DB is not "stale" — it just has no data yet. Staleness only
     // triggers when data exists but is older than the threshold.

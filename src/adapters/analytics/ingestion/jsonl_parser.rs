@@ -141,7 +141,7 @@ pub fn parse_and_ingest(
                     .map(std::string::ToString::to_string);
                 let sid = session_id
                     .ok_or_else(|| anyhow::anyhow!("session_id not set before turn insertion"))?;
-                let tid = store.insert_turn(&NewTurn {
+                match store.insert_turn(&NewTurn {
                     session_id: sid,
                     turn_number,
                     prompt_text: text.as_ref().map(|t| redact_secrets(t)),
@@ -150,10 +150,21 @@ pub fn parse_and_ingest(
                     duration_ms: None,
                     started_at: ts,
                     human_authored,
-                })?;
-                pending_turn_id = Some(tid);
+                })? {
+                    Some(tid) => {
+                        // New turn — remember its id so the assistant/tool_result
+                        // events that follow attach token-usage and tool-calls to it.
+                        pending_turn_id = Some(tid);
+                        stats.turns_created += 1;
+                    }
+                    None => {
+                        // Already ingested in a prior run (UNIQUE(session_id,
+                        // turn_number) conflict on a re-parsed file). Drop the
+                        // pending id so this turn's children are NOT re-inserted.
+                        pending_turn_id = None;
+                    }
+                }
                 let _ = text; // text already used in insert_turn above
-                stats.turns_created += 1;
             }
             "assistant" => {
                 if let Some(msg) = &event.message {

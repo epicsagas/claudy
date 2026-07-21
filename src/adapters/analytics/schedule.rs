@@ -26,6 +26,19 @@ const SYSTEMD_UNIT: &str = "claudy-analytics-ingest";
 
 pub fn run_schedule(ctx: &mut Context, action: ScheduleAction) -> anyhow::Result<i32> {
     let claudy_bin = std::env::current_exe()?;
+    // A dev build (run via `cargo run`) resolves to target/<profile>/claudy; a
+    // later `cargo clean` or rebuild would silently break the pinned job. Warn
+    // at install time so the operator knows to reinstall from a stable binary.
+    if matches!(action, ScheduleAction::Install)
+        && claudy_bin.to_string_lossy().contains("/target/")
+    {
+        println!(
+            "warning: scheduler is pinned to a dev build under target/ ({}). \
+             Re-run `claudy analytics schedule install` after `cargo install` or a \
+             release upgrade, or the hourly job will fail.",
+            claudy_bin.display()
+        );
+    }
     let log_dir = analytics_log_dir(ctx);
 
     match action {
@@ -270,6 +283,7 @@ fn systemd_unit_paths() -> anyhow::Result<(PathBuf, PathBuf)> {
 #[cfg(target_os = "linux")]
 fn generate_service(claudy_bin: &std::path::Path, log_dir: &std::path::Path) -> String {
     let exec = claudy_bin.display();
+    let env_path = build_service_path();
     let log_file = log_dir
         .join("analytics-ingest.log")
         .to_string_lossy()
@@ -282,6 +296,7 @@ After=network.target
 [Service]
 Type=oneshot
 ExecStart={exec} analytics ingest
+Environment=PATH={env_path}
 StandardOutput=append:{log_file}
 StandardError=append:{log_file}
 "#
@@ -335,7 +350,11 @@ fn unsupported() -> anyhow::Result<i32> {
 /// service path builder so the scheduler can locate the Claude CLI if needed).
 /// macOS-only: the LaunchAgent plist needs an explicit PATH; systemd units
 /// inherit the user environment.
-#[cfg(target_os = "macos")]
+/// Build a PATH string including common binary locations (mirrors the channel
+/// service path builder so the scheduler can locate the Claude CLI if needed).
+/// Unix-only: the LaunchAgent plist and the systemd unit both need an explicit
+/// PATH, and the `:` separator is a Unix convention.
+#[cfg(unix)]
 fn build_service_path() -> String {
     let home = dirs::home_dir()
         .map(|p| p.display().to_string())

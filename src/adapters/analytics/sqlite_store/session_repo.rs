@@ -52,11 +52,10 @@ pub(super) fn ingestion_freshness_impl(
 ) -> anyhow::Result<FreshnessReport> {
     let conn = store.lock()?;
 
-    let (latest, total): (Option<String>, i64) = conn
-        .query_row("SELECT MAX(started_at), COUNT(*) FROM turns", [], |row| {
+    let (latest, total): (Option<String>, i64) =
+        conn.query_row("SELECT MAX(started_at), COUNT(*) FROM turns", [], |row| {
             Ok((row.get(0)?, row.get(1)?))
-        })
-        .unwrap_or((None, 0));
+        })?;
 
     let mut per_source: Vec<FreshnessSource> = Vec::new();
     // source_kind exists after schema migration v1; tolerate a DB that somehow
@@ -173,16 +172,26 @@ pub(super) fn get_session_by_uuid_impl(
 pub(super) fn insert_turn_impl(
     store: &SqliteAnalyticsStore,
     turn: &NewTurn,
-) -> anyhow::Result<i64> {
+) -> anyhow::Result<Option<i64>> {
     let conn = store.lock()?;
-    conn.execute(
-        "INSERT INTO turns (session_id, turn_number, prompt_text, response_text, model, duration_ms, started_at, human_authored)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        params![turn.session_id, turn.turn_number, turn.prompt_text,
-                turn.response_text, turn.model, turn.duration_ms, turn.started_at,
-                turn.human_authored as i32],
-    )?;
-    Ok(conn.last_insert_rowid())
+    // Idempotent insert keyed on UNIQUE(session_id, turn_number): returns the row
+    // id when this turn is newly inserted, None when it already existed (prior
+    // ingest re-parsed the file). The parser treats None as "skip this turn's
+    // children too", which is what stops the hourly scheduler from duplicating
+    // token-usage and tool-calls on actively-growing transcripts.
+    let tid: Option<i64> = conn
+        .query_row(
+            "INSERT INTO turns (session_id, turn_number, prompt_text, response_text, model, duration_ms, started_at, human_authored)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+             ON CONFLICT(session_id, turn_number) DO NOTHING
+             RETURNING id",
+            params![turn.session_id, turn.turn_number, turn.prompt_text,
+                    turn.response_text, turn.model, turn.duration_ms, turn.started_at,
+                    turn.human_authored as i32],
+            |row| row.get(0),
+        )
+        .optional()?;
+    Ok(tid)
 }
 
 /// Backfill NULL model on a session's turns from the session model (R4).

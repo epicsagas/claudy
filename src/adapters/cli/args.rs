@@ -133,7 +133,7 @@ pub enum ChannelCommands {
     Disable,
 }
 
-#[derive(Subcommand, Debug, Clone)]
+#[derive(Subcommand, Debug)]
 pub enum AnalyticsCommands {
     /// Open the analytics dashboard
     Dashboard,
@@ -195,7 +195,7 @@ pub enum AnalyticsCommands {
     },
 }
 
-#[derive(Subcommand, Debug, Clone)]
+#[derive(Subcommand, Debug)]
 pub enum ScheduleSubCommand {
     /// Install the hourly ingestion scheduler
     Install,

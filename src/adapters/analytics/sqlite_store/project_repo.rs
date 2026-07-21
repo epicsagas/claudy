@@ -123,7 +123,7 @@ impl AnalyticsStore for SqliteAnalyticsStore {
         crate::adapters::analytics::sqlite_store::session_repo::get_session_by_uuid_impl(self, uuid)
     }
 
-    fn insert_turn(&self, turn: &crate::domain::analytics::NewTurn) -> anyhow::Result<i64> {
+    fn insert_turn(&self, turn: &crate::domain::analytics::NewTurn) -> anyhow::Result<Option<i64>> {
         crate::adapters::analytics::sqlite_store::session_repo::insert_turn_impl(self, turn)
     }
 

@@ -24,6 +24,39 @@ pub(super) fn apply(conn: &mut Connection) -> anyhow::Result<()> {
         )?;
     }
 
+    if current < 2 {
+        // v2: dedup existing turns and enforce UNIQUE(session_id, turn_number) so
+        // the hourly ingestion scheduler cannot compound-duplicate turns on
+        // actively-growing JSONL files. Token-usage / tool-call rows orphaned by
+        // the turn dedup are removed too. Wrapped in a transaction so a failure
+        // (e.g. the unique index hitting an unexpected dup) rolls back cleanly.
+        let tx = conn.transaction()?;
+        tx.execute(
+            "DELETE FROM turns WHERE id NOT IN (
+                SELECT MIN(id) FROM turns GROUP BY session_id, turn_number
+             )",
+            [],
+        )?;
+        tx.execute(
+            "DELETE FROM token_usage WHERE turn_id NOT IN (SELECT id FROM turns)",
+            [],
+        )?;
+        tx.execute(
+            "DELETE FROM tool_calls WHERE turn_id NOT IN (SELECT id FROM turns)",
+            [],
+        )?;
+        tx.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_turns_session_turn
+             ON turns(session_id, turn_number)",
+            [],
+        )?;
+        tx.execute(
+            "INSERT OR REPLACE INTO migration_version (version) VALUES (2)",
+            [],
+        )?;
+        tx.commit()?;
+    }
+
     Ok(())
 }
 

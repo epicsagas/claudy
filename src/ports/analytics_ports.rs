@@ -32,7 +32,7 @@ pub trait AnalyticsStore: Send + Sync {
     ) -> anyhow::Result<Vec<SessionRecord>>;
     fn get_session_by_uuid(&self, uuid: &str) -> anyhow::Result<Option<SessionRecord>>;
 
-    fn insert_turn(&self, turn: &NewTurn) -> anyhow::Result<i64>;
+    fn insert_turn(&self, turn: &NewTurn) -> anyhow::Result<Option<i64>>;
     fn get_turns_by_session(&self, session_id: i64) -> anyhow::Result<Vec<TurnRecord>>;
 
     fn insert_token_usage(&self, usage: &NewTokenUsage) -> anyhow::Result<()>;
