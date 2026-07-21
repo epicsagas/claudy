@@ -179,6 +179,30 @@ pub enum AnalyticsCommands {
     },
     /// Recalculate all costs using the latest pricing data
     Recalculate,
+    /// Report ingestion freshness; exit non-zero if data is stale
+    Status {
+        /// Flag stale and exit non-zero past this many days (0 disables)
+        #[arg(long, default_value = "2")]
+        stale_days: i64,
+        /// Machine-readable output
+        #[arg(long)]
+        json: bool,
+    },
+    /// Manage the scheduled ingestion job (install/uninstall/status)
+    Schedule {
+        #[command(subcommand)]
+        action: ScheduleSubCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ScheduleSubCommand {
+    /// Install the hourly ingestion scheduler
+    Install,
+    /// Remove the ingestion scheduler
+    Uninstall,
+    /// Show whether the ingestion scheduler is installed/loaded
+    Status,
 }
 
 #[derive(Subcommand, Debug)]

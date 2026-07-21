@@ -32,8 +32,10 @@ pub trait AnalyticsStore: Send + Sync {
     ) -> anyhow::Result<Vec<SessionRecord>>;
     fn get_session_by_uuid(&self, uuid: &str) -> anyhow::Result<Option<SessionRecord>>;
 
-    fn insert_turn(&self, turn: &NewTurn) -> anyhow::Result<i64>;
+    fn insert_turn(&self, turn: &NewTurn) -> anyhow::Result<Option<i64>>;
     fn get_turns_by_session(&self, session_id: i64) -> anyhow::Result<Vec<TurnRecord>>;
+    /// Number of turns already stored for a session (for incremental resume).
+    fn get_turn_count(&self, session_id: i64) -> anyhow::Result<i64>;
 
     fn insert_token_usage(&self, usage: &NewTokenUsage) -> anyhow::Result<()>;
 
@@ -88,6 +90,12 @@ pub trait AnalyticsStore: Send + Sync {
     fn aggregate_session_comparisons(&self, limit: u32) -> anyhow::Result<Vec<SessionComparison>>;
 
     fn recalculate_costs(&self) -> anyhow::Result<u64>;
+
+    /// Latest turn start and per-source last-seen, for freshness reporting.
+    fn ingestion_freshness(&self) -> anyhow::Result<FreshnessReport>;
+
+    /// Best-effort backfill of NULL `turns.model` from the session model (R4).
+    fn backfill_null_turn_models(&self, session_id: i64, model: &str) -> anyhow::Result<u64>;
 }
 
 pub trait PricingStore: Send + Sync {

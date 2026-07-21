@@ -204,10 +204,12 @@ pub fn trigger_ingestion(
         let _ = crate::adapters::analytics::pricing::sync::run_pricing_sync(&store, &cache_path);
     }
 
+    let sources = crate::adapters::analytics::ingestion::IngestionSources::defaults();
     let result = crate::adapters::analytics::ingestion::run_ingestion(
         &state.db_path,
         full.unwrap_or(false),
         None,
+        &sources,
     )
     .map_err(|e| e.to_string())?;
 
