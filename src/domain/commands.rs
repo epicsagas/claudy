@@ -75,6 +75,22 @@ pub enum AnalyticsAction {
         project: Option<String>,
     },
     Recalculate,
+    /// Report ingestion freshness; non-zero exit if data is stale (R3).
+    Status {
+        stale_days: i64,
+        json: bool,
+    },
+    /// Manage the OS scheduler for `analytics ingest` (R1).
+    Schedule {
+        action: ScheduleAction,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum ScheduleAction {
+    Install,
+    Uninstall,
+    Status,
 }
 
 #[derive(Debug, Clone)]
