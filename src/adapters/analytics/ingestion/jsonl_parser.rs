@@ -1,6 +1,6 @@
 use crate::domain::analytics::{JsonlEvent, NewSession, NewTokenUsage, NewToolCall, NewTurn};
 use crate::ports::analytics_ports::{AnalyticsStore, PricingStore};
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::path::Path;
 
 fn truncate_str(s: &str, max: usize) -> String {
@@ -37,30 +37,48 @@ pub struct IngestionStats {
     pub turns_created: u32,
     pub token_records_created: u32,
     pub tool_calls_created: u32,
+    /// Byte offset to resume from on the next ingest of this file (R1/R3).
+    /// Only fully-read, newline-terminated lines advance it; a trailing partial
+    /// line is left for the next run to re-read.
+    pub byte_offset: i64,
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "inputs are independent; collapse into a ParseContext struct if a 9th is added (tracked by #53)"
+)]
 pub fn parse_and_ingest(
     store: &dyn AnalyticsStore,
     project_id: i64,
     file_path: &Path,
     path_str: &str,
-    _full: bool,
+    full: bool,
     pricing_store: Option<&dyn PricingStore>,
     source_kind: Option<&str>,
+    start_byte_offset: i64,
 ) -> anyhow::Result<IngestionStats> {
-    let file = std::fs::File::open(file_path)?;
-    let reader = BufReader::new(file);
+    // R1: resume from the last committed byte offset. Clamp to file length so a
+    // file that shrank since the last ingest re-parses from a safe point.
+    let mut file = std::fs::File::open(file_path)?;
+    let file_len = file.metadata()?.len() as i64;
+    let start = start_byte_offset.clamp(0, file_len) as u64;
+    file.seek(SeekFrom::Start(start))?;
+    let mut reader = BufReader::new(&mut file);
 
     let session_uuid = file_path
         .file_stem()
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or_default();
 
+    let mut cursor: u64 = start;
     let mut stats = IngestionStats {
         sessions_created: 0,
         turns_created: 0,
         token_records_created: 0,
         tool_calls_created: 0,
+        // Default to the resume point; only fully-read, newline-terminated
+        // lines advance it (R3). On a clean EOF it reaches end-of-file.
+        byte_offset: start_byte_offset.max(0),
     };
 
     let mut turn_number: i32 = 0;
@@ -74,16 +92,37 @@ pub fn parse_and_ingest(
     let mut first_timestamp: Option<String> = None;
     let mut pending_turn_id: Option<i64> = None;
 
-    for line in reader.lines() {
-        let line = line?;
+    let mut buf = Vec::new();
+    loop {
+        buf.clear();
+        let n = reader.read_until(b'\n', &mut buf)?;
+        if n == 0 {
+            break;
+        }
+        let ended_with_newline = buf.last() == Some(&b'\n');
+        if !ended_with_newline {
+            // Partial trailing line (a flush in progress): do NOT process it
+            // this run. Leave byte_offset at the start of this line so the
+            // next run re-reads it whole (R3) — never silently drop a line.
+            break;
+        }
+        let line = String::from_utf8_lossy(&buf).into_owned();
         let trimmed = line.trim();
         if trimmed.is_empty() {
+            cursor += n as u64;
+            stats.byte_offset = cursor as i64;
             continue;
         }
 
         let event: JsonlEvent = match serde_json::from_str(trimmed) {
             Ok(e) => e,
-            Err(_) => continue,
+            Err(_) => {
+                // Malformed JSON on a full line: skip it but advance so we
+                // don't re-parse it forever.
+                cursor += n as u64;
+                stats.byte_offset = cursor as i64;
+                continue;
+            }
         };
 
         match event.event_type.as_str() {
@@ -128,6 +167,12 @@ pub fn parse_and_ingest(
                     })?;
                     session_id = Some(sid);
                     stats.sessions_created += 1;
+                    // Incremental resume: continue numbering after the turns
+                    // already stored for this session so appended turns don't
+                    // collide with turn_number 1 and get gated away (R1/#53).
+                    if !full {
+                        turn_number = store.get_turn_count(sid)? as i32;
+                    }
                 }
 
                 if first_message.is_none() && text.is_some() {
@@ -325,6 +370,9 @@ pub fn parse_and_ingest(
                 first_timestamp = event.timestamp.clone();
             }
         }
+
+        cursor += n as u64;
+        stats.byte_offset = cursor as i64;
     }
 
     // Update session completion

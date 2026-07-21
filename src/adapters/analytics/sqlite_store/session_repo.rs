@@ -206,6 +206,19 @@ pub(super) fn backfill_null_turn_models_impl(
     )? as u64)
 }
 
+/// Count turns already stored for a session — used to keep numbering contiguous
+/// across incremental resumes (R1 of #53).
+pub(super) fn get_turn_count_impl(
+    store: &SqliteAnalyticsStore,
+    session_id: i64,
+) -> anyhow::Result<i64> {
+    Ok(store.lock()?.query_row(
+        "SELECT COUNT(*) FROM turns WHERE session_id = ?1",
+        params![session_id],
+        |row| row.get(0),
+    )?)
+}
+
 pub(super) fn get_turns_by_session_impl(
     store: &SqliteAnalyticsStore,
     session_id: i64,

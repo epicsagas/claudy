@@ -195,6 +195,18 @@ fn ingest_source_dir(
                 continue;
             }
 
+            // R1: resume from the last committed byte offset. A `full` re-ingest
+            // deliberately starts from 0 to re-evaluate the whole file.
+            let start_offset = if full {
+                0
+            } else {
+                store
+                    .get_checkpoint(&path_str)
+                    .ok()
+                    .flatten()
+                    .map(|c| c.byte_offset)
+                    .unwrap_or(0)
+            };
             match jsonl_parser::parse_and_ingest(
                 store,
                 project_id,
@@ -203,6 +215,7 @@ fn ingest_source_dir(
                 full,
                 Some(store),
                 Some(source.label),
+                start_offset,
             ) {
                 Ok(stats) => {
                     result.files_ingested += 1;
@@ -212,7 +225,7 @@ fn ingest_source_dir(
                     result.tool_calls_created += stats.tool_calls_created;
                     let line_count =
                         stats.turns_created as i64 + stats.token_records_created as i64;
-                    store.upsert_checkpoint(&path_str, &modified, 0, line_count)?;
+                    store.upsert_checkpoint(&path_str, &modified, stats.byte_offset, line_count)?;
                 }
                 Err(e) => {
                     tracing::warn!(path = %path_str, error = %e, "failed to ingest file");
@@ -556,6 +569,194 @@ mod tests {
             store.get_turns_by_session(session.id).unwrap().len(),
             2,
             "two turns total after append"
+        );
+    }
+
+    /// AC1 (#53): a full=false re-ingest of an appended file resumes from the
+    /// committed `byte_offset` and parses only the appended lines, with the
+    /// checkpoint offset advancing to end-of-file.
+    #[test]
+    fn test_incremental_resume_appends_only() {
+        use std::io::Write;
+        let tmp = TempDir::new().unwrap();
+        let live = tmp.path().join("projects");
+        std::fs::create_dir_all(&live).unwrap();
+
+        let file = write_session_jsonl(&live, "-proj", "sess-inc");
+        let db = tmp.path().join("analytics.db");
+        let sources = IngestionSources {
+            sources: vec![IngestionSource {
+                path: live.clone(),
+                label: "live",
+            }],
+            archive_root: None,
+            archive_on_ingest: false,
+        };
+
+        // First ingest (full=true to bypass the mtime skip on a fresh file):
+        // records the session and commits byte_offset = file size.
+        let r1 = run_ingestion(db.to_str().unwrap(), true, None, &sources).unwrap();
+        assert_eq!(r1.turns_created, 1);
+
+        let store = crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore::open(
+            db.to_str().unwrap(),
+        )
+        .unwrap();
+        store.initialize_schema().unwrap();
+        let path_str = file.to_string_lossy().to_string();
+        let cp1 = store
+            .get_checkpoint(&path_str)
+            .unwrap()
+            .expect("checkpoint");
+        assert!(
+            cp1.byte_offset > 0,
+            "byte_offset advanced past first ingest"
+        );
+        let first_offset = cp1.byte_offset;
+        assert_eq!(
+            cp1.byte_offset,
+            file.metadata().unwrap().len() as i64,
+            "first run reaches EOF"
+        );
+
+        // Append a new user+assistant pair.
+        let user = r#"{"type":"user","timestamp":"2026-07-21T12:00:00Z","message":{"role":"user","content":"more"}}"#;
+        let assistant = r#"{"type":"assistant","timestamp":"2026-07-21T12:00:01Z","message":{"role":"assistant","model":"claude-sonnet-5","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":2,"output_tokens":1,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}"#;
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file)
+            .unwrap()
+            .write_all(format!("{user}\n{assistant}\n").as_bytes())
+            .unwrap();
+        // Bump mtime into the future so the checkpoint mtime-skip re-parses
+        // (sub-second appends can otherwise look unchanged).
+        let mtime_handle = std::fs::File::options().write(true).open(&file).unwrap();
+        mtime_handle
+            .set_times(
+                std::fs::FileTimes::new().set_modified(
+                    std::time::SystemTime::now() + std::time::Duration::from_secs(120),
+                ),
+            )
+            .unwrap();
+
+        // Re-ingest with full=false: resumes from first_offset, parses only the
+        // appended pair.
+        let r2 = run_ingestion(db.to_str().unwrap(), false, None, &sources).unwrap();
+        assert_eq!(r2.turns_created, 1, "only the appended turn is parsed");
+        let cp2 = store
+            .get_checkpoint(&path_str)
+            .unwrap()
+            .expect("checkpoint");
+        assert!(
+            cp2.byte_offset > first_offset,
+            "byte_offset advanced past appended lines"
+        );
+        assert_eq!(
+            cp2.byte_offset,
+            file.metadata().unwrap().len() as i64,
+            "offset at EOF after append"
+        );
+
+        let session = store
+            .get_session_by_uuid("sess-inc")
+            .unwrap()
+            .expect("session");
+        assert_eq!(
+            store.get_turns_by_session(session.id).unwrap().len(),
+            2,
+            "two turns total, no duplicates"
+        );
+    }
+
+    /// AC2 (#53): a trailing line written without a newline (a flush in
+    /// progress) must hold `byte_offset` at the start of that line and re-read
+    /// it on the next run once completed — no dropped turn, no duplicate.
+    #[test]
+    fn test_partial_trailing_line_reread_next_run() {
+        use std::io::Write;
+        let tmp = TempDir::new().unwrap();
+        let live = tmp.path().join("projects");
+        let proj_dir = live.join("-proj");
+        std::fs::create_dir_all(&proj_dir).unwrap();
+        let file = proj_dir.join("sess-partial.jsonl");
+
+        let user1 = r#"{"type":"user","timestamp":"2026-07-21T12:00:00Z","message":{"role":"user","content":"first"}}"#;
+        // A *complete* JSON object written WITHOUT a trailing newline.
+        let user2_partial = r#"{"type":"user","timestamp":"2026-07-21T12:01:00Z","message":{"role":"user","content":"second"}}"#;
+        std::fs::write(&file, format!("{user1}\n{user2_partial}")).unwrap();
+
+        let db = tmp.path().join("analytics.db");
+        let sources = IngestionSources {
+            sources: vec![IngestionSource {
+                path: live.clone(),
+                label: "live",
+            }],
+            archive_root: None,
+            archive_on_ingest: false,
+        };
+
+        let r1 = run_ingestion(db.to_str().unwrap(), true, None, &sources).unwrap();
+        // Only the newline-terminated first user turn is parsed; the partial
+        // trailing line is deferred to the next run (R3).
+        assert_eq!(r1.turns_created, 1);
+
+        let store = crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore::open(
+            db.to_str().unwrap(),
+        )
+        .unwrap();
+        store.initialize_schema().unwrap();
+        let path_str = file.to_string_lossy().to_string();
+        let cp1 = store
+            .get_checkpoint(&path_str)
+            .unwrap()
+            .expect("checkpoint");
+        // Offset is parked at the START of the partial line (not EOF) — R3.
+        let partial_start = (user1.len() + 1) as i64; // user1 + '\n'
+        assert_eq!(
+            cp1.byte_offset, partial_start,
+            "offset held at partial line start, not EOF"
+        );
+
+        // Complete the partial line with a newline, then re-ingest.
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file)
+            .unwrap()
+            .write_all(b"\n")
+            .unwrap();
+        // Bump mtime so the checkpoint mtime-skip re-parses the now-completed line.
+        let mtime_handle = std::fs::File::options().write(true).open(&file).unwrap();
+        mtime_handle
+            .set_times(
+                std::fs::FileTimes::new().set_modified(
+                    std::time::SystemTime::now() + std::time::Duration::from_secs(120),
+                ),
+            )
+            .unwrap();
+        let r2 = run_ingestion(db.to_str().unwrap(), false, None, &sources).unwrap();
+        // The previously-partial line is now complete and parses as a new turn.
+        assert_eq!(
+            r2.turns_created, 1,
+            "completed partial line parsed as a new turn"
+        );
+        let cp2 = store
+            .get_checkpoint(&path_str)
+            .unwrap()
+            .expect("checkpoint");
+        assert_eq!(
+            cp2.byte_offset,
+            file.metadata().unwrap().len() as i64,
+            "offset now at EOF once the line completes"
+        );
+
+        let session = store
+            .get_session_by_uuid("sess-partial")
+            .unwrap()
+            .expect("session");
+        assert_eq!(
+            store.get_turns_by_session(session.id).unwrap().len(),
+            2,
+            "no dropped turn, no duplicate"
         );
     }
 }
