@@ -11,6 +11,9 @@ pub struct NewSession {
     pub model: Option<String>,
     pub first_message: Option<String>,
     pub started_at: Option<String>,
+    /// Neutral source label (e.g. "live", "archive") for R2 archive fallback.
+    /// NULL for pre-R2 rows.
+    pub source_kind: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -22,6 +25,10 @@ pub struct NewTurn {
     pub model: Option<String>,
     pub duration_ms: Option<i64>,
     pub started_at: Option<String>,
+    /// Neutral "author" flag — true when this turn's prompt was a genuine
+    /// human-typed message (not a meta/command injection). Code-authorship-level
+    /// human-vs-AI (which needs git) is deferred to the downstream consumer.
+    pub human_authored: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -339,6 +346,24 @@ pub struct IngestionResult {
     pub token_records_created: u32,
     pub tool_calls_created: u32,
     pub elapsed_ms: u64,
+}
+
+/// Freshness of ingested data, for staleness reporting (`analytics status`).
+/// Domain-neutral: only timestamps + counts + per-source last-seen.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FreshnessReport {
+    /// Latest `turns.started_at` across all turns (RFC3339), or None if no turns.
+    pub latest_turn_at: Option<String>,
+    pub total_turns: i64,
+    /// Per-source last-seen, keyed by the neutral `sessions.source_kind` label.
+    /// Empty before R2 sources are tagged.
+    pub per_source: Vec<FreshnessSource>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FreshnessSource {
+    pub label: String,
+    pub last_seen: Option<String>,
 }
 
 // ── Pricing types ──

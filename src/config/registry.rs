@@ -258,8 +258,51 @@ pub struct AppRegistry {
     pub model_settings: HashMap<String, PerModelOverrides>,
     #[serde(default)]
     pub channel: BridgeSettings,
+    #[serde(default)]
+    pub analytics: AnalyticsSettings,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub agents: HashMap<String, crate::domain::agent::AgentConfig>,
+}
+
+/// Analytics ingestion sources + archive fallback (R2). Domain-neutral.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnalyticsSettings {
+    /// Ordered source directories to scan. Tilde-expanded at read time.
+    /// The first entry is the live source; later entries fill retention gaps.
+    #[serde(default = "default_analytics_sources")]
+    pub sources: Vec<String>,
+    /// Durable second copy of live JSONL, written on ingest when
+    /// `archive_on_ingest` is true.
+    #[serde(default = "default_archive_root")]
+    pub archive_root: String,
+    /// Copy new/grown live JSONL into `archive_root` during ingest.
+    #[serde(default = "default_archive_on_ingest")]
+    pub archive_on_ingest: bool,
+}
+
+fn default_analytics_sources() -> Vec<String> {
+    vec![
+        "~/.claude/projects".to_string(),
+        "~/.claude/projects-archive".to_string(),
+    ]
+}
+
+fn default_archive_root() -> String {
+    "~/.claude/projects-archive".to_string()
+}
+
+fn default_archive_on_ingest() -> bool {
+    true
+}
+
+impl Default for AnalyticsSettings {
+    fn default() -> Self {
+        AnalyticsSettings {
+            sources: default_analytics_sources(),
+            archive_root: default_archive_root(),
+            archive_on_ingest: true,
+        }
+    }
 }
 
 fn default_version() -> i32 {
@@ -276,6 +319,7 @@ impl Default for AppRegistry {
             compaction: ContextWindowPolicy::default(),
             model_settings: HashMap::new(),
             channel: BridgeSettings::default(),
+            analytics: AnalyticsSettings::default(),
             agents: HashMap::new(),
         }
     }
