@@ -142,6 +142,23 @@ pub fn map_cli_to_domain(command: Commands) -> DomainCommand {
             crate::adapters::cli::args::AnalyticsCommands::Recalculate => {
                 DomainCommand::Analytics(AnalyticsAction::Recalculate)
             }
+            crate::adapters::cli::args::AnalyticsCommands::Status { stale_days, json } => {
+                DomainCommand::Analytics(AnalyticsAction::Status { stale_days, json })
+            }
+            crate::adapters::cli::args::AnalyticsCommands::Schedule { action } => {
+                let action = match action {
+                    crate::adapters::cli::args::ScheduleSubCommand::Install => {
+                        crate::domain::commands::ScheduleAction::Install
+                    }
+                    crate::adapters::cli::args::ScheduleSubCommand::Uninstall => {
+                        crate::domain::commands::ScheduleAction::Uninstall
+                    }
+                    crate::adapters::cli::args::ScheduleSubCommand::Status => {
+                        crate::domain::commands::ScheduleAction::Status
+                    }
+                };
+                DomainCommand::Analytics(AnalyticsAction::Schedule { action })
+            }
         },
     }
 }

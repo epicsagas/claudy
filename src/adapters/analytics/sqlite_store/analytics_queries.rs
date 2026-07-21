@@ -531,9 +531,8 @@ pub(super) fn detect_tool_patterns_impl(
 ) -> anyhow::Result<Vec<ToolPattern>> {
     let conn = store.lock()?;
     // Build per-turn ordered tool-name sequences, then count adjacent bigrams.
-    let mut stmt = conn.prepare(
-        "SELECT turn_id, tool_name FROM tool_calls ORDER BY turn_id, id",
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT turn_id, tool_name FROM tool_calls ORDER BY turn_id, id")?;
     let mut cur_turn: Option<i64> = None;
     let mut prev_name: Option<String> = None;
     let mut counts: std::collections::HashMap<(String, String), (i64, i64)> =
@@ -542,11 +541,11 @@ pub(super) fn detect_tool_patterns_impl(
         Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
     })?;
     // error lookup per turn
-    let mut err_stmt = conn.prepare(
-        "SELECT turn_id, SUM(is_error) FROM tool_calls GROUP BY turn_id",
-    )?;
+    let mut err_stmt =
+        conn.prepare("SELECT turn_id, SUM(is_error) FROM tool_calls GROUP BY turn_id")?;
     let mut turn_errors: std::collections::HashMap<i64, i64> = std::collections::HashMap::new();
-    let err_rows = err_stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))?;
+    let err_rows =
+        err_stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))?;
     for r in err_rows {
         let (t, e) = r?;
         turn_errors.insert(t, e);
@@ -575,12 +574,16 @@ pub(super) fn detect_tool_patterns_impl(
             ToolPattern {
                 sequence: vec![a, b],
                 frequency: freq,
-                error_rate: if freq > 0 { errs as f64 / freq as f64 } else { 0.0 },
+                error_rate: if freq > 0 {
+                    errs as f64 / freq as f64
+                } else {
+                    0.0
+                },
                 is_anti_pattern: anti,
             }
         })
         .collect();
-    out.sort_by(|x, y| y.frequency.cmp(&x.frequency));
+    out.sort_by_key(|y| std::cmp::Reverse(y.frequency));
     Ok(out)
 }
 
