@@ -35,12 +35,56 @@ pub(super) fn upsert_session_impl(
         }
     }
     conn.execute(
-        "INSERT INTO sessions (session_uuid, project_id, source_file, cwd, model, first_message, started_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO sessions (session_uuid, project_id, source_file, cwd, model, first_message, started_at, source_kind)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![session.session_uuid, session.project_id, session.source_file,
-                session.cwd, session.model, session.first_message, session.started_at],
+                session.cwd, session.model, session.first_message, session.started_at,
+                session.source_kind],
     )?;
     Ok(conn.last_insert_rowid())
+}
+
+/// Freshness for `analytics status`. Domain-neutral: latest turn timestamp,
+/// total turn count, and per-source last-seen (neutral `source_kind` label).
+/// Empty/NULL values yield None, not errors.
+pub(super) fn ingestion_freshness_impl(
+    store: &SqliteAnalyticsStore,
+) -> anyhow::Result<FreshnessReport> {
+    let conn = store.lock()?;
+
+    let (latest, total): (Option<String>, i64) =
+        conn.query_row("SELECT MAX(started_at), COUNT(*) FROM turns", [], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })?;
+
+    let mut per_source: Vec<FreshnessSource> = Vec::new();
+    // source_kind exists after schema migration v1; tolerate a DB that somehow
+    // lacks it by falling back to no per-source breakdown.
+    let has_source_kind = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='source_kind'")?
+        .query_row([], |row| row.get::<_, i64>(0))?
+        > 0;
+    if has_source_kind {
+        let mut stmt = conn.prepare(
+            "SELECT s.source_kind, MAX(t.started_at)
+             FROM turns t JOIN sessions s ON t.session_id = s.id
+             WHERE s.source_kind IS NOT NULL
+             GROUP BY s.source_kind
+             ORDER BY MAX(t.started_at) DESC",
+        )?;
+        let mut rows = stmt.query([])?;
+        while let Some(row) = rows.next()? {
+            let label: String = row.get(0)?;
+            let last_seen: Option<String> = row.get(1)?;
+            per_source.push(FreshnessSource { label, last_seen });
+        }
+    }
+
+    Ok(FreshnessReport {
+        latest_turn_at: latest.filter(|s| !s.is_empty()),
+        total_turns: total,
+        per_source,
+    })
 }
 
 pub(super) fn update_session_completion_impl(
@@ -128,15 +172,51 @@ pub(super) fn get_session_by_uuid_impl(
 pub(super) fn insert_turn_impl(
     store: &SqliteAnalyticsStore,
     turn: &NewTurn,
-) -> anyhow::Result<i64> {
+) -> anyhow::Result<Option<i64>> {
     let conn = store.lock()?;
-    conn.execute(
-        "INSERT INTO turns (session_id, turn_number, prompt_text, response_text, model, duration_ms, started_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![turn.session_id, turn.turn_number, turn.prompt_text,
-                turn.response_text, turn.model, turn.duration_ms, turn.started_at],
-    )?;
-    Ok(conn.last_insert_rowid())
+    // Idempotent insert keyed on UNIQUE(session_id, turn_number): returns the row
+    // id when this turn is newly inserted, None when it already existed (prior
+    // ingest re-parsed the file). The parser treats None as "skip this turn's
+    // children too", which is what stops the hourly scheduler from duplicating
+    // token-usage and tool-calls on actively-growing transcripts.
+    let tid: Option<i64> = conn
+        .query_row(
+            "INSERT INTO turns (session_id, turn_number, prompt_text, response_text, model, duration_ms, started_at, human_authored)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+             ON CONFLICT(session_id, turn_number) DO NOTHING
+             RETURNING id",
+            params![turn.session_id, turn.turn_number, turn.prompt_text,
+                    turn.response_text, turn.model, turn.duration_ms, turn.started_at,
+                    turn.human_authored as i32],
+            |row| row.get(0),
+        )
+        .optional()?;
+    Ok(tid)
+}
+
+/// Backfill NULL model on a session's turns from the session model (R4).
+pub(super) fn backfill_null_turn_models_impl(
+    store: &SqliteAnalyticsStore,
+    session_id: i64,
+    model: &str,
+) -> anyhow::Result<u64> {
+    Ok(store.lock()?.execute(
+        "UPDATE turns SET model = ?1 WHERE session_id = ?2 AND model IS NULL",
+        params![model, session_id],
+    )? as u64)
+}
+
+/// Count turns already stored for a session — used to keep numbering contiguous
+/// across incremental resumes (R1 of #53).
+pub(super) fn get_turn_count_impl(
+    store: &SqliteAnalyticsStore,
+    session_id: i64,
+) -> anyhow::Result<i64> {
+    Ok(store.lock()?.query_row(
+        "SELECT COUNT(*) FROM turns WHERE session_id = ?1",
+        params![session_id],
+        |row| row.get(0),
+    )?)
 }
 
 pub(super) fn get_turns_by_session_impl(
@@ -333,4 +413,93 @@ pub(super) fn get_recommendations_impl(
         });
     }
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::analytics::{NewSession, NewTurn};
+    use crate::ports::analytics_ports::AnalyticsStore;
+    use chrono::{Local, TimeDelta};
+    use tempfile::NamedTempFile;
+
+    fn fresh_store() -> SqliteAnalyticsStore {
+        let db = NamedTempFile::new().unwrap();
+        let store = SqliteAnalyticsStore::open(db.path().to_str().unwrap()).unwrap();
+        store.initialize_schema().unwrap();
+        store
+    }
+
+    fn seed_turn(store: &SqliteAnalyticsStore, started_at: &str, source_kind: Option<&str>) {
+        let pid = store.upsert_project("proj", "proj", None).unwrap();
+        let sid = store.upsert_session(&NewSession {
+            session_uuid: format!("uuid-{started_at}"),
+            project_id: pid,
+            source_file: "f".into(),
+            cwd: None,
+            model: None,
+            first_message: None,
+            started_at: Some(started_at.into()),
+            source_kind: source_kind.map(String::from),
+        });
+        // upsert_session returns Result; unwrap in test
+        let sid = sid.unwrap();
+        store
+            .insert_turn(&NewTurn {
+                session_id: sid,
+                turn_number: 1,
+                prompt_text: None,
+                response_text: None,
+                model: None,
+                duration_ms: None,
+                started_at: Some(started_at.into()),
+                human_authored: true,
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn test_freshness_empty_db_is_not_stale() {
+        let store = fresh_store();
+        let report = store.ingestion_freshness().unwrap();
+        assert_eq!(report.total_turns, 0);
+        assert!(report.latest_turn_at.is_none());
+        assert!(report.per_source.is_empty());
+    }
+
+    #[test]
+    fn test_freshness_detects_old_turn_for_staleness() {
+        // AC-R3: a DB whose newest turn is ~30 days old must register as stale.
+        let store = fresh_store();
+        let old = (Local::now().date_naive() - TimeDelta::days(30))
+            .format("%Y-%m-%dT12:00:00Z")
+            .to_string();
+        seed_turn(&store, &old, Some("live"));
+
+        let report = store.ingestion_freshness().unwrap();
+        assert_eq!(report.total_turns, 1);
+        let latest = report.latest_turn_at.expect("latest turn present");
+        let latest_date = chrono::NaiveDate::parse_from_str(&latest[..10], "%Y-%m-%d").unwrap();
+        let days = (Local::now().date_naive() - latest_date).num_days();
+        assert!(days >= 29, "expected ~30 days stale, got {days}");
+        // staleness threshold check (mirrors run_status): days > 2 ⇒ stale
+        assert!(days > 2);
+
+        // per-source breakdown carries the neutral source label
+        assert_eq!(report.per_source.len(), 1);
+        assert_eq!(report.per_source[0].label, "live");
+    }
+
+    #[test]
+    fn test_freshness_recent_turn_is_fresh() {
+        let store = fresh_store();
+        let now = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        seed_turn(&store, &now, Some("live"));
+
+        let report = store.ingestion_freshness().unwrap();
+        let latest = report.latest_turn_at.expect("latest turn present");
+        let latest_date = chrono::NaiveDate::parse_from_str(&latest[..10], "%Y-%m-%d").unwrap();
+        let days = (Local::now().date_naive() - latest_date).num_days();
+        assert!(days <= 1, "recent turn must be fresh, got {days} days");
+    }
 }
