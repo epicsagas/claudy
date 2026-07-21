@@ -690,6 +690,13 @@ claudy does not maintain a separate roadmap document; direction is tracked throu
   stream-json `is_error` flag and separated the transient/context-limit budgets;
   follow-ups improve observability of the recovery path.
 
+**Recently shipped (0.5.0)**
+
+- Self-scheduling analytics ingestion (`analytics schedule`), archive fallback, and a freshness check (`analytics status`) — fixes a silent ~7.5-week ingestion freeze (#52)
+- Turn-duplication dedup gate (`UNIQUE(session_id, turn_number)`) and incremental `byte_offset` resume, so the hourly scheduler stops re-parsing whole files (#52, #53)
+- Session-level cost/duration totals preserved across incremental resume (#54)
+- Four previously-stubbed aggregation metrics exposed via the insights path
+
 **Recently shipped (0.4.0)**
 
 - Opt-in shell-environment loading for spawned processes (`CLAUDY_SHELL_ENV`) (#41)

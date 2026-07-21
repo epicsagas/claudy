@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-21
+
+### Added
+
+- **Analytics ingestion reliability** — session ingestion is now self-scheduling, has a durable archive fallback, and exposes a freshness check. This fixes a silent ~7.5-week ingestion freeze (2026-05-28 → 2026-07-20) where the DB stopped advancing while the file mtime stayed current (pricing-sync kept it fresh). (#52)
+  - `claudy analytics schedule {install,uninstall,status}` — periodic ingestion via a macOS LaunchAgent (`com.claudy.analytics.ingest`, `StartInterval`/`RunAtLoad`) or a Linux `--user` systemd timer, modeled on the existing service-install seams but kept a periodic one-shot (not a daemon). Mtime checkpoints make hourly re-runs cheap and idempotent.
+  - `claudy analytics status [--stale-days N] [--json]` — reports the last-recorded session time and per-source last-seen; exits non-zero when data is older than `--stale-days` (an empty DB is not "stale"). This is the alarm that would have caught the freeze on day one.
+  - Archive fallback: `[analytics]` config (`sources`, `archive_root`, `archive_on_ingest`, all defaulted on) mirrors live JSONL into `~/.claude/projects-archive` during ingest (symlink-safe, `0o600`) and ingests archive sources as gap-fillers only, de-duplicated by `session_uuid`. New neutral `source_kind` column on `sessions` tags each row's origin.
+  - `human_authored` flag on `turns` (derived: `!is_meta && !is_command`) and best-effort backfill of turns whose model is NULL from the session model. Code-authorship-level human-vs-AI classification (needs git) is intentionally out of scope for claudy and left to downstream consumers.
+  - Schema migrations: v1 (idempotent `ALTER TABLE`) adds `sessions.source_kind` and `turns.human_authored`; v2 dedupes existing turns and adds `UNIQUE(session_id, turn_number)` (plus a new-turn insert gate), so the hourly scheduler can no longer compound-duplicate turns, token-usage, or tool-calls on an actively-growing file.
+- Four previously-stubbed aggregation metrics implemented and exposed via the insights path. (`de5333f`)
+
+### Fixed
+
+- Incremental re-ingestion no longer re-parses a live session from line 0 on every scheduler run: `parse_and_ingest` now resumes from a persisted `byte_offset`, building on the `UNIQUE(session_id, turn_number)` dedup gate above (#53). Session-level `total_cost_usd` / `total_duration_ms` are now preserved across that incremental resume — previously an appended-only parse reset them to just the appended portion's totals (#54). Regression tests cover gap-fill/dedup, incremental append, partial trailing-line re-read, and shrunk-file offset clamping.
+- Borrow-check and dead-code nits in the Linux schedule-unit generation and the macOS-only `build_service_path`.
+
 ## [0.4.0] - 2026-07-16
 
 ### Added
