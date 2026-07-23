@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-07-23
+
+### Fixed
+
+- **Analytics schema migration no longer aborts with `FOREIGN KEY constraint failed`.** Databases upgraded to the v0.5.0 schema died on every `analytics ingest` / `recalculate` because the v2 migration deleted duplicate `turns` rows *before* the `token_usage`/`tool_calls` children referencing them (`PRAGMA foreign_keys=ON`). Children are now deleted first; turns dedup and `UNIQUE(session_id, turn_number)` then succeed. (#55)
+  - **v3 migration** enforces `tool_calls.tool_use_id` uniqueness via a self-healing check (inspects the live index, not just `migration_version`) plus an idempotent `ON CONFLICT` upsert, so re-parsing a file no longer duplicates tool-call rows or makes `update_tool_call_result` overwrite the wrong turn.
+  - **Gated v3 + cheap self-healing guard** — the full-table dedup pass runs only when `migration_version < 3`; a one-row `sqlite_master` check still repairs a DB whose version row was bumped without the index landing, without re-scanning on every run.
+  - **Ingestion resilience** — a failed `upsert_session` now skips just that file, and a failed `insert_turn` skips just that turn (counted in a new `turns_skipped` field surfaced on the ingest summary), instead of one bad file aborting the whole scan.
+
 ## [0.5.0] - 2026-07-21
 
 ### Added
