@@ -74,10 +74,35 @@ pub(super) fn apply(conn: &mut Connection) -> anyhow::Result<()> {
     if current < 3 {
         // v3: enforce tool_calls.tool_use_id uniqueness via a UNIQUE index + a
         // one-shot dedup pass. Gated on `current < 3` like every other step so we
-        // don't re-run the full-table dedup scan on every initialize_schema.
+        // don't run the full-table dedup scan on every initialize_schema.
         enforce_tool_use_id_unique(conn)?;
         conn.execute(
             "INSERT OR REPLACE INTO migration_version (version) VALUES (3)",
+            [],
+        )?;
+    }
+
+    if current < 4 {
+        // v4: q_sessions — quality-outcome table written during ingestion
+        // (commit/revert counts, tool-failure counts). CREATE TABLE IF NOT EXISTS
+        // is harmless on fresh DBs that already got it from the base SCHEMA.
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS q_sessions (
+                session_uuid TEXT PRIMARY KEY,
+                repo TEXT NOT NULL,
+                started_at TEXT,
+                ended_at TEXT,
+                n_tool_calls INTEGER DEFAULT 0,
+                n_tool_fail INTEGER DEFAULT 0,
+                commits_made INTEGER DEFAULT 0,
+                reverts_made INTEGER DEFAULT 0,
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            "#,
+        )?;
+        conn.execute(
+            "INSERT OR REPLACE INTO migration_version (version) VALUES (4)",
             [],
         )?;
     }
@@ -299,6 +324,17 @@ mod tests {
                 ingested_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_tool_calls_use_id ON tool_calls(tool_use_id);
+            CREATE TABLE IF NOT EXISTS q_sessions (
+                session_uuid TEXT PRIMARY KEY,
+                repo TEXT NOT NULL,
+                started_at TEXT,
+                ended_at TEXT,
+                n_tool_calls INTEGER DEFAULT 0,
+                n_tool_fail INTEGER DEFAULT 0,
+                commits_made INTEGER DEFAULT 0,
+                reverts_made INTEGER DEFAULT 0,
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
             INSERT INTO projects (encoded_dir, display_name) VALUES ('p','p');
             INSERT INTO sessions (session_uuid, project_id, source_file) VALUES ('u', 1, '/x');
             INSERT INTO turns (session_id, turn_number) VALUES (1, 1);

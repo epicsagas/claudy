@@ -53,6 +53,25 @@ pub struct NewToolCall {
     pub duration_ms: Option<i64>,
 }
 
+/// Quality (Q) outcome row for a session, written into `q_sessions`.
+///
+/// `repo` is the canonical studied-repo name reverse-mapped from the session
+/// cwd (see `repo_from_cwd` in `jsonl_parser`); a session outside the studied
+/// set carries an empty `repo` and is not stored. The counts are the verified
+/// outcomes Paper 2 §9.1 anchors Q to: commit/revert (downstream acceptance)
+/// and tool failures (verified failure). Tokens are NOT here — they are W.
+#[derive(Debug, Clone)]
+pub struct NewQSession {
+    pub session_uuid: String,
+    pub repo: String,
+    pub started_at: Option<String>,
+    pub ended_at: Option<String>,
+    pub n_tool_calls: i64,
+    pub n_tool_fail: i64,
+    pub commits_made: i64,
+    pub reverts_made: i64,
+}
+
 // ── Domain types for analytics ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

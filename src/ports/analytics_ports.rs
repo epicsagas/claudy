@@ -48,6 +48,11 @@ pub trait AnalyticsStore: Send + Sync {
     ) -> anyhow::Result<()>;
     fn get_tool_calls_by_turn(&self, turn_id: i64) -> anyhow::Result<Vec<ToolCallRecord>>;
 
+    /// Upsert a quality-outcome row for a session into `q_sessions`.
+    /// Called once at the end of ingesting a session file; a re-ingest overwrites
+    /// the counts from the authoritative full-file re-parse.
+    fn upsert_q_session(&self, q: &NewQSession) -> anyhow::Result<()>;
+
     fn insert_channel_metric(&self, record: &ChannelMetricRecord) -> anyhow::Result<()>;
 
     fn get_checkpoint(&self, file_path: &str) -> anyhow::Result<Option<IngestionCheckpoint>>;

@@ -1,7 +1,53 @@
-use crate::domain::analytics::{JsonlEvent, NewSession, NewTokenUsage, NewToolCall, NewTurn};
+use crate::domain::analytics::{
+    JsonlEvent, NewQSession, NewSession, NewTokenUsage, NewToolCall, NewTurn,
+};
 use crate::ports::analytics_ports::{AnalyticsStore, PricingStore};
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::path::Path;
+
+/// Map a session cwd to a canonical studied-repo name, or "" if it is not one
+/// of the repos the research panel tracks. Mirrors the Python pipeline's
+/// CLAUDY_PATH_MAP so a Q row's `repo` matches the W row's `repo` exactly.
+/// The cwd is a real filesystem path (hyphens), but match both it and the
+/// claudy resolved_path form (hyphens expanded to slashes) for safety.
+fn repo_from_cwd(cwd: &str) -> String {
+    // (substring, repo) — most specific first; first hit wins.
+    const MAP: &[(&str, &str)] = &[
+        ("epiccounty/BuildYourOwnHarness", "BuildYourOwnHarness"),
+        ("epiccounty/nomosgram", "korean-law-rag"),
+        ("epiccounty/korean-law-rag", "korean-law-rag"),
+        ("projects/korean/law/rag", "korean-law-rag"),
+        ("epiccounty/korean/law/rag", "korean-law-rag"),
+        ("epiccounty/obsidian-forge", "obsidian-forge"),
+        ("epiccounty/obsidian/forge", "obsidian-forge"),
+        ("epiccounty/llm-transpile", "llm-transpile"),
+        ("epiccounty/llm/transpile", "llm-transpile"),
+        ("epiccounty/epic-harness", "epic-harness"),
+        ("epiccounty/epic/harness", "epic-harness"),
+        ("projects/epic/harness", "epic-harness"),
+        ("epiccounty/GraphIgnite", "GraphIgnite"),
+        ("projects/GraphIgnite", "GraphIgnite"),
+        ("epiccounty/velith-engine", "Velith"),
+        ("epiccounty/Velith", "Velith"),
+        ("epiccounty/velith/engine", "Velith"),
+        ("epiccounty/llm-kernel", "llm-kernel"),
+        ("epiccounty/llm/kernel", "llm-kernel"),
+        ("epiccounty/epics.tech", "epics.tech"),
+        ("epiccounty/epics/tech", "epics.tech"),
+        ("epiccounty/Episteme", "Episteme"),
+        ("epiccounty/plugins", "plugins"),
+        ("epiccounty/alcove", "alcove"),
+        ("projects/alcove", "alcove"),
+        ("epiccounty/claudy", "claudy"),
+        ("projects/claudy", "claudy"),
+    ];
+    for (suffix, repo) in MAP {
+        if cwd.contains(suffix) {
+            return (*repo).to_string();
+        }
+    }
+    String::new()
+}
 
 fn truncate_str(s: &str, max: usize) -> String {
     if s.len() <= max {
@@ -110,6 +156,13 @@ pub fn parse_and_ingest(
     let mut last_timestamp: Option<String> = None;
     let mut first_timestamp: Option<String> = None;
     let mut pending_turn_id: Option<i64> = None;
+
+    // Q outcome counters (Paper 2 §9.1). Counted across the whole file and
+    // upserted once at the end, so a re-ingest's authoritative re-parse wins.
+    let mut q_tool_calls: i64 = 0;
+    let mut q_tool_fail: i64 = 0;
+    let mut q_commits: i64 = 0;
+    let mut q_reverts: i64 = 0;
 
     let mut buf = Vec::new();
     loop {
@@ -359,6 +412,23 @@ pub fn parse_and_ingest(
                                         tracing::warn!(error = %e, tool = %tool_name, "failed to insert tool call");
                                     } else {
                                         stats.tool_calls_created += 1;
+                                        // Q: count Bash tool calls and detect git
+                                        // commit/revert from the input summary.
+                                        if tool_name == "Bash" {
+                                            q_tool_calls += 1;
+                                            if let Some(cmd) = &input_summary {
+                                                if cmd.contains("git commit")
+                                                    || cmd.contains("git merge")
+                                                {
+                                                    q_commits += 1;
+                                                }
+                                                if cmd.contains("git revert")
+                                                    || cmd.contains("git reset --hard")
+                                                {
+                                                    q_reverts += 1;
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -403,10 +473,16 @@ pub fn parse_and_ingest(
                         });
                     if let Some(tuid) = tool_use_id
                         && !tuid.is_empty()
-                        && let Err(e) =
-                            store.update_tool_call_result(tuid, is_error, result_summary.as_deref())
                     {
-                        tracing::warn!(error = %e, tool_use_id = %tuid, "failed to update tool call result");
+                        if let Err(e) =
+                            store.update_tool_call_result(tuid, is_error, result_summary.as_deref())
+                        {
+                            tracing::warn!(error = %e, tool_use_id = %tuid, "failed to update tool call result");
+                        }
+                        // Q: count verified tool failures (Paper 2 §9.1 Q2).
+                        if is_error {
+                            q_tool_fail += 1;
+                        }
                     }
                 }
             }
@@ -417,8 +493,8 @@ pub fn parse_and_ingest(
                 if let Some(dur) = event.duration_ms {
                     total_duration = dur;
                 }
-                if let Some(cwd) = event.cwd {
-                    session_cwd = Some(cwd);
+                if let Some(cwd) = event.cwd.as_ref() {
+                    session_cwd = Some(cwd.clone());
                 }
             }
             _ => {}
@@ -429,6 +505,19 @@ pub fn parse_and_ingest(
             if first_timestamp.is_none() {
                 first_timestamp = event.timestamp.clone();
             }
+        }
+
+        // Capture cwd from ANY event that carries it. Claude Code emits cwd on
+        // several event types (attachment, result, summary, …), not only the
+        // `result` event the match above reads; grabbing it here means a session
+        // whose terminal `result` event is absent (e.g. still open, or a channel
+        // session) still resolves its repo for Q. First non-empty cwd wins.
+        // (Clone, not move: the `result` arm below also reads event.cwd.)
+        if session_cwd.is_none()
+            && let Some(c) = event.cwd.as_ref()
+            && !c.is_empty()
+        {
+            session_cwd = Some(c.clone());
         }
 
         cursor += n as u64;
@@ -451,6 +540,27 @@ pub fn parse_and_ingest(
             && let Err(e) = store.backfill_null_turn_models(sid, model)
         {
             tracing::warn!(error = %e, session_id = %sid, "failed to backfill turn models");
+        }
+
+        // Q: upsert the quality-outcome row for this session. Only stored when
+        // the session cwd maps to a studied repo (upsert_q_session no-ops on
+        // empty repo), so non-study sessions contribute no Q. Best-effort: a
+        // failure here never aborts the (more important) W ingestion.
+        let q_repo = session_cwd.as_deref().map(repo_from_cwd).unwrap_or_default();
+        if !q_repo.is_empty() {
+            let started = first_timestamp.clone();
+            if let Err(e) = store.upsert_q_session(&NewQSession {
+                session_uuid: session_uuid.clone(),
+                repo: q_repo,
+                started_at: started,
+                ended_at: Some(ended.to_string()),
+                n_tool_calls: q_tool_calls,
+                n_tool_fail: q_tool_fail,
+                commits_made: q_commits,
+                reverts_made: q_reverts,
+            }) {
+                tracing::warn!(error = %e, %session_uuid, "failed to upsert q_session");
+            }
         }
     }
 

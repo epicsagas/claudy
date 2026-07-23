@@ -290,6 +290,44 @@ pub(super) fn update_tool_call_result_impl(
     Ok(())
 }
 
+/// Upsert a quality-outcome row. A re-ingest overwrites the counts from the
+/// authoritative full-file re-parse. Empty `repo` rows are not stored (sessions
+/// outside the studied set carry no Q).
+pub(super) fn upsert_q_session_impl(
+    store: &SqliteAnalyticsStore,
+    q: &NewQSession,
+) -> anyhow::Result<()> {
+    if q.repo.is_empty() {
+        return Ok(());
+    }
+    store.lock()?.execute(
+        "INSERT INTO q_sessions
+            (session_uuid, repo, started_at, ended_at,
+             n_tool_calls, n_tool_fail, commits_made, reverts_made, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime('now'))
+         ON CONFLICT(session_uuid) DO UPDATE SET
+            repo=excluded.repo,
+            started_at=excluded.started_at,
+            ended_at=excluded.ended_at,
+            n_tool_calls=excluded.n_tool_calls,
+            n_tool_fail=excluded.n_tool_fail,
+            commits_made=excluded.commits_made,
+            reverts_made=excluded.reverts_made,
+            updated_at=datetime('now')",
+        params![
+            q.session_uuid,
+            q.repo,
+            q.started_at,
+            q.ended_at,
+            q.n_tool_calls,
+            q.n_tool_fail,
+            q.commits_made,
+            q.reverts_made,
+        ],
+    )?;
+    Ok(())
+}
+
 pub(super) fn get_tool_calls_by_turn_impl(
     store: &SqliteAnalyticsStore,
     turn_id: i64,
