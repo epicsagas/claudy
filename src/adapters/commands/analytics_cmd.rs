@@ -100,7 +100,7 @@ fn run_ingest(ctx: &mut Context, full: bool, project: Option<&str>) -> anyhow::R
         crate::adapters::analytics::ingestion::run_ingestion(db_path, full, project, &sources)?;
 
     ctx.output.info(&format!(
-        "Ingestion complete in {}ms: {} files scanned, {} ingested | {} sessions, {} turns, {} token records, {} tool calls",
+        "Ingestion complete in {}ms: {} files scanned, {} ingested | {} sessions, {} turns, {} token records, {} tool calls{}",
         result.elapsed_ms,
         result.files_scanned,
         result.files_ingested,
@@ -108,6 +108,11 @@ fn run_ingest(ctx: &mut Context, full: bool, project: Option<&str>) -> anyhow::R
         result.turns_created,
         result.token_records_created,
         result.tool_calls_created,
+        if result.turns_skipped > 0 {
+            format!(", {} turns skipped", result.turns_skipped)
+        } else {
+            String::new()
+        },
     ));
     Ok(0)
 }

@@ -33,18 +33,23 @@ pub(super) fn apply(conn: &mut Connection) -> anyhow::Result<()> {
         //
         // FK order matters (PRAGMA foreign_keys=ON): children must be deleted
         // BEFORE the turn rows they reference, else the turns DELETE aborts with
-        // FOREIGN KEY constraint failed. Delete orphaned token_usage / tool_calls
-        // referencing the soon-to-be-removed duplicate turns first, then the turns.
+        // FOREIGN KEY constraint failed. The set of duplicate turn ids is
+        // materialized once into a TEMP VIEW so the same subquery isn't repeated
+        // across all three DELETE statements — each child table joins against it
+        // directly instead of re-running the GROUP BY.
         let tx = conn.transaction()?;
-        let dup_turn_ids = "SELECT id FROM turns WHERE id NOT IN (
-            SELECT MIN(id) FROM turns GROUP BY session_id, turn_number
-         )";
+        tx.execute_batch(
+            "CREATE TEMP VIEW IF NOT EXISTS _v2_dup_turn_ids AS
+             SELECT id FROM turns WHERE id NOT IN (
+                SELECT MIN(id) FROM turns GROUP BY session_id, turn_number
+             );",
+        )?;
         tx.execute(
-            &format!("DELETE FROM token_usage WHERE turn_id IN ({dup_turn_ids})"),
+            "DELETE FROM token_usage WHERE turn_id IN (SELECT id FROM _v2_dup_turn_ids)",
             [],
         )?;
         tx.execute(
-            &format!("DELETE FROM tool_calls WHERE turn_id IN ({dup_turn_ids})"),
+            "DELETE FROM tool_calls WHERE turn_id IN (SELECT id FROM _v2_dup_turn_ids)",
             [],
         )?;
         tx.execute(
@@ -53,6 +58,7 @@ pub(super) fn apply(conn: &mut Connection) -> anyhow::Result<()> {
              )",
             [],
         )?;
+        tx.execute_batch("DROP VIEW IF EXISTS _v2_dup_turn_ids;")?;
         tx.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_turns_session_turn
              ON turns(session_id, turn_number)",
@@ -65,32 +71,35 @@ pub(super) fn apply(conn: &mut Connection) -> anyhow::Result<()> {
         tx.commit()?;
     }
 
-    // v3: enforce tool_calls.tool_use_id uniqueness. Self-healing — checks the
-    // *actual* index state, not just the version counter, so a DB that reached
-    // version>=3 without the work landing (e.g. a prior binary bumped the row
-    // but failed mid-migration) is still repaired. Always safe to re-run.
-    enforce_tool_use_id_unique(conn)?;
+    if current < 3 {
+        // v3: enforce tool_calls.tool_use_id uniqueness via a UNIQUE index + a
+        // one-shot dedup pass. Gated on `current < 3` like every other step so we
+        // don't re-run the full-table dedup scan on every initialize_schema.
+        enforce_tool_use_id_unique(conn)?;
+        conn.execute(
+            "INSERT OR REPLACE INTO migration_version (version) VALUES (3)",
+            [],
+        )?;
+    }
+
+    // Self-healing guard: runs on every initialize_schema, but it only reads one
+    // row from sqlite_master (cheap) and no-ops when the index is already UNIQUE.
+    // This repairs the one realistic failure mode the version gate can't catch —
+    // a DB whose migration_version row was bumped to >=3 but whose index never
+    // became UNIQUE (a prior binary set the row and crashed mid-migration, or the
+    // DB was hand-edited). The expensive dedup pass only runs when truly needed.
+    if !tool_use_id_index_is_unique(conn)? {
+        enforce_tool_use_id_unique(conn)?;
+    }
 
     Ok(())
 }
 
-/// Dedup tool_calls by tool_use_id (keeping the earliest id) and ensure the
-/// `idx_tool_calls_use_id` index is UNIQUE. Idempotent and self-healing: it
-/// inspects the live index definition and only acts if dedup is needed or the
-/// index is missing/non-unique. The pre-v3 schema carried a non-unique index,
-/// and `parse_and_ingest` re-inserting the same tool_use_id on a re-parsed file
-/// produced duplicate rows (which also made `update_tool_call_result` overwrite
-/// the wrong turn's result).
-fn enforce_tool_use_id_unique(conn: &mut Connection) -> anyhow::Result<()> {
-    let tx = conn.transaction()?;
-    tx.execute(
-        "DELETE FROM tool_calls WHERE id NOT IN (
-            SELECT MIN(id) FROM tool_calls GROUP BY tool_use_id
-         )",
-        [],
-    )?;
-
-    let index_is_unique: bool = tx
+/// Whether `idx_tool_calls_use_id` exists and is declared UNIQUE. Reads the live
+/// index definition from `sqlite_master` so the answer reflects the actual on-disk
+/// state, not the migration_version counter.
+fn tool_use_id_index_is_unique(conn: &Connection) -> anyhow::Result<bool> {
+    Ok(conn
         .query_row(
             "SELECT sql FROM sqlite_master
              WHERE type='index' AND name='idx_tool_calls_use_id'",
@@ -99,18 +108,25 @@ fn enforce_tool_use_id_unique(conn: &mut Connection) -> anyhow::Result<()> {
         )
         .ok()
         .flatten()
-        .is_some_and(|sql| sql.to_uppercase().contains("UNIQUE"));
+        .is_some_and(|sql| sql.to_uppercase().contains("UNIQUE")))
+}
 
-    if !index_is_unique {
-        tx.execute_batch(
-            "DROP INDEX IF EXISTS idx_tool_calls_use_id;
-             CREATE UNIQUE INDEX idx_tool_calls_use_id ON tool_calls(tool_use_id);",
-        )?;
-    }
-
+/// Dedup tool_calls by tool_use_id (keeping the earliest id) and recreate
+/// `idx_tool_calls_use_id` as UNIQUE. The pre-v3 schema carried a non-unique
+/// index, and `parse_and_ingest` re-inserting the same tool_use_id on a
+/// re-parsed file produced duplicate rows (which also made
+/// `update_tool_call_result` overwrite the wrong turn's result).
+fn enforce_tool_use_id_unique(conn: &mut Connection) -> anyhow::Result<()> {
+    let tx = conn.transaction()?;
     tx.execute(
-        "INSERT OR REPLACE INTO migration_version (version) VALUES (3)",
+        "DELETE FROM tool_calls WHERE id NOT IN (
+            SELECT MIN(id) FROM tool_calls GROUP BY tool_use_id
+         )",
         [],
+    )?;
+    tx.execute_batch(
+        "DROP INDEX IF EXISTS idx_tool_calls_use_id;
+         CREATE UNIQUE INDEX idx_tool_calls_use_id ON tool_calls(tool_use_id);",
     )?;
     tx.commit()?;
     Ok(())
@@ -322,5 +338,80 @@ mod tests {
             [],
         );
         assert!(dup.is_err(), "UNIQUE must be enforced post-migration");
+    }
+
+    /// AC (gate): once migration_version >= 3 on a healthy DB, re-running
+    /// initialize_schema must NOT re-execute the v3 dedup pass — the dedup DELETE
+    /// is gated on `current < 3`, and the self-healing guard no-ops because the
+    /// index is already UNIQUE. Re-running on a populated DB must preserve every
+    /// tool_calls row (the expensive scan must not fire).
+    #[test]
+    fn test_v3_gate_skips_redundant_dedup_on_healthy_db() {
+        use crate::domain::analytics::{NewSession, NewToolCall, NewTurn};
+        let db = NamedTempFile::new().unwrap();
+        let store = SqliteAnalyticsStore::open(db.path().to_str().unwrap()).expect("open");
+        store.initialize_schema().unwrap();
+
+        // Seed distinct tool_calls (each a unique tool_use_id — none should ever
+        // be considered a duplicate).
+        let pid = store.upsert_project("-g", "g", None).expect("project");
+        let sid = store
+            .upsert_session(&NewSession {
+                session_uuid: "uuid-gate".into(),
+                project_id: pid,
+                source_file: "/g.jsonl".into(),
+                cwd: None,
+                model: None,
+                first_message: None,
+                started_at: None,
+                source_kind: None,
+            })
+            .expect("session");
+        let tid = store
+            .insert_turn(&NewTurn {
+                session_id: sid,
+                turn_number: 1,
+                prompt_text: None,
+                response_text: None,
+                model: None,
+                duration_ms: None,
+                started_at: None,
+                human_authored: false,
+            })
+            .expect("turn")
+            .expect("new turn id");
+        for n in 0..5 {
+            store
+                .insert_tool_call(&NewToolCall {
+                    turn_id: tid,
+                    tool_use_id: format!("tu-{n}"),
+                    tool_name: "Read".into(),
+                    input_summary: None,
+                    is_error: false,
+                    result_summary: None,
+                    duration_ms: None,
+                })
+                .unwrap();
+        }
+
+        // Re-run initialize_schema twice — version is already >=3 and the index
+        // is UNIQUE, so the dedup pass must be skipped both times.
+        store.initialize_schema().unwrap();
+        store.initialize_schema().unwrap();
+
+        let conn = store.lock().unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tool_calls", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 5, "gated v3 must not re-run dedup on a healthy DB");
+
+        let version: i64 = conn
+            .query_row(
+                "SELECT COALESCE(MAX(version), 0) FROM migration_version",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(version >= 3);
     }
 }

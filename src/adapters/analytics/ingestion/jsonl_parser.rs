@@ -37,6 +37,10 @@ pub struct IngestionStats {
     pub turns_created: u32,
     pub token_records_created: u32,
     pub tool_calls_created: u32,
+    /// Turns whose insert failed (e.g. a transient FK violation) and were skipped
+    /// so the rest of the file still ingests. Surfaced to the user so silent
+    /// skips aren't hidden behind a green "ingest complete" line.
+    pub turns_skipped: u32,
     /// Byte offset to resume from on the next ingest of this file (R1/R3).
     /// Only fully-read, newline-terminated lines advance it; a trailing partial
     /// line is left for the next run to re-read.
@@ -87,6 +91,7 @@ pub fn parse_and_ingest(
         turns_created: 0,
         token_records_created: 0,
         tool_calls_created: 0,
+        turns_skipped: 0,
         // Default to the *clamped* resume point, not the raw requested offset:
         // if the file shrank since the last ingest, persisting the unclamped
         // offset would leave the checkpoint stuck past EOF forever (a later
@@ -254,6 +259,7 @@ pub fn parse_and_ingest(
                         // insert failure (e.g. a transient FK violation) abort the
                         // whole ingestion run. Following assistant blocks see
                         // pending_turn_id == None and already skip their inserts.
+                        stats.turns_skipped += 1;
                         tracing::warn!(
                             error = %e,
                             %sid,
