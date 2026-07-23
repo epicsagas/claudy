@@ -345,6 +345,9 @@ pub struct IngestionResult {
     pub turns_created: u32,
     pub token_records_created: u32,
     pub tool_calls_created: u32,
+    /// Turns skipped due to a per-turn insert failure (the rest of the file still
+    /// ingested). Surfaced so silent skips aren't hidden behind a success line.
+    pub turns_skipped: u32,
     pub elapsed_ms: u64,
 }
 

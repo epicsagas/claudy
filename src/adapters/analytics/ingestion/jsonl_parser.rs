@@ -37,6 +37,10 @@ pub struct IngestionStats {
     pub turns_created: u32,
     pub token_records_created: u32,
     pub tool_calls_created: u32,
+    /// Turns whose insert failed (e.g. a transient FK violation) and were skipped
+    /// so the rest of the file still ingests. Surfaced to the user so silent
+    /// skips aren't hidden behind a green "ingest complete" line.
+    pub turns_skipped: u32,
     /// Byte offset to resume from on the next ingest of this file (R1/R3).
     /// Only fully-read, newline-terminated lines advance it; a trailing partial
     /// line is left for the next run to re-read.
@@ -87,6 +91,7 @@ pub fn parse_and_ingest(
         turns_created: 0,
         token_records_created: 0,
         tool_calls_created: 0,
+        turns_skipped: 0,
         // Default to the *clamped* resume point, not the raw requested offset:
         // if the file shrank since the last ingest, persisting the unclamped
         // offset would leave the checkpoint stuck past EOF forever (a later
@@ -169,7 +174,7 @@ pub fn parse_and_ingest(
                         .as_deref()
                         .or(first_timestamp.as_deref())
                         .map(std::string::ToString::to_string);
-                    let sid = store.upsert_session(&NewSession {
+                    let sid = match store.upsert_session(&NewSession {
                         session_uuid: session_uuid.clone(),
                         project_id,
                         source_file: path_str.to_string(),
@@ -178,7 +183,22 @@ pub fn parse_and_ingest(
                         first_message: text.as_ref().map(|t| redact_secrets(t)),
                         started_at: ts,
                         source_kind: source_kind.map(|s| s.to_string()),
-                    })?;
+                    }) {
+                        Ok(sid) => sid,
+                        Err(e) => {
+                            // Without a session row every downstream turn/token/tool
+                            // insert would FK-violate. Abort just this file with what
+                            // we have so far; the caller logs the file and continues
+                            // to the next one instead of aborting the whole run.
+                            tracing::warn!(
+                                error = %e,
+                                %session_uuid,
+                                source_file = path_str,
+                                "failed to create session; skipping file",
+                            );
+                            return Ok(stats);
+                        }
+                    };
                     session_id = Some(sid);
                     stats.sessions_created += 1;
                     if !full {
@@ -220,17 +240,32 @@ pub fn parse_and_ingest(
                     duration_ms: None,
                     started_at: ts,
                     human_authored,
-                })? {
-                    Some(tid) => {
+                }) {
+                    Ok(Some(tid)) => {
                         // New turn — remember its id so the assistant/tool_result
                         // events that follow attach token-usage and tool-calls to it.
                         pending_turn_id = Some(tid);
                         stats.turns_created += 1;
                     }
-                    None => {
+                    Ok(None) => {
                         // Already ingested in a prior run (UNIQUE(session_id,
                         // turn_number) conflict on a re-parsed file). Drop the
                         // pending id so this turn's children are NOT re-inserted.
+                        pending_turn_id = None;
+                    }
+                    Err(e) => {
+                        // Skip just this turn's token usage / tool calls and
+                        // continue with the next event, instead of letting a single
+                        // insert failure (e.g. a transient FK violation) abort the
+                        // whole ingestion run. Following assistant blocks see
+                        // pending_turn_id == None and already skip their inserts.
+                        stats.turns_skipped += 1;
+                        tracing::warn!(
+                            error = %e,
+                            %sid,
+                            turn_number,
+                            "failed to insert turn; skipping turn"
+                        );
                         pending_turn_id = None;
                     }
                 }

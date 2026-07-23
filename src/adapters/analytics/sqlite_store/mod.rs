@@ -76,7 +76,7 @@ CREATE INDEX IF NOT EXISTS idx_token_usage_model ON token_usage(model);
 CREATE TABLE IF NOT EXISTS tool_calls (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     turn_id         INTEGER NOT NULL REFERENCES turns(id),
-    tool_use_id     TEXT    NOT NULL,
+    tool_use_id     TEXT    NOT NULL UNIQUE,
     tool_name       TEXT    NOT NULL,
     input_summary   TEXT,
     is_error        INTEGER DEFAULT 0,
@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS tool_calls (
 );
 CREATE INDEX IF NOT EXISTS idx_tool_calls_turn ON tool_calls(turn_id);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_name ON tool_calls(tool_name);
-CREATE INDEX IF NOT EXISTS idx_tool_calls_use_id ON tool_calls(tool_use_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tool_calls_use_id ON tool_calls(tool_use_id);
 
 CREATE TABLE IF NOT EXISTS channel_metrics (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,

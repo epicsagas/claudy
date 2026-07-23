@@ -264,7 +264,13 @@ pub(super) fn insert_tool_call_impl(
 ) -> anyhow::Result<()> {
     store.lock()?.execute(
         "INSERT INTO tool_calls (turn_id, tool_use_id, tool_name, input_summary, is_error, result_summary, duration_ms)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(tool_use_id) DO UPDATE SET
+           turn_id        = excluded.turn_id,
+           tool_name      = excluded.tool_name,
+           input_summary  = COALESCE(excluded.input_summary, tool_calls.input_summary),
+           result_summary = COALESCE(excluded.result_summary, tool_calls.result_summary),
+           duration_ms    = COALESCE(excluded.duration_ms, tool_calls.duration_ms)",
         params![call.turn_id, call.tool_use_id, call.tool_name, call.input_summary,
                 call.is_error as i32, call.result_summary, call.duration_ms],
     )?;

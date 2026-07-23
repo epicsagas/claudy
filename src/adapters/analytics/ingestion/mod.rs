@@ -112,6 +112,7 @@ pub fn run_ingestion(
         turns_created: 0,
         token_records_created: 0,
         tool_calls_created: 0,
+        turns_skipped: 0,
         elapsed_ms: 0,
     };
 
@@ -225,6 +226,7 @@ fn ingest_source_dir(
                     result.turns_created += stats.turns_created;
                     result.token_records_created += stats.token_records_created;
                     result.tool_calls_created += stats.tool_calls_created;
+                    result.turns_skipped += stats.turns_skipped;
                     let line_count =
                         stats.turns_created as i64 + stats.token_records_created as i64;
                     store.upsert_checkpoint(&path_str, &modified, stats.byte_offset, line_count)?;
