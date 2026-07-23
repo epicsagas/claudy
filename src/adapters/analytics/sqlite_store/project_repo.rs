@@ -176,6 +176,16 @@ impl AnalyticsStore for SqliteAnalyticsStore {
         )
     }
 
+    fn upsert_session_outcome(
+        &self,
+        outcomes: &crate::domain::analytics::NewSessionOutcome,
+        mode: crate::domain::analytics::OutcomeWriteMode,
+    ) -> anyhow::Result<()> {
+        crate::adapters::analytics::sqlite_store::session_repo::upsert_session_outcome_impl(
+            self, outcomes, mode,
+        )
+    }
+
     fn insert_channel_metric(
         &self,
         record: &crate::domain::analytics::ChannelMetricRecord,

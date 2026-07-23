@@ -53,7 +53,47 @@ pub struct NewToolCall {
     pub duration_ms: Option<i64>,
 }
 
-// ── Domain types for analytics ──
+/// Session-level outcome counters, written into `session_outcomes`.
+///
+/// These are observed outcomes only — what the session actually did, not how
+/// much it cost. Token and cost figures live in `token_usage`/`sessions` and
+/// are deliberately absent here.
+///
+/// `repo` is the raw session cwd, stored verbatim. claudy does no repo
+/// curation: every session gets a row, and any canonicalization, grouping, or
+/// filtering is left to whatever reads the table.
+#[derive(Debug, Clone)]
+pub struct NewSessionOutcome {
+    pub session_uuid: String,
+    pub repo: String,
+    pub started_at: Option<String>,
+    pub ended_at: Option<String>,
+    /// Every tool invocation observed, whatever the tool. This is the
+    /// denominator the failure count is read against, so it is deliberately
+    /// not restricted to the tools the other counters look at.
+    pub n_tool_calls: i64,
+    /// Tool invocations whose result was reported as an error.
+    pub n_tool_fail: i64,
+    /// Commit-shaped git invocations that were not observed to fail.
+    pub commits_made: i64,
+    /// Revert-shaped git invocations that were not observed to fail.
+    pub reverts_made: i64,
+}
+
+/// How a batch of [`NewSessionOutcome`] counters relates to what is already stored.
+///
+/// A parse that started at byte 0 saw the whole transcript, so its counters
+/// describe the entire session and supersede any stored row. A parse that
+/// resumed from a checkpoint saw only the appended tail, so its counters are a
+/// delta to add on top.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutcomeWriteMode {
+    /// Authoritative whole-session counts: insert, or replace what is stored.
+    Replace,
+    /// Tail-only counts: add to an existing row. Never creates a row, so a
+    /// partial tail can't masquerade as a complete session.
+    Accumulate,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectRecord {

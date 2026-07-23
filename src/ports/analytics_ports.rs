@@ -48,6 +48,17 @@ pub trait AnalyticsStore: Send + Sync {
     ) -> anyhow::Result<()>;
     fn get_tool_calls_by_turn(&self, turn_id: i64) -> anyhow::Result<Vec<ToolCallRecord>>;
 
+    /// Write a session's outcome counters into `session_outcomes`.
+    ///
+    /// Called once at the end of ingesting a session file. `mode` says whether
+    /// the counters describe the whole session ([`OutcomeWriteMode::Replace`]) or only
+    /// the tail a resumed parse read ([`OutcomeWriteMode::Accumulate`]).
+    fn upsert_session_outcome(
+        &self,
+        outcomes: &NewSessionOutcome,
+        mode: OutcomeWriteMode,
+    ) -> anyhow::Result<()>;
+
     fn insert_channel_metric(&self, record: &ChannelMetricRecord) -> anyhow::Result<()>;
 
     fn get_checkpoint(&self, file_path: &str) -> anyhow::Result<Option<IngestionCheckpoint>>;

@@ -1,7 +1,198 @@
-use crate::domain::analytics::{JsonlEvent, NewSession, NewTokenUsage, NewToolCall, NewTurn};
+use crate::domain::analytics::{
+    JsonlEvent, NewSession, NewSessionOutcome, NewTokenUsage, NewToolCall, NewTurn,
+    OutcomeWriteMode,
+};
 use crate::ports::analytics_ports::{AnalyticsStore, PricingStore};
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::path::Path;
+
+/// Commit- and revert-shaped git invocations found in a single Bash command.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct GitActions {
+    commits: i64,
+    reverts: i64,
+}
+
+impl GitActions {
+    fn is_empty(self) -> bool {
+        self.commits == 0 && self.reverts == 0
+    }
+}
+
+/// Classify the git actions in a raw Bash command string.
+///
+/// The command is read as whitespace-separated tokens rather than matched as a
+/// substring, which is what stops neighbouring names from being mistaken for the
+/// action: `commit-tree`, `merge-base`, `merge-file` and `mergetool` are
+/// distinct tokens from `commit` and `merge`, so they never match. Text inside a
+/// quoted commit message is inert for the same reason — the quote stays attached
+/// to the token, so `"git` is not `git`.
+///
+/// Each `git <action>` in the command counts, so a chained
+/// `git commit … && git commit …` contributes two. Whether the shell actually
+/// reached the second one cannot be known from the transcript; this is a
+/// best-effort read of a command string, and a result reported as an error later
+/// withdraws whatever it credited.
+fn classify_git_actions(cmd: &str) -> GitActions {
+    let mut found = GitActions::default();
+    let mut tokens = cmd.split_whitespace().peekable();
+
+    while let Some(tok) = tokens.next() {
+        if tok != "git" {
+            continue;
+        }
+
+        // Skip git's own options so `git -C /path commit` still reads as a
+        // commit. `-C`/`-c`/`--git-dir`/`--work-tree` take a separate argument;
+        // every other option is self-contained (including the `--opt=value`
+        // spellings of those four).
+        let mut sub = None;
+        while let Some(next) = tokens.next() {
+            if matches!(next, "-C" | "-c" | "--git-dir" | "--work-tree") {
+                tokens.next();
+            } else if next.starts_with('-') {
+                continue;
+            } else {
+                sub = Some(next);
+                break;
+            }
+        }
+
+        match sub {
+            Some("commit" | "merge") => found.commits += 1,
+            Some("revert") => found.reverts += 1,
+            // Only a hard reset discards work; a soft or mixed reset just moves
+            // the index. Look ahead no further than this command's own
+            // arguments, so a `--hard` belonging to a later command in the same
+            // chain is not attributed here.
+            Some("reset")
+                if tokens
+                    .clone()
+                    .take_while(|t| !matches!(*t, "&&" | "||" | ";" | "|"))
+                    .any(|t| t == "--hard") =>
+            {
+                found.reverts += 1;
+            }
+            _ => {}
+        }
+    }
+
+    found
+}
+
+/// Session outcome counters accumulated across one parse of one transcript.
+#[derive(Default)]
+struct OutcomeCounters {
+    tool_calls: i64,
+    tool_fail: i64,
+    commits: i64,
+    reverts: i64,
+    /// Git actions already credited, keyed by the `tool_use_id` that produced
+    /// them, so a result reported as an error can withdraw the credit — a
+    /// rejected commit is not a commit. Entries still here at end of file keep
+    /// their credit: an invocation whose result the transcript never recorded is
+    /// far rarer than one that simply succeeded.
+    credited_git: HashMap<String, GitActions>,
+}
+
+impl OutcomeCounters {
+    fn record_tool_use(
+        &mut self,
+        tool_name: &str,
+        tool_id: &str,
+        input: Option<&serde_json::Value>,
+    ) {
+        self.tool_calls += 1;
+
+        // Read the raw `command` string rather than the stored `input_summary`:
+        // that summary is truncated and JSON-escaped, which both hides long
+        // commands and drags in sibling fields such as the tool's `description`.
+        if tool_name != "Bash" {
+            return;
+        }
+        let Some(cmd) = input
+            .and_then(|i| i.get("command"))
+            .and_then(|c| c.as_str())
+        else {
+            return;
+        };
+
+        let actions = classify_git_actions(cmd);
+        if actions.is_empty() {
+            return;
+        }
+        self.commits += actions.commits;
+        self.reverts += actions.reverts;
+        if !tool_id.is_empty() {
+            self.credited_git.insert(tool_id.to_string(), actions);
+        }
+    }
+
+    fn record_tool_result(&mut self, tool_use_id: &str, is_error: bool) {
+        if is_error {
+            self.tool_fail += 1;
+        }
+        if let Some(actions) = self.credited_git.remove(tool_use_id)
+            && is_error
+        {
+            self.commits -= actions.commits;
+            self.reverts -= actions.reverts;
+        }
+    }
+}
+
+/// Apply one tool result to the store and, when `count_outcome`, to the session
+/// counters.
+///
+/// `obj` is whichever object carries the result: a `tool_result` content block
+/// inside a `user` message, or the `message` of a standalone `tool_result`
+/// event. Both spell the fields the same way.
+fn apply_tool_result(
+    store: &dyn AnalyticsStore,
+    obj: &serde_json::Value,
+    outcomes: &mut OutcomeCounters,
+    count_outcome: bool,
+) {
+    let is_error = obj
+        .get("is_error")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let result_summary = obj.get("content").and_then(|c| {
+        c.as_str().map(|s| truncate_str(s, 500)).or_else(|| {
+            c.as_array().map(|arr| {
+                let text: Vec<String> = arr
+                    .iter()
+                    .filter_map(|b| {
+                        b.get("text")
+                            .and_then(|t| t.as_str())
+                            .map(std::string::ToString::to_string)
+                    })
+                    .collect();
+                text.join("\n")
+            })
+        })
+    });
+    let tool_use_id = obj.get("tool_use_id").and_then(|v| v.as_str()).or_else(|| {
+        obj.get("content")
+            .and_then(|c| c.as_array())
+            .and_then(|arr| {
+                arr.iter()
+                    .find_map(|b| b.get("tool_use_id").and_then(|v| v.as_str()))
+            })
+    });
+
+    if let Some(tuid) = tool_use_id
+        && !tuid.is_empty()
+    {
+        if let Err(e) = store.update_tool_call_result(tuid, is_error, result_summary.as_deref()) {
+            tracing::warn!(error = %e, tool_use_id = %tuid, "failed to update tool call result");
+        }
+        if count_outcome {
+            outcomes.record_tool_result(tuid, is_error);
+        }
+    }
+}
 
 fn truncate_str(s: &str, max: usize) -> String {
     if s.len() <= max {
@@ -111,6 +302,27 @@ pub fn parse_and_ingest(
     let mut first_timestamp: Option<String> = None;
     let mut pending_turn_id: Option<i64> = None;
 
+    // Session outcome counters, written once at the end of the parse.
+    //
+    // `whole_file` distinguishes the two things a parse can be, and decides both
+    // what gets counted and how it is written:
+    //
+    //   - starting at byte 0, everything observed is counted, because the counts
+    //     will replace the stored row and must describe the whole session;
+    //   - resuming from a checkpoint, only activity belonging to a turn this run
+    //     newly inserted is counted, because the counts will be *added* to the
+    //     stored row. Re-reading lines a previous run already ingested is
+    //     possible (a checkpoint can lag), and those lines produce no new turn,
+    //     so gating on that is what keeps the addition from double-counting.
+    //
+    // The cost of that gate is that a resume whose chunk opens midway through a
+    // turn skips that turn's remaining tool calls, since no new turn is created
+    // for them. That undercounts by at most one turn per resume and is corrected
+    // by any later full re-ingest — the trade taken deliberately, because the
+    // alternative risks silently inflating counts instead.
+    let whole_file = start == 0;
+    let mut outcomes = OutcomeCounters::default();
+
     let mut buf = Vec::new();
     loop {
         buf.clear();
@@ -144,8 +356,38 @@ pub fn parse_and_ingest(
             }
         };
 
+        // The line is fully read, so commit its offset now rather than at the
+        // bottom of the loop. That is what makes the early `continue`s below
+        // safe: an event the parser chooses to skip must still advance the
+        // checkpoint, or the next run resumes short and re-reads lines it has
+        // already ingested.
+        cursor += n as u64;
+        stats.byte_offset = cursor as i64;
+
         match event.event_type.as_str() {
             "user" => {
+                // Tool results arrive as `tool_result` blocks inside the user
+                // message. They are handled before the guards below because such
+                // an event carries no user text of its own and would otherwise be
+                // skipped whole — which is why no tool result was ever recorded.
+                if let Some(blocks) = event
+                    .message
+                    .as_ref()
+                    .and_then(|m| m.get("content"))
+                    .and_then(|c| c.as_array())
+                {
+                    for block in blocks {
+                        if block.get("type").is_some_and(|t| t == "tool_result") {
+                            apply_tool_result(
+                                store,
+                                block,
+                                &mut outcomes,
+                                whole_file || pending_turn_id.is_some(),
+                            );
+                        }
+                    }
+                }
+
                 let is_meta = event.is_meta.unwrap_or(false);
                 let is_command = event
                     .message
@@ -342,10 +584,18 @@ pub fn parse_and_ingest(
                                     .unwrap_or("unknown");
                                 let tool_id =
                                     block.get("id").and_then(|i| i.as_str()).unwrap_or_default();
-                                let input_summary = block
-                                    .get("input")
-                                    .map(|i| truncate_str(&i.to_string(), 500));
+                                let input = block.get("input");
+                                let input_summary =
+                                    input.map(|i| truncate_str(&i.to_string(), 500));
 
+                                // Counted whether or not a tool_calls row is
+                                // written below: on a re-ingest the row already
+                                // exists (pending_turn_id is None), but the
+                                // session's activity was still observed and the
+                                // count must still reflect it.
+                                if whole_file || pending_turn_id.is_some() {
+                                    outcomes.record_tool_use(tool_name, tool_id, input);
+                                }
                                 if let Some(tid) = pending_turn_id {
                                     if let Err(e) = store.insert_tool_call(&NewToolCall {
                                         turn_id: tid,
@@ -371,43 +621,16 @@ pub fn parse_and_ingest(
                     }
                 }
             }
+            // Alternate shape, where the whole event is one tool result rather
+            // than a block inside a user message. Handled identically.
             "tool_result" => {
                 if let Some(msg) = &event.message {
-                    let is_error = msg
-                        .get("is_error")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
-                    let result_summary = msg.get("content").and_then(|c| {
-                        c.as_str().map(|s| truncate_str(s, 500)).or_else(|| {
-                            c.as_array().map(|arr| {
-                                let text: Vec<String> = arr
-                                    .iter()
-                                    .filter_map(|b| {
-                                        b.get("text")
-                                            .and_then(|t| t.as_str())
-                                            .map(std::string::ToString::to_string)
-                                    })
-                                    .collect();
-                                text.join("\n")
-                            })
-                        })
-                    });
-                    let tool_use_id =
-                        msg.get("tool_use_id").and_then(|v| v.as_str()).or_else(|| {
-                            msg.get("content")
-                                .and_then(|c| c.as_array())
-                                .and_then(|arr| {
-                                    arr.iter()
-                                        .find_map(|b| b.get("tool_use_id").and_then(|v| v.as_str()))
-                                })
-                        });
-                    if let Some(tuid) = tool_use_id
-                        && !tuid.is_empty()
-                        && let Err(e) =
-                            store.update_tool_call_result(tuid, is_error, result_summary.as_deref())
-                    {
-                        tracing::warn!(error = %e, tool_use_id = %tuid, "failed to update tool call result");
-                    }
+                    apply_tool_result(
+                        store,
+                        msg,
+                        &mut outcomes,
+                        whole_file || pending_turn_id.is_some(),
+                    );
                 }
             }
             "result" => {
@@ -417,8 +640,8 @@ pub fn parse_and_ingest(
                 if let Some(dur) = event.duration_ms {
                     total_duration = dur;
                 }
-                if let Some(cwd) = event.cwd {
-                    session_cwd = Some(cwd);
+                if let Some(cwd) = event.cwd.as_ref() {
+                    session_cwd = Some(cwd.clone());
                 }
             }
             _ => {}
@@ -431,8 +654,21 @@ pub fn parse_and_ingest(
             }
         }
 
-        cursor += n as u64;
-        stats.byte_offset = cursor as i64;
+        // Capture cwd from ANY event that carries it. Claude Code emits cwd on
+        // several event types (assistant, attachment, user, …), not only the
+        // `result` event the match above reads; grabbing it here is what lets a
+        // session whose terminal `result` event is absent — still open, or a
+        // channel session — resolve its repo at all. The `result` arm above
+        // still overwrites when its event carries cwd, but cwd is constant
+        // within a session so the two see the same value; this block only fills
+        // the gap. (Clone, not move: `event.cwd` is read again by the `result`
+        // arm on its own events.)
+        if session_cwd.is_none()
+            && let Some(c) = event.cwd.as_ref()
+            && !c.is_empty()
+        {
+            session_cwd = Some(c.clone());
+        }
     }
 
     // Update session completion
@@ -451,6 +687,44 @@ pub fn parse_and_ingest(
             && let Err(e) = store.backfill_null_turn_models(sid, model)
         {
             tracing::warn!(error = %e, session_id = %sid, "failed to backfill turn models");
+        }
+
+        // Write this session's outcome counters. A parse that read the file from
+        // byte 0 describes the whole session and replaces the stored row; a
+        // resumed parse contributes only its tail and is added to that row.
+        //
+        // `repo` is the raw session cwd. claudy stores a row for every session
+        // and leaves any grouping or canonicalization to whatever reads the
+        // table. `ended_at` carries the last timestamp actually seen, or NULL —
+        // a placeholder string would be indistinguishable from a real value.
+        //
+        // Best-effort: a failure here never aborts the rest of the ingestion.
+        let mode = if whole_file {
+            OutcomeWriteMode::Replace
+        } else {
+            OutcomeWriteMode::Accumulate
+        };
+        // A resume that observed nothing new has nothing to add.
+        let has_delta = outcomes.tool_calls != 0
+            || outcomes.tool_fail != 0
+            || outcomes.commits != 0
+            || outcomes.reverts != 0;
+        if (whole_file || has_delta)
+            && let Err(e) = store.upsert_session_outcome(
+                &NewSessionOutcome {
+                    session_uuid: session_uuid.clone(),
+                    repo: session_cwd.clone().unwrap_or_default(),
+                    started_at: first_timestamp.clone(),
+                    ended_at: last_timestamp.clone(),
+                    n_tool_calls: outcomes.tool_calls,
+                    n_tool_fail: outcomes.tool_fail,
+                    commits_made: outcomes.commits,
+                    reverts_made: outcomes.reverts,
+                },
+                mode,
+            )
+        {
+            tracing::warn!(error = %e, %session_uuid, "failed to write session outcome counters");
         }
     }
 
@@ -504,4 +778,624 @@ fn extract_response_text(content: &serde_json::Value) -> Option<String> {
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore;
+    use crate::ports::analytics_ports::AnalyticsStore;
+    use rusqlite::params;
+    use tempfile::TempDir;
+
+    const CWD: &str = "/home/dev/projects/claudy";
+
+    /// A user event carrying one tool result, in the shape transcripts actually
+    /// use: a `tool_result` block inside the user message, not an event of its
+    /// own. The event has no user text, so everything about it has to be read
+    /// before the parser's no-text guard.
+    fn tool_result_line(ts: &str, tool_use_id: &str, is_error: bool) -> String {
+        format!(
+            r#"{{"type":"user","timestamp":"{ts}","cwd":"{CWD}","message":{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"{tool_use_id}","is_error":{is_error},"content":"r"}}]}}}}
+"#
+        )
+    }
+
+    fn user_line(ts: &str, text: &str) -> String {
+        format!(
+            r#"{{"type":"user","timestamp":"{ts}","cwd":"{CWD}","message":{{"role":"user","content":"{text}"}}}}
+"#
+        )
+    }
+
+    /// Injected metadata rather than something the user typed — the parser skips
+    /// these without creating a turn.
+    fn meta_user_line(ts: &str) -> String {
+        format!(
+            r#"{{"type":"user","isMeta":true,"timestamp":"{ts}","cwd":"{CWD}","message":{{"role":"user","content":"noise"}}}}
+"#
+        )
+    }
+
+    /// An assistant event whose content is the given raw `tool_use` blocks.
+    fn assistant_line(ts: &str, blocks: &str) -> String {
+        format!(
+            r#"{{"type":"assistant","timestamp":"{ts}","cwd":"{CWD}","message":{{"role":"assistant","model":"m","content":[{blocks}],"usage":{{"input_tokens":1,"output_tokens":1,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}}}}
+"#
+        )
+    }
+
+    fn bash_block(id: &str, command: &str) -> String {
+        let escaped = command.replace('\\', r"\\").replace('"', r#"\""#);
+        format!(
+            r#"{{"type":"tool_use","id":"{id}","name":"Bash","input":{{"command":"{escaped}"}}}}"#
+        )
+    }
+
+    fn read_block(id: &str) -> String {
+        format!(r#"{{"type":"tool_use","id":"{id}","name":"Read","input":{{"file_path":"y.rs"}}}}"#)
+    }
+
+    fn store_in(dir: &TempDir) -> SqliteAnalyticsStore {
+        let db = dir.path().join("analytics.db");
+        let store = SqliteAnalyticsStore::open(db.to_str().unwrap()).unwrap();
+        store.initialize_schema().unwrap();
+        store
+    }
+
+    /// The one session_outcomes row for a session_uuid, or None.
+    /// (repo, n_tool_calls, n_tool_fail, commits_made, reverts_made).
+    fn outcome_row(
+        store: &SqliteAnalyticsStore,
+        uuid: &str,
+    ) -> Option<(String, i64, i64, i64, i64)> {
+        let conn = store.lock().unwrap();
+        conn.query_row(
+            "SELECT repo, n_tool_calls, n_tool_fail, commits_made, reverts_made
+             FROM session_outcomes WHERE session_uuid = ?1",
+            params![uuid],
+            |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                ))
+            },
+        )
+        .ok()
+    }
+
+    fn count_outcome_rows(store: &SqliteAnalyticsStore, uuid: &str) -> i64 {
+        store
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM session_outcomes WHERE session_uuid = ?1",
+                params![uuid],
+                |r| r.get(0),
+            )
+            .unwrap_or(0)
+    }
+
+    fn ingest(
+        store: &SqliteAnalyticsStore,
+        file: &Path,
+        path_str: &str,
+        project_id: i64,
+        full: bool,
+        start_byte_offset: i64,
+    ) -> IngestionStats {
+        parse_and_ingest(
+            store,
+            None,
+            IngestFileArgs {
+                project_id,
+                file_path: file,
+                path_str,
+                full,
+                source_kind: None,
+                start_byte_offset,
+            },
+        )
+        .unwrap()
+    }
+
+    fn write(path: &Path, s: &str) {
+        std::fs::write(path, s).unwrap();
+    }
+
+    fn append(path: &Path, s: &str) {
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new().append(true).open(path).unwrap();
+        f.write_all(s.as_bytes()).unwrap();
+    }
+
+    // ── the git classifier ──
+
+    /// Tokens, not substrings: an action is only an action when it stands as its
+    /// own word. Commands that merely share a prefix (`merge-base`, `merge-file`,
+    /// `mergetool`, `commit-tree`) inspect or plumb rather than commit, and
+    /// counting them would inflate every commit-derived figure.
+    #[test]
+    fn test_classify_git_actions_token_boundary() {
+        let commits = |c: &str| classify_git_actions(c).commits;
+        let reverts = |c: &str| classify_git_actions(c).reverts;
+
+        assert_eq!(commits("git commit -m ship"), 1);
+        assert_eq!(commits("cd x && git merge --no-ff main"), 1);
+        assert_eq!(commits("git commit"), 1, "action as the final token");
+        assert_eq!(commits("git -C /srv/repo commit -m x"), 1, "global option");
+        assert_eq!(commits("git --no-pager commit -m x"), 1);
+        assert_eq!(reverts("git revert HEAD"), 1);
+        assert_eq!(reverts("git reset --hard origin/main"), 1);
+        assert_eq!(reverts("git reset HEAD~1 --hard"), 1, "flag after the ref");
+
+        // Prefix lookalikes must not count.
+        assert_eq!(commits("git merge-base main dev"), 0);
+        assert_eq!(commits("git merge-file a b c"), 0);
+        assert_eq!(commits("git mergetool"), 0);
+        assert_eq!(commits("git commit-tree HEAD^{tree}"), 0);
+        assert_eq!(
+            reverts("git reset --soft HEAD~1"),
+            0,
+            "soft reset keeps work"
+        );
+        assert_eq!(reverts("git reset"), 0, "mixed reset keeps work");
+
+        // A `--hard` belonging to a later command is not attributed backwards.
+        assert_eq!(reverts("git reset HEAD~1 && git checkout --hard-ish"), 0);
+
+        // Text inside a quoted message is not a command.
+        assert_eq!(commits(r#"echo "git commit is next""#), 0);
+        assert_eq!(reverts(r#"git commit -m "git revert is not needed""#), 0);
+
+        // Each invocation counts.
+        assert_eq!(commits("git commit -m a && git commit -m b"), 2);
+        assert_eq!(
+            classify_git_actions("git commit -m a && git revert HEAD"),
+            GitActions {
+                commits: 1,
+                reverts: 1
+            }
+        );
+    }
+
+    // ── collection ──
+
+    /// A row is written for every session whatever its cwd — there is no list of
+    /// interesting directories. `repo` is the cwd verbatim.
+    #[test]
+    fn test_outcome_row_written_for_any_cwd() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-any.jsonl");
+        write(
+            &file,
+            &format!(
+                "{}{}{}",
+                user_line("2026-07-20T10:00:00Z", "go"),
+                assistant_line(
+                    "2026-07-20T10:00:01Z",
+                    &bash_block("tu1", "git commit -m x")
+                ),
+                tool_result_line("2026-07-20T10:00:02Z", "tu1", false),
+            ),
+        );
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+        ingest(&store, &file, "sess-any.jsonl", pid, true, 0);
+
+        let (repo, _calls, _fail, commits, _reverts) =
+            outcome_row(&store, "sess-any").expect("a row is written regardless of cwd");
+        assert_eq!(repo, CWD, "repo is the raw cwd — stored, not curated");
+        assert_eq!(commits, 1);
+    }
+
+    /// `n_tool_calls` counts every tool, not just the ones the other counters
+    /// look at, because it is the denominator the failure count is read against.
+    /// `n_tool_fail` counts results reported as errors — which only works if
+    /// `tool_result` blocks inside user messages are read, since that is the
+    /// shape transcripts use.
+    #[test]
+    fn test_outcome_counts_all_tools_and_records_failures() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-counts.jsonl");
+        let blocks = format!(
+            "{},{},{},{}",
+            bash_block("tu1", "git commit -m ship"),
+            bash_block("tu2", "git merge-base main dev"),
+            bash_block("tu3", "git revert HEAD"),
+            read_block("tu4"),
+        );
+        write(
+            &file,
+            &format!(
+                "{}{}{}{}{}{}",
+                user_line("2026-07-20T10:00:00Z", "go"),
+                assistant_line("2026-07-20T10:00:01Z", &blocks),
+                tool_result_line("2026-07-20T10:00:02Z", "tu1", false),
+                tool_result_line("2026-07-20T10:00:03Z", "tu2", true),
+                tool_result_line("2026-07-20T10:00:04Z", "tu3", false),
+                tool_result_line("2026-07-20T10:00:05Z", "tu4", false),
+            ),
+        );
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+
+        let stats = ingest(&store, &file, "sess-counts.jsonl", pid, true, 0);
+        assert_eq!(stats.tool_calls_created, 4);
+
+        let (repo, calls, fail, commits, reverts) =
+            outcome_row(&store, "sess-counts").expect("row");
+        assert_eq!(repo, CWD);
+        assert_eq!(calls, 4, "every tool counts, not just Bash");
+        assert_eq!(fail, 1, "the errored result is counted");
+        assert_eq!(commits, 1, "git commit counts; git merge-base does not");
+        assert_eq!(reverts, 1);
+
+        // The same results reach the tool_calls rows they belong to.
+        let errored: i64 = store
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM tool_calls WHERE is_error = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(errored, 1, "the result is recorded on the tool call too");
+    }
+
+    /// A commit that the transcript shows failing is not a commit. The credit
+    /// taken when the command was issued is withdrawn once the result says it
+    /// errored.
+    #[test]
+    fn test_outcome_failed_commit_credit_is_withdrawn() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-fail.jsonl");
+        write(
+            &file,
+            &format!(
+                "{}{}{}{}{}",
+                user_line("2026-07-20T10:00:00Z", "go"),
+                assistant_line(
+                    "2026-07-20T10:00:01Z",
+                    &format!(
+                        "{},{}",
+                        bash_block("tu1", "git commit -m rejected"),
+                        bash_block("tu2", "git commit -m accepted"),
+                    ),
+                ),
+                tool_result_line("2026-07-20T10:00:02Z", "tu1", true),
+                tool_result_line("2026-07-20T10:00:03Z", "tu2", false),
+                user_line("2026-07-20T10:00:04Z", "done"),
+            ),
+        );
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+        ingest(&store, &file, "sess-fail.jsonl", pid, true, 0);
+
+        let (_repo, calls, fail, commits, _reverts) =
+            outcome_row(&store, "sess-fail").expect("row");
+        assert_eq!(calls, 2);
+        assert_eq!(fail, 1);
+        assert_eq!(commits, 1, "only the commit that did not fail counts");
+    }
+
+    /// The action is read from the raw command, so a long command still counts.
+    /// Matching the stored `input_summary` instead would miss this one, since
+    /// that summary is cut off well before the `git commit`.
+    #[test]
+    fn test_outcome_counts_commit_past_the_input_summary_cutoff() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-long.jsonl");
+        let long_prefix = "echo ".to_string() + &"x".repeat(600);
+        let command = format!("{long_prefix} && git commit -m x");
+        write(
+            &file,
+            &format!(
+                "{}{}{}",
+                user_line("2026-07-20T10:00:00Z", "go"),
+                assistant_line("2026-07-20T10:00:01Z", &bash_block("tu1", &command)),
+                tool_result_line("2026-07-20T10:00:02Z", "tu1", false),
+            ),
+        );
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+        ingest(&store, &file, "sess-long.jsonl", pid, true, 0);
+
+        let (_repo, _calls, _fail, commits, _reverts) =
+            outcome_row(&store, "sess-long").expect("row");
+        assert_eq!(commits, 1, "the command is read in full, not truncated");
+    }
+
+    /// The alternate shape — a standalone `tool_result` event — is read the same
+    /// way, so transcripts written that way keep working.
+    #[test]
+    fn test_outcome_reads_standalone_tool_result_events() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-legacy.jsonl");
+        write(
+            &file,
+            &format!(
+                "{}{}{}",
+                user_line("2026-07-20T10:00:00Z", "go"),
+                assistant_line("2026-07-20T10:00:01Z", &read_block("tu1")),
+                r#"{"type":"tool_result","timestamp":"2026-07-20T10:00:02Z","message":{"tool_use_id":"tu1","is_error":true,"content":"boom"}}
+"#,
+            ),
+        );
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+        ingest(&store, &file, "sess-legacy.jsonl", pid, true, 0);
+
+        let (_repo, calls, fail, _commits, _reverts) =
+            outcome_row(&store, "sess-legacy").expect("row");
+        assert_eq!((calls, fail), (1, 1));
+    }
+
+    // ── re-ingest and resume ──
+
+    /// A full re-ingest replaces the counts from its own reading of the file:
+    /// no doubling, and no zeroing either, even though every turn already exists
+    /// by then and so no tool_calls row is written the second time round.
+    #[test]
+    fn test_outcome_full_reingest_replaces_counts() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-reingest.jsonl");
+        write(
+            &file,
+            &format!(
+                "{}{}{}{}",
+                user_line("2026-07-20T10:00:00Z", "go"),
+                assistant_line(
+                    "2026-07-20T10:00:01Z",
+                    &format!(
+                        "{},{}",
+                        bash_block("tu1", "git commit -m x"),
+                        read_block("tu2")
+                    ),
+                ),
+                tool_result_line("2026-07-20T10:00:02Z", "tu1", false),
+                tool_result_line("2026-07-20T10:00:03Z", "tu2", false),
+            ),
+        );
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+
+        ingest(&store, &file, "sess-reingest.jsonl", pid, true, 0);
+        assert_eq!(
+            outcome_row(&store, "sess-reingest").unwrap(),
+            (CWD.to_string(), 2, 0, 1, 0)
+        );
+
+        ingest(&store, &file, "sess-reingest.jsonl", pid, true, 0);
+        assert_eq!(
+            outcome_row(&store, "sess-reingest").unwrap(),
+            (CWD.to_string(), 2, 0, 1, 0),
+            "a re-read of the same file yields the same counts"
+        );
+        assert_eq!(
+            count_outcome_rows(&store, "sess-reingest"),
+            1,
+            "one row per session"
+        );
+    }
+
+    /// A resume adds what it read to the stored row, so activity appended after
+    /// the first ingest is reflected instead of being lost until someone runs a
+    /// full re-ingest.
+    #[test]
+    fn test_outcome_resume_accumulates_appended_activity() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-resume.jsonl");
+        let head = format!(
+            "{}{}{}",
+            user_line("2026-07-20T10:00:00Z", "go"),
+            assistant_line(
+                "2026-07-20T10:00:01Z",
+                &bash_block("tu1", "git commit -m x")
+            ),
+            tool_result_line("2026-07-20T10:00:02Z", "tu1", false),
+        );
+        write(&file, &head);
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+
+        let stats = ingest(&store, &file, "sess-resume.jsonl", pid, true, 0);
+        assert_eq!(
+            outcome_row(&store, "sess-resume").unwrap(),
+            (CWD.to_string(), 1, 0, 1, 0)
+        );
+
+        // Append a second turn and resume exactly where the last run stopped.
+        append(
+            &file,
+            &format!(
+                "{}{}{}",
+                user_line("2026-07-20T11:00:00Z", "more"),
+                assistant_line("2026-07-20T11:00:01Z", &read_block("tu2")),
+                tool_result_line("2026-07-20T11:00:02Z", "tu2", true),
+            ),
+        );
+        ingest(
+            &store,
+            &file,
+            "sess-resume.jsonl",
+            pid,
+            false,
+            stats.byte_offset,
+        );
+
+        assert_eq!(
+            outcome_row(&store, "sess-resume").unwrap(),
+            (CWD.to_string(), 2, 1, 1, 0),
+            "the appended turn is added to the stored counts"
+        );
+    }
+
+    /// A resume that re-reads lines an earlier run already ingested must not
+    /// count them twice. Those lines produce no new turn, which is exactly the
+    /// signal used to leave them out of the delta.
+    #[test]
+    fn test_outcome_resume_does_not_double_count_replayed_lines() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-replay.jsonl");
+        let first = user_line("2026-07-20T10:00:00Z", "go");
+        let head = format!(
+            "{}{}{}",
+            first,
+            assistant_line(
+                "2026-07-20T10:00:01Z",
+                &bash_block("tu1", "git commit -m x")
+            ),
+            tool_result_line("2026-07-20T10:00:02Z", "tu1", false),
+        );
+        write(&file, &head);
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+
+        ingest(&store, &file, "sess-replay.jsonl", pid, true, 0);
+        assert_eq!(
+            outcome_row(&store, "sess-replay").unwrap(),
+            (CWD.to_string(), 1, 0, 1, 0)
+        );
+
+        append(
+            &file,
+            &format!(
+                "{}{}{}",
+                user_line("2026-07-20T11:00:00Z", "more"),
+                assistant_line("2026-07-20T11:00:01Z", &read_block("tu2")),
+                tool_result_line("2026-07-20T11:00:02Z", "tu2", false),
+            ),
+        );
+        // Resume from a lagging offset: everything after the first line gets
+        // read a second time, including the commit already counted.
+        ingest(
+            &store,
+            &file,
+            "sess-replay.jsonl",
+            pid,
+            false,
+            first.len() as i64,
+        );
+
+        assert_eq!(
+            outcome_row(&store, "sess-replay").unwrap(),
+            (CWD.to_string(), 2, 0, 1, 0),
+            "replayed lines are not counted again"
+        );
+    }
+
+    /// A resume never creates a row. Counts from a tail alone would look like a
+    /// whole session while describing a fragment of one; the row is created by
+    /// the next parse that reads the file from the start.
+    #[test]
+    fn test_outcome_resume_does_not_create_a_row() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-nocreate.jsonl");
+        let head = user_line("2026-07-20T10:00:00Z", "go");
+        write(&file, &head);
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+        let stats = ingest(&store, &file, "sess-nocreate.jsonl", pid, true, 0);
+
+        // Drop the row, as if this session predated outcome collection.
+        store
+            .lock()
+            .unwrap()
+            .execute("DELETE FROM session_outcomes", [])
+            .unwrap();
+
+        append(
+            &file,
+            &format!(
+                "{}{}{}",
+                user_line("2026-07-20T11:00:00Z", "more"),
+                assistant_line("2026-07-20T11:00:01Z", &read_block("tu2")),
+                tool_result_line("2026-07-20T11:00:02Z", "tu2", false),
+            ),
+        );
+        ingest(
+            &store,
+            &file,
+            "sess-nocreate.jsonl",
+            pid,
+            false,
+            stats.byte_offset,
+        );
+        assert_eq!(
+            count_outcome_rows(&store, "sess-nocreate"),
+            0,
+            "a tail is not a session"
+        );
+
+        // A parse from the start builds the whole row.
+        ingest(&store, &file, "sess-nocreate.jsonl", pid, true, 0);
+        assert_eq!(
+            outcome_row(&store, "sess-nocreate").unwrap(),
+            (CWD.to_string(), 1, 0, 0, 0)
+        );
+    }
+
+    /// `ended_at` holds a timestamp that was actually seen, or nothing at all —
+    /// never a placeholder that reads like data.
+    #[test]
+    fn test_outcome_ended_at_is_null_when_no_timestamp_was_seen() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-nots.jsonl");
+        write(
+            &file,
+            &format!(
+                r#"{{"type":"user","cwd":"{CWD}","message":{{"role":"user","content":"go"}}}}
+"#
+            ),
+        );
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+        ingest(&store, &file, "sess-nots.jsonl", pid, true, 0);
+
+        let ended: Option<String> = store
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT ended_at FROM session_outcomes WHERE session_uuid = 'sess-nots'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(ended, None);
+    }
+
+    // ── resume offset ──
+
+    /// Events the parser skips still advance the resume offset. When they did
+    /// not, the checkpoint fell short of the file and every later run re-read
+    /// lines it had already ingested.
+    #[test]
+    fn test_byte_offset_covers_skipped_events() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-off.jsonl");
+        // The middle two events are skipped: injected metadata, and a slash
+        // command.
+        let body = format!(
+            "{}{}{}{}",
+            user_line("2026-07-20T10:00:00Z", "go"),
+            meta_user_line("2026-07-20T10:00:01Z"),
+            user_line("2026-07-20T10:00:02Z", "/status"),
+            assistant_line("2026-07-20T10:00:03Z", &read_block("tu1")),
+        );
+        write(&file, &body);
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+
+        let stats = ingest(&store, &file, "sess-off.jsonl", pid, true, 0);
+        assert_eq!(
+            stats.byte_offset,
+            body.len() as i64,
+            "the offset reaches the end of the file"
+        );
+    }
 }
