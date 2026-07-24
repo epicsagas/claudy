@@ -194,6 +194,32 @@ fn apply_tool_result(
     }
 }
 
+/// Epoch milliseconds from a transcript timestamp, or None when it doesn't
+/// parse. Transcript timestamps are RFC 3339 (`2026-07-20T10:00:02.123Z`).
+fn ts_ms(ts: &str) -> Option<i64> {
+    chrono::DateTime::parse_from_rfc3339(ts)
+        .ok()
+        .map(|t| t.timestamp_millis())
+}
+
+/// Write the open turn's duration — from its start to its last work event — and
+/// clear it. A turn whose span never advanced past its start (no timestamped
+/// work observed) is left NULL rather than written as 0: an unmeasured duration
+/// and an instant answer must stay distinguishable. Best-effort, like every
+/// other per-row write in this parser.
+fn close_turn_duration(
+    store: &dyn AnalyticsStore,
+    session_id: Option<i64>,
+    open_turn: &mut Option<(i32, i64, i64)>,
+) {
+    if let (Some(sid), Some((turn_no, started, last))) = (session_id, open_turn.take())
+        && last > started
+        && let Err(e) = store.update_turn_duration(sid, turn_no, last - started)
+    {
+        tracing::warn!(error = %e, session_id = %sid, turn_no, "failed to update turn duration");
+    }
+}
+
 fn truncate_str(s: &str, max: usize) -> String {
     if s.len() <= max {
         s.to_string()
@@ -302,6 +328,25 @@ pub fn parse_and_ingest(
     let mut first_timestamp: Option<String> = None;
     let mut pending_turn_id: Option<i64> = None;
 
+    // Anchor for the session-duration fallback. Real transcripts carry no
+    // terminal `result` event, so `total_duration` above never gets a value from
+    // the transcript itself; when that happens the session's duration is the
+    // span from this anchor to the last event seen. A parse from byte 0 anchors
+    // on the first timestamp it reads; a resume anchors on the stored session
+    // start, so the tail's span is measured from the session's true beginning
+    // rather than from wherever the checkpoint happened to fall.
+    let mut span_anchor: Option<String> = None;
+
+    // The turn currently being answered: (turn_number, started_ms, last_work_ms).
+    // `last_work_ms` advances on assistant events and tool results — the events
+    // that ARE the work of answering — and deliberately not on the next user
+    // message, whose arrival time measures the human's think time, not the
+    // turn's. The turn's duration is written when the next accepted user event
+    // opens a new turn, or at end of file. Keyed by (session, turn_number), not
+    // the inserted row id, so a full re-ingest backfills turns that already
+    // exist (their insert returns no id).
+    let mut open_turn: Option<(i32, i64, i64)> = None;
+
     // Session outcome counters, written once at the end of the parse.
     //
     // `whole_file` distinguishes the two things a parse can be, and decides both
@@ -364,12 +409,35 @@ pub fn parse_and_ingest(
         cursor += n as u64;
         stats.byte_offset = cursor as i64;
 
+        // Timestamp and cwd bookkeeping runs BEFORE the event is interpreted,
+        // so an event the arms below skip early (a meta injection, a tool-result
+        // carrier with no user text) still counts toward the session's span and
+        // can still resolve its cwd. When it sat after the match, every early
+        // `continue` silently dropped its event from the session's end time.
+        if event.timestamp.is_some() {
+            last_timestamp = event.timestamp.clone();
+            if first_timestamp.is_none() {
+                first_timestamp = event.timestamp.clone();
+            }
+        }
+        // Claude Code emits cwd on several event types (assistant, attachment,
+        // user, …), not only the terminal `result` event — which real
+        // transcripts do not carry at all. First non-empty value wins; the
+        // `result` arm below still overwrites when one does appear.
+        if session_cwd.is_none()
+            && let Some(c) = event.cwd.as_ref()
+            && !c.is_empty()
+        {
+            session_cwd = Some(c.clone());
+        }
+
         match event.event_type.as_str() {
             "user" => {
                 // Tool results arrive as `tool_result` blocks inside the user
                 // message. They are handled before the guards below because such
                 // an event carries no user text of its own and would otherwise be
                 // skipped whole — which is why no tool result was ever recorded.
+                let mut carried_tool_result = false;
                 if let Some(blocks) = event
                     .message
                     .as_ref()
@@ -378,6 +446,7 @@ pub fn parse_and_ingest(
                 {
                     for block in blocks {
                         if block.get("type").is_some_and(|t| t == "tool_result") {
+                            carried_tool_result = true;
                             apply_tool_result(
                                 store,
                                 block,
@@ -386,6 +455,16 @@ pub fn parse_and_ingest(
                             );
                         }
                     }
+                }
+                // A tool result is part of answering the open turn, so it
+                // advances the turn's work clock (a plain user message does not
+                // — its timestamp measures think time, and it closes the turn
+                // below instead).
+                if carried_tool_result
+                    && let Some((_, _, last)) = &mut open_turn
+                    && let Some(ms) = event.timestamp.as_deref().and_then(ts_ms)
+                {
+                    *last = ms.max(*last);
                 }
 
                 let is_meta = event.is_meta.unwrap_or(false);
@@ -458,12 +537,25 @@ pub fn parse_and_ingest(
                         if let Some(existing) = store.get_session_by_uuid(&session_uuid)? {
                             total_cost = existing.total_cost_usd;
                             total_duration = existing.total_duration_ms;
+                            // Anchor the duration fallback on the session's true
+                            // start: this resume only sees the appended tail, and
+                            // a span measured from the tail's first event would
+                            // shrink the session to its last append.
+                            span_anchor = existing.started_at.clone();
                         }
                     }
                 }
 
                 if first_message.is_none() && text.is_some() {
                     first_message = text.as_ref().map(|t| redact_secrets(t));
+                }
+
+                // This user message opens a new turn, which closes the one being
+                // answered: its duration runs from its own start to its last
+                // work event, not to this message's arrival.
+                close_turn_duration(store, session_id, &mut open_turn);
+                if let Some(ms) = event.timestamp.as_deref().and_then(ts_ms) {
+                    open_turn = Some((turn_number + 1, ms, ms));
                 }
 
                 turn_number += 1;
@@ -514,6 +606,12 @@ pub fn parse_and_ingest(
                 let _ = text; // text already used in insert_turn above
             }
             "assistant" => {
+                // Assistant output is the work of answering the open turn.
+                if let Some((_, _, last)) = &mut open_turn
+                    && let Some(ms) = event.timestamp.as_deref().and_then(ts_ms)
+                {
+                    *last = ms.max(*last);
+                }
                 if let Some(msg) = &event.message {
                     if let Some(model) = msg.get("model").and_then(|m| m.as_str()) {
                         current_model = Some(model.to_string());
@@ -624,6 +722,11 @@ pub fn parse_and_ingest(
             // Alternate shape, where the whole event is one tool result rather
             // than a block inside a user message. Handled identically.
             "tool_result" => {
+                if let Some((_, _, last)) = &mut open_turn
+                    && let Some(ms) = event.timestamp.as_deref().and_then(ts_ms)
+                {
+                    *last = ms.max(*last);
+                }
                 if let Some(msg) = &event.message {
                     apply_tool_result(
                         store,
@@ -646,33 +749,26 @@ pub fn parse_and_ingest(
             }
             _ => {}
         }
-
-        if event.timestamp.is_some() {
-            last_timestamp = event.timestamp.clone();
-            if first_timestamp.is_none() {
-                first_timestamp = event.timestamp.clone();
-            }
-        }
-
-        // Capture cwd from ANY event that carries it. Claude Code emits cwd on
-        // several event types (assistant, attachment, user, …), not only the
-        // `result` event the match above reads; grabbing it here is what lets a
-        // session whose terminal `result` event is absent — still open, or a
-        // channel session — resolve its repo at all. The `result` arm above
-        // still overwrites when its event carries cwd, but cwd is constant
-        // within a session so the two see the same value; this block only fills
-        // the gap. (Clone, not move: `event.cwd` is read again by the `result`
-        // arm on its own events.)
-        if session_cwd.is_none()
-            && let Some(c) = event.cwd.as_ref()
-            && !c.is_empty()
-        {
-            session_cwd = Some(c.clone());
-        }
     }
 
     // Update session completion
     if let Some(sid) = session_id {
+        // End of file closes the last turn.
+        close_turn_duration(store, session_id, &mut open_turn);
+
+        // Duration fallback: real transcripts carry no terminal `result` event,
+        // so without this every session's duration would stay 0. When the
+        // transcript supplied no duration, use the span from the session's start
+        // (anchor) to the last event seen. A `result` event, when one does
+        // appear, remains authoritative.
+        if total_duration == 0
+            && let Some(start) = span_anchor.as_deref().or(first_timestamp.as_deref())
+            && let (Some(s), Some(e)) = (ts_ms(start), last_timestamp.as_deref().and_then(ts_ms))
+            && e > s
+        {
+            total_duration = e - s;
+        }
+
         let ended = last_timestamp.as_deref().unwrap_or("unknown");
         if let Err(e) =
             store.update_session_completion(sid, ended, turn_number, total_cost, total_duration)
@@ -1396,6 +1492,163 @@ mod tests {
             stats.byte_offset,
             body.len() as i64,
             "the offset reaches the end of the file"
+        );
+    }
+
+    // ── durations ──
+
+    fn session_duration(store: &SqliteAnalyticsStore, uuid: &str) -> i64 {
+        store
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT total_duration_ms FROM sessions WHERE session_uuid = ?1",
+                params![uuid],
+                |r| r.get(0),
+            )
+            .unwrap()
+    }
+
+    fn turn_durations(store: &SqliteAnalyticsStore, uuid: &str) -> Vec<Option<i64>> {
+        let conn = store.lock().unwrap();
+        let mut stmt = conn
+            .prepare(
+                "SELECT t.duration_ms FROM turns t
+                 JOIN sessions s ON s.id = t.session_id
+                 WHERE s.session_uuid = ?1 ORDER BY t.turn_number",
+            )
+            .unwrap();
+        stmt.query_map(params![uuid], |r| r.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect()
+    }
+
+    /// Transcripts carry no terminal `result` event, so a session's duration
+    /// must come from the span of its own timestamps — without the fallback,
+    /// every session's duration is 0 forever.
+    #[test]
+    fn test_session_duration_falls_back_to_timestamp_span() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-span.jsonl");
+        write(
+            &file,
+            &format!(
+                "{}{}{}",
+                user_line("2026-07-20T10:00:00Z", "go"),
+                assistant_line("2026-07-20T10:00:01Z", &read_block("tu1")),
+                tool_result_line("2026-07-20T10:00:06Z", "tu1", false),
+            ),
+        );
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+        ingest(&store, &file, "sess-span.jsonl", pid, true, 0);
+        assert_eq!(
+            session_duration(&store, "sess-span"),
+            6_000,
+            "duration is the first..last timestamp span"
+        );
+    }
+
+    /// A `result` event, when one does appear, stays authoritative — the
+    /// fallback only fills the gap it leaves.
+    #[test]
+    fn test_result_event_duration_stays_authoritative() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-res.jsonl");
+        let result_line = format!(
+            r#"{{"type":"result","timestamp":"2026-07-20T10:00:09Z","duration_ms":1234,"cost_usd":0.0,"cwd":"{CWD}"}}
+"#
+        );
+        write(
+            &file,
+            &format!(
+                "{}{}{}",
+                user_line("2026-07-20T10:00:00Z", "go"),
+                assistant_line("2026-07-20T10:00:01Z", &read_block("tu1")),
+                result_line,
+            ),
+        );
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+        ingest(&store, &file, "sess-res.jsonl", pid, true, 0);
+        assert_eq!(session_duration(&store, "sess-res"), 1234);
+    }
+
+    /// A turn's duration runs from its user message to its last work event
+    /// (assistant output, tool results) — NOT to the next user message, whose
+    /// arrival time measures the human's think time. The last turn closes at
+    /// end of file.
+    #[test]
+    fn test_turn_duration_ends_at_last_work_event() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-td.jsonl");
+        write(
+            &file,
+            &format!(
+                "{}{}{}{}{}{}",
+                user_line("2026-07-20T10:00:00Z", "go"),
+                assistant_line("2026-07-20T10:00:01Z", &read_block("tu1")),
+                tool_result_line("2026-07-20T10:00:02Z", "tu1", false),
+                // One hour of human think time before the next ask.
+                user_line("2026-07-20T11:00:00Z", "more"),
+                assistant_line("2026-07-20T11:00:01Z", &read_block("tu2")),
+                tool_result_line("2026-07-20T11:00:05Z", "tu2", false),
+            ),
+        );
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+        ingest(&store, &file, "sess-td.jsonl", pid, true, 0);
+        assert_eq!(
+            turn_durations(&store, "sess-td"),
+            vec![Some(2_000), Some(5_000)],
+            "turn 1 excludes think time; turn 2 closes at EOF"
+        );
+    }
+
+    /// A full re-ingest backfills durations onto turns that already exist —
+    /// the update is keyed by (session, turn_number), which a re-parse can
+    /// always reconstruct, not by the inserted row id, which it never sees.
+    #[test]
+    fn test_full_reingest_backfills_turn_durations() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-tdb.jsonl");
+        write(
+            &file,
+            &format!(
+                "{}{}{}",
+                user_line("2026-07-20T10:00:00Z", "go"),
+                assistant_line("2026-07-20T10:00:01Z", &read_block("tu1")),
+                tool_result_line("2026-07-20T10:00:03Z", "tu1", false),
+            ),
+        );
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+        ingest(&store, &file, "sess-tdb.jsonl", pid, true, 0);
+        assert_eq!(turn_durations(&store, "sess-tdb"), vec![Some(3_000)]);
+
+        // Simulate rows written by a build that predates duration tracking.
+        store
+            .lock()
+            .unwrap()
+            .execute("UPDATE turns SET duration_ms = NULL", [])
+            .unwrap();
+        store
+            .lock()
+            .unwrap()
+            .execute("UPDATE sessions SET total_duration_ms = 0", [])
+            .unwrap();
+
+        ingest(&store, &file, "sess-tdb.jsonl", pid, true, 0);
+        assert_eq!(
+            turn_durations(&store, "sess-tdb"),
+            vec![Some(3_000)],
+            "re-ingest restores durations for pre-existing turns"
+        );
+        assert_eq!(
+            session_duration(&store, "sess-tdb"),
+            3_000,
+            "re-ingest restores the session span too"
         );
     }
 }

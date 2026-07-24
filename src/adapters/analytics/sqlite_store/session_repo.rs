@@ -245,6 +245,22 @@ pub(super) fn get_turns_by_session_impl(
     Ok(result)
 }
 
+/// Set a turn's duration. Keyed by (session, turn_number) — the natural key a
+/// re-parse can always reconstruct — so a full re-ingest backfills durations
+/// onto turns whose insert was a no-op conflict.
+pub(super) fn update_turn_duration_impl(
+    store: &SqliteAnalyticsStore,
+    session_id: i64,
+    turn_number: i32,
+    duration_ms: i64,
+) -> anyhow::Result<()> {
+    store.lock()?.execute(
+        "UPDATE turns SET duration_ms = ?1 WHERE session_id = ?2 AND turn_number = ?3",
+        params![duration_ms, session_id, turn_number],
+    )?;
+    Ok(())
+}
+
 pub(super) fn insert_token_usage_impl(
     store: &SqliteAnalyticsStore,
     usage: &NewTokenUsage,

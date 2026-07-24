@@ -142,6 +142,20 @@ impl AnalyticsStore for SqliteAnalyticsStore {
         )
     }
 
+    fn update_turn_duration(
+        &self,
+        session_id: i64,
+        turn_number: i32,
+        duration_ms: i64,
+    ) -> anyhow::Result<()> {
+        crate::adapters::analytics::sqlite_store::session_repo::update_turn_duration_impl(
+            self,
+            session_id,
+            turn_number,
+            duration_ms,
+        )
+    }
+
     fn insert_token_usage(
         &self,
         usage: &crate::domain::analytics::NewTokenUsage,
