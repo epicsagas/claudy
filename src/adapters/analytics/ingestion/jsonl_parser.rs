@@ -335,7 +335,10 @@ pub fn parse_and_ingest(
     // on the first timestamp it reads; a resume anchors on the stored session
     // start, so the tail's span is measured from the session's true beginning
     // rather than from wherever the checkpoint happened to fall.
+    // `saw_result_duration` records that THIS parse read an authoritative
+    // duration from a `result` event — only then does the span defer to it.
     let mut span_anchor: Option<String> = None;
+    let mut saw_result_duration = false;
 
     // The turn currently being answered: (turn_number, started_ms, last_work_ms).
     // `last_work_ms` advances on assistant events and tool results — the events
@@ -742,6 +745,7 @@ pub fn parse_and_ingest(
                 }
                 if let Some(dur) = event.duration_ms {
                     total_duration = dur;
+                    saw_result_duration = true;
                 }
                 if let Some(cwd) = event.cwd.as_ref() {
                     session_cwd = Some(cwd.clone());
@@ -757,14 +761,17 @@ pub fn parse_and_ingest(
         close_turn_duration(store, session_id, &mut open_turn);
 
         // Duration fallback: real transcripts carry no terminal `result` event,
-        // so without this every session's duration would stay 0. When the
-        // transcript supplied no duration, use the span from the session's start
-        // (anchor) to the last event seen. A `result` event, when one does
-        // appear, remains authoritative.
-        if total_duration == 0
+        // so without this every session's duration would stay 0. When THIS
+        // parse read no authoritative duration, extend the stored value to the
+        // span from the session's start (anchor) to the last event seen —
+        // extend, never shrink, so a resume that appends an hour of activity
+        // moves the duration forward with `ended_at` instead of leaving it
+        // frozen at the value seeded from the previous parse. A `result` event,
+        // when one does appear, remains authoritative.
+        if !saw_result_duration
             && let Some(start) = span_anchor.as_deref().or(first_timestamp.as_deref())
             && let (Some(s), Some(e)) = (ts_ms(start), last_timestamp.as_deref().and_then(ts_ms))
-            && e > s
+            && e - s > total_duration
         {
             total_duration = e - s;
         }
@@ -1603,6 +1610,52 @@ mod tests {
             turn_durations(&store, "sess-td"),
             vec![Some(2_000), Some(5_000)],
             "turn 1 excludes think time; turn 2 closes at EOF"
+        );
+    }
+
+    /// A growing session's duration advances with its resumes. The resume seeds
+    /// `total_duration` from the stored row, so a `== 0` gate would freeze the
+    /// duration at the first parse's span forever while `ended_at` kept moving;
+    /// the fallback must extend to the new span instead (and never shrink).
+    #[test]
+    fn test_incremental_resume_extends_session_span() {
+        let dir = TempDir::new().unwrap();
+        let store = store_in(&dir);
+        let file = dir.path().join("sess-grow.jsonl");
+        write(
+            &file,
+            &format!(
+                "{}{}{}",
+                user_line("2026-07-20T10:00:00Z", "go"),
+                assistant_line("2026-07-20T10:00:01Z", &read_block("tu1")),
+                tool_result_line("2026-07-20T10:00:02Z", "tu1", false),
+            ),
+        );
+        let pid = store.upsert_project("-x", "x", None).unwrap();
+        let stats = ingest(&store, &file, "sess-grow.jsonl", pid, true, 0);
+        assert_eq!(session_duration(&store, "sess-grow"), 2_000);
+
+        // An hour later the session continues; the resume sees only the tail.
+        append(
+            &file,
+            &format!(
+                "{}{}",
+                user_line("2026-07-20T11:00:00Z", "more"),
+                assistant_line("2026-07-20T11:00:01Z", &read_block("tu2")),
+            ),
+        );
+        ingest(
+            &store,
+            &file,
+            "sess-grow.jsonl",
+            pid,
+            false,
+            stats.byte_offset,
+        );
+        assert_eq!(
+            session_duration(&store, "sess-grow"),
+            3_601_000,
+            "duration advances to the new span, anchored on the session start"
         );
     }
 

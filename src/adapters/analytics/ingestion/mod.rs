@@ -847,10 +847,15 @@ mod tests {
              a regression would reset it to just the tiny appended turn's cost, \
              far below the large first turn's cost"
         );
+        // The appended events show the session genuinely continued past the
+        // result event (12:00:00 .. 13:00:01), so the duration extends to that
+        // observed span. The regression this guards is unchanged in spirit:
+        // the resume must never zero or shrink the prior value — the fallback
+        // only ever extends (`span > stored` gate in the parser).
         assert_eq!(
-            session2.total_duration_ms, 5000,
-            "with no new result event in the appended portion, the prior \
-             total_duration_ms must be preserved, not zeroed out"
+            session2.total_duration_ms, 3_601_000,
+            "a resume extends the duration to the observed first..last span; \
+             it must never reset it to just the appended tail (or to zero)"
         );
     }
 
