@@ -74,10 +74,41 @@ pub(super) fn apply(conn: &mut Connection) -> anyhow::Result<()> {
     if current < 3 {
         // v3: enforce tool_calls.tool_use_id uniqueness via a UNIQUE index + a
         // one-shot dedup pass. Gated on `current < 3` like every other step so we
-        // don't re-run the full-table dedup scan on every initialize_schema.
+        // don't run the full-table dedup scan on every initialize_schema.
         enforce_tool_use_id_unique(conn)?;
         conn.execute(
             "INSERT OR REPLACE INTO migration_version (version) VALUES (3)",
+            [],
+        )?;
+    }
+
+    if current < 4 {
+        // v4: session_outcomes — per-session outcome counters written during ingestion
+        // (commit/revert counts, tool-failure counts).
+        //
+        // The same table is declared in the base SCHEMA, which `initialize_schema`
+        // runs first, so in that path this step is already a no-op. It is kept
+        // self-contained — table AND index, matching SCHEMA exactly — so the
+        // migration alone brings a pre-v4 DB fully up to date and does not
+        // silently depend on SCHEMA having run.
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS session_outcomes (
+                session_uuid TEXT PRIMARY KEY,
+                repo TEXT NOT NULL,
+                started_at TEXT,
+                ended_at TEXT,
+                n_tool_calls INTEGER DEFAULT 0,
+                n_tool_fail INTEGER DEFAULT 0,
+                commits_made INTEGER DEFAULT 0,
+                reverts_made INTEGER DEFAULT 0,
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_session_outcomes_repo ON session_outcomes(repo);
+            "#,
+        )?;
+        conn.execute(
+            "INSERT OR REPLACE INTO migration_version (version) VALUES (4)",
             [],
         )?;
     }
@@ -413,5 +444,103 @@ mod tests {
             )
             .unwrap();
         assert!(version >= 3);
+    }
+
+    /// AC (v4): a fresh DB has session_outcomes (declared in the base SCHEMA) and the
+    /// migration version advances to >= 4.
+    #[test]
+    fn test_migration_v4_creates_session_outcomes_on_fresh_db() {
+        let db = NamedTempFile::new().unwrap();
+        let store = SqliteAnalyticsStore::open(db.path().to_str().unwrap()).expect("open");
+        store.initialize_schema().expect("schema");
+
+        let conn = store.lock().unwrap();
+        let table: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE type='table' AND name='session_outcomes'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(table, 1, "session_outcomes must exist on a fresh DB");
+
+        let version: i64 = conn
+            .query_row(
+                "SELECT COALESCE(MAX(version), 0) FROM migration_version",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(version >= 4);
+    }
+
+    /// AC (v4 upgrade): a pre-v4 DB (version 3, no session_outcomes) gains the table
+    /// AND its index from the migration itself.
+    ///
+    /// This drives `apply` directly rather than `initialize_schema`, because
+    /// `initialize_schema` executes the base SCHEMA first — which already
+    /// contains `CREATE TABLE IF NOT EXISTS session_outcomes`. Going through it would
+    /// pass even if the v4 step were deleted, testing nothing.
+    #[test]
+    fn test_migration_v4_adds_session_outcomes_to_existing_v3_db() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("v3.db");
+        let mut conn = Connection::open(&db_path).unwrap();
+        conn.execute_batch("PRAGMA foreign_keys=ON;").unwrap();
+        // Minimal pre-v4 schema: version 3, no session_outcomes table. tool_calls and
+        // its UNIQUE index are what a real v3 DB carries, and the self-healing
+        // guard at the end of `apply` inspects them.
+        conn.execute_batch(
+            r#"
+            CREATE TABLE migration_version (version INTEGER PRIMARY KEY);
+            INSERT INTO migration_version (version) VALUES (3);
+            CREATE TABLE tool_calls (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                turn_id INTEGER,
+                tool_use_id TEXT,
+                tool_name TEXT
+            );
+            CREATE UNIQUE INDEX idx_tool_calls_use_id ON tool_calls(tool_use_id);
+            "#,
+        )
+        .unwrap();
+
+        apply(&mut conn).expect("v4 migration on a bare v3 DB");
+
+        let table: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE type='table' AND name='session_outcomes'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            table, 1,
+            "v4 migration must create session_outcomes on a v3 DB"
+        );
+
+        let index: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE type='index' AND name='idx_session_outcomes_repo'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(index, 1, "v4 must not diverge from SCHEMA on the index");
+
+        let version: i64 = conn
+            .query_row(
+                "SELECT COALESCE(MAX(version), 0) FROM migration_version",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(version >= 4);
+
+        // Idempotent: a second pass over an already-migrated DB is a no-op.
+        apply(&mut conn).expect("re-apply is safe");
     }
 }

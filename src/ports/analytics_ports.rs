@@ -36,6 +36,15 @@ pub trait AnalyticsStore: Send + Sync {
     fn get_turns_by_session(&self, session_id: i64) -> anyhow::Result<Vec<TurnRecord>>;
     /// Number of turns already stored for a session (for incremental resume).
     fn get_turn_count(&self, session_id: i64) -> anyhow::Result<i64>;
+    /// Set a turn's duration, keyed by (session, turn_number) rather than row id
+    /// so a full re-ingest can backfill turns that already exist (their insert
+    /// returns no id).
+    fn update_turn_duration(
+        &self,
+        session_id: i64,
+        turn_number: i32,
+        duration_ms: i64,
+    ) -> anyhow::Result<()>;
 
     fn insert_token_usage(&self, usage: &NewTokenUsage) -> anyhow::Result<()>;
 
@@ -47,6 +56,17 @@ pub trait AnalyticsStore: Send + Sync {
         result_summary: Option<&str>,
     ) -> anyhow::Result<()>;
     fn get_tool_calls_by_turn(&self, turn_id: i64) -> anyhow::Result<Vec<ToolCallRecord>>;
+
+    /// Write a session's outcome counters into `session_outcomes`.
+    ///
+    /// Called once at the end of ingesting a session file. `mode` says whether
+    /// the counters describe the whole session ([`OutcomeWriteMode::Replace`]) or only
+    /// the tail a resumed parse read ([`OutcomeWriteMode::Accumulate`]).
+    fn upsert_session_outcome(
+        &self,
+        outcomes: &NewSessionOutcome,
+        mode: OutcomeWriteMode,
+    ) -> anyhow::Result<()>;
 
     fn insert_channel_metric(&self, record: &ChannelMetricRecord) -> anyhow::Result<()>;
 

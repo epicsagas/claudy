@@ -88,6 +88,19 @@ CREATE INDEX IF NOT EXISTS idx_tool_calls_turn ON tool_calls(turn_id);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_name ON tool_calls(tool_name);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tool_calls_use_id ON tool_calls(tool_use_id);
 
+CREATE TABLE IF NOT EXISTS session_outcomes (
+    session_uuid   TEXT    PRIMARY KEY,
+    repo           TEXT    NOT NULL,
+    started_at     TEXT,
+    ended_at       TEXT,
+    n_tool_calls   INTEGER DEFAULT 0,
+    n_tool_fail    INTEGER DEFAULT 0,
+    commits_made   INTEGER DEFAULT 0,
+    reverts_made   INTEGER DEFAULT 0,
+    updated_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_session_outcomes_repo ON session_outcomes(repo);
+
 CREATE TABLE IF NOT EXISTS channel_metrics (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id          INTEGER REFERENCES sessions(id),
@@ -632,5 +645,109 @@ mod tests {
         assert_eq!(rows[0].duration_ms, 3_600_000);
         assert!((rows[0].total_cost_usd - 0.50).abs() < 0.001);
         let _ = sid;
+    }
+
+    fn outcome(repo: &str, calls: i64, commits: i64) -> NewSessionOutcome {
+        NewSessionOutcome {
+            session_uuid: "uuid-outcomes".into(),
+            repo: repo.into(),
+            started_at: Some("2026-07-20T00:00:00Z".into()),
+            ended_at: Some("2026-07-20T01:00:00Z".into()),
+            n_tool_calls: calls,
+            n_tool_fail: 0,
+            commits_made: commits,
+            reverts_made: 0,
+        }
+    }
+
+    fn outcome_counts(store: &SqliteAnalyticsStore) -> (String, i64, i64) {
+        store
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT repo, n_tool_calls, commits_made FROM session_outcomes
+                 WHERE session_uuid='uuid-outcomes'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap()
+    }
+
+    fn total_outcome_rows(store: &SqliteAnalyticsStore) -> i64 {
+        store
+            .lock()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM session_outcomes", [], |r| r.get(0))
+            .unwrap()
+    }
+
+    /// Replace inserts, then overwrites in place: the caller read the whole
+    /// transcript, so its counts stand in for whatever was stored.
+    #[test]
+    fn test_upsert_session_outcome_replace_overwrites_in_place() {
+        let store = test_store();
+
+        store
+            .upsert_session_outcome(&outcome("claudy", 3, 1), OutcomeWriteMode::Replace)
+            .unwrap();
+        assert_eq!(outcome_counts(&store), ("claudy".into(), 3, 1));
+
+        store
+            .upsert_session_outcome(&outcome("claudy", 5, 2), OutcomeWriteMode::Replace)
+            .unwrap();
+        assert_eq!(outcome_counts(&store), ("claudy".into(), 5, 2));
+        assert_eq!(total_outcome_rows(&store), 1, "one row per session");
+    }
+
+    /// Accumulate adds a resumed parse's tail to the stored row.
+    #[test]
+    fn test_upsert_session_outcome_accumulate_adds_to_existing_row() {
+        let store = test_store();
+        store
+            .upsert_session_outcome(&outcome("claudy", 3, 1), OutcomeWriteMode::Replace)
+            .unwrap();
+
+        store
+            .upsert_session_outcome(&outcome("claudy", 2, 1), OutcomeWriteMode::Accumulate)
+            .unwrap();
+        assert_eq!(outcome_counts(&store), ("claudy".into(), 5, 2));
+        assert_eq!(total_outcome_rows(&store), 1);
+    }
+
+    /// Accumulate never creates a row: a tail on its own describes a fragment,
+    /// and storing it would be indistinguishable from a complete session.
+    #[test]
+    fn test_upsert_session_outcome_accumulate_without_a_row_writes_nothing() {
+        let store = test_store();
+        store
+            .upsert_session_outcome(&outcome("claudy", 2, 1), OutcomeWriteMode::Accumulate)
+            .unwrap();
+        assert_eq!(total_outcome_rows(&store), 0);
+    }
+
+    /// A session whose transcript carried no cwd is still stored — collection is
+    /// unconditional. But an empty repo never overwrites a known one, so a parse
+    /// that happened not to observe the cwd cannot erase it.
+    #[test]
+    fn test_upsert_session_outcome_empty_repo_is_stored_but_never_overwrites() {
+        let store = test_store();
+
+        store
+            .upsert_session_outcome(&outcome("", 9, 9), OutcomeWriteMode::Replace)
+            .unwrap();
+        assert_eq!(outcome_counts(&store), (String::new(), 9, 9));
+        assert_eq!(
+            total_outcome_rows(&store),
+            1,
+            "an unknown cwd is not a skip"
+        );
+
+        store
+            .upsert_session_outcome(&outcome("claudy", 9, 9), OutcomeWriteMode::Replace)
+            .unwrap();
+        store
+            .upsert_session_outcome(&outcome("", 1, 0), OutcomeWriteMode::Accumulate)
+            .unwrap();
+        assert_eq!(outcome_counts(&store), ("claudy".into(), 10, 9));
     }
 }

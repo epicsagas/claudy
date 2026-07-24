@@ -245,6 +245,22 @@ pub(super) fn get_turns_by_session_impl(
     Ok(result)
 }
 
+/// Set a turn's duration. Keyed by (session, turn_number) — the natural key a
+/// re-parse can always reconstruct — so a full re-ingest backfills durations
+/// onto turns whose insert was a no-op conflict.
+pub(super) fn update_turn_duration_impl(
+    store: &SqliteAnalyticsStore,
+    session_id: i64,
+    turn_number: i32,
+    duration_ms: i64,
+) -> anyhow::Result<()> {
+    store.lock()?.execute(
+        "UPDATE turns SET duration_ms = ?1 WHERE session_id = ?2 AND turn_number = ?3",
+        params![duration_ms, session_id, turn_number],
+    )?;
+    Ok(())
+}
+
 pub(super) fn insert_token_usage_impl(
     store: &SqliteAnalyticsStore,
     usage: &NewTokenUsage,
@@ -286,6 +302,69 @@ pub(super) fn update_tool_call_result_impl(
     store.lock()?.execute(
         "UPDATE tool_calls SET is_error = ?1, result_summary = ?2 WHERE tool_use_id = ?3",
         params![is_error as i32, result_summary, tool_use_id],
+    )?;
+    Ok(())
+}
+
+/// Write a session's outcome counters.
+///
+/// [`OutcomeWriteMode::Replace`] inserts or overwrites: the caller read the transcript
+/// from byte 0, so its counts describe the whole session.
+///
+/// [`OutcomeWriteMode::Accumulate`] adds a resumed parse's tail counts to an existing
+/// row and does nothing when no row exists — a tail alone is not a session, and
+/// inserting it would leave a fragment indistinguishable from a complete count.
+/// The row is created later by the next parse that starts at byte 0.
+///
+/// All sessions are stored: `repo` is the raw session cwd and may be empty when
+/// the transcript carried none. An empty `repo` never overwrites a known one,
+/// so a resumed parse that failed to observe the cwd can't erase it.
+pub(super) fn upsert_session_outcome_impl(
+    store: &SqliteAnalyticsStore,
+    outcomes: &NewSessionOutcome,
+    mode: OutcomeWriteMode,
+) -> anyhow::Result<()> {
+    let sql = match mode {
+        OutcomeWriteMode::Replace => {
+            "INSERT INTO session_outcomes
+                (session_uuid, repo, started_at, ended_at,
+                 n_tool_calls, n_tool_fail, commits_made, reverts_made, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime('now'))
+             ON CONFLICT(session_uuid) DO UPDATE SET
+                repo=CASE WHEN excluded.repo <> '' THEN excluded.repo ELSE session_outcomes.repo END,
+                started_at=COALESCE(excluded.started_at, session_outcomes.started_at),
+                ended_at=COALESCE(excluded.ended_at, session_outcomes.ended_at),
+                n_tool_calls=excluded.n_tool_calls,
+                n_tool_fail=excluded.n_tool_fail,
+                commits_made=excluded.commits_made,
+                reverts_made=excluded.reverts_made,
+                updated_at=datetime('now')"
+        }
+        OutcomeWriteMode::Accumulate => {
+            "UPDATE session_outcomes SET
+                repo=CASE WHEN ?2 <> '' THEN ?2 ELSE repo END,
+                started_at=COALESCE(started_at, ?3),
+                ended_at=COALESCE(?4, ended_at),
+                n_tool_calls=n_tool_calls + ?5,
+                n_tool_fail=n_tool_fail + ?6,
+                commits_made=commits_made + ?7,
+                reverts_made=reverts_made + ?8,
+                updated_at=datetime('now')
+             WHERE session_uuid = ?1"
+        }
+    };
+    store.lock()?.execute(
+        sql,
+        params![
+            outcomes.session_uuid,
+            outcomes.repo,
+            outcomes.started_at,
+            outcomes.ended_at,
+            outcomes.n_tool_calls,
+            outcomes.n_tool_fail,
+            outcomes.commits_made,
+            outcomes.reverts_made,
+        ],
     )?;
     Ok(())
 }
