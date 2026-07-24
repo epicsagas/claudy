@@ -125,6 +125,35 @@ pub(super) fn apply(conn: &mut Connection) -> anyhow::Result<()> {
         )?;
     }
 
+    if current < 6 {
+        // v6: repair sessions attributed to the wrong project. upsert_project
+        // used to read last_insert_rowid() after ON CONFLICT DO UPDATE; that
+        // counter holds the rowid of the last successful insert on the
+        // connection — any table — so mid-ingest it handed back session/turn
+        // rowids as "project ids". Sessions were then either rejected by the
+        // FOREIGN KEY (files silently skipped) or silently filed under a
+        // different project. The true project is recoverable from source_file,
+        // whose path contains the project directory as a /-delimited segment;
+        // re-derive project_id from it wherever a match exists.
+        conn.execute(
+            "UPDATE sessions SET project_id = (
+                SELECT p.id FROM projects p
+                WHERE instr(sessions.source_file, '/' || p.encoded_dir || '/') > 0
+                LIMIT 1
+             )
+             WHERE EXISTS (
+                SELECT 1 FROM projects p
+                WHERE instr(sessions.source_file, '/' || p.encoded_dir || '/') > 0
+                  AND p.id <> sessions.project_id
+             )",
+            [],
+        )?;
+        conn.execute(
+            "INSERT OR REPLACE INTO migration_version (version) VALUES (6)",
+            [],
+        )?;
+    }
+
     // Self-healing guard: runs on every initialize_schema, but it only reads one
     // row from sqlite_master (cheap) and no-ops when the index is already UNIQUE.
     // This repairs the one realistic failure mode the version gate can't catch —
@@ -200,6 +229,7 @@ mod tests {
     use super::*;
     use crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore;
     use crate::ports::analytics_ports::AnalyticsStore;
+    use rusqlite::params;
     use tempfile::NamedTempFile;
 
     fn column_exists(conn: &Connection, table: &str, column: &str) -> bool {
@@ -509,7 +539,8 @@ mod tests {
             r#"
             CREATE TABLE migration_version (version INTEGER PRIMARY KEY);
             INSERT INTO migration_version (version) VALUES (3);
-            CREATE TABLE sessions (id INTEGER PRIMARY KEY, session_uuid TEXT);
+            CREATE TABLE projects (id INTEGER PRIMARY KEY, encoded_dir TEXT);
+            CREATE TABLE sessions (id INTEGER PRIMARY KEY, session_uuid TEXT, project_id INTEGER, source_file TEXT);
             CREATE TABLE tool_calls (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 turn_id INTEGER,
@@ -559,6 +590,53 @@ mod tests {
         apply(&mut conn).expect("re-apply is safe");
     }
 
+    /// AC (v6): a session filed under the wrong project — the stale
+    /// last_insert_rowid() bug — is re-attributed from its source_file path.
+    /// A correctly-attributed session is left untouched.
+    #[test]
+    fn test_migration_v6_repairs_misattributed_sessions() {
+        let db = NamedTempFile::new().unwrap();
+        let store = SqliteAnalyticsStore::open(db.path().to_str().unwrap()).expect("open");
+        store.initialize_schema().expect("schema");
+
+        let p1 = store.upsert_project("-home-a", "a", None).unwrap();
+        let p2 = store.upsert_project("-home-b", "b", None).unwrap();
+        {
+            let conn = store.lock().unwrap();
+            // Misattributed: the path says project b, the row says project a.
+            conn.execute(
+                "INSERT INTO sessions (session_uuid, project_id, source_file)
+                 VALUES ('wrong', ?1, '/x/projects/-home-b/wrong.jsonl'),
+                        ('right', ?2, '/x/projects/-home-b/right.jsonl')",
+                params![p1, p2],
+            )
+            .unwrap();
+            // Force the v6 step to run again on next initialize_schema.
+            conn.execute("DELETE FROM migration_version WHERE version >= 6", [])
+                .unwrap();
+        }
+
+        store.initialize_schema().expect("re-run migrations");
+
+        let conn = store.lock().unwrap();
+        let fixed: i64 = conn
+            .query_row(
+                "SELECT project_id FROM sessions WHERE session_uuid='wrong'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let untouched: i64 = conn
+            .query_row(
+                "SELECT project_id FROM sessions WHERE session_uuid='right'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(fixed, p2, "v6 re-derives project_id from source_file");
+        assert_eq!(untouched, p2, "correct attribution stays put");
+    }
+
     /// AC (v5): a pre-v5 DB gains `sessions.is_sidechain` from the migration
     /// itself. Driven through `apply` directly, like the v4 test, so it fails
     /// if the v5 step is deleted even though the base SCHEMA also carries the
@@ -574,7 +652,8 @@ mod tests {
             r#"
             CREATE TABLE migration_version (version INTEGER PRIMARY KEY);
             INSERT INTO migration_version (version) VALUES (4);
-            CREATE TABLE sessions (id INTEGER PRIMARY KEY, session_uuid TEXT);
+            CREATE TABLE projects (id INTEGER PRIMARY KEY, encoded_dir TEXT);
+            CREATE TABLE sessions (id INTEGER PRIMARY KEY, session_uuid TEXT, project_id INTEGER, source_file TEXT);
             CREATE TABLE tool_calls (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 turn_id INTEGER,

@@ -19,23 +19,21 @@ impl AnalyticsStore for SqliteAnalyticsStore {
         resolved_path: Option<&str>,
     ) -> anyhow::Result<i64> {
         let conn = self.lock()?;
-        conn.execute(
+        // RETURNING id, never last_insert_rowid(): that counter is the rowid of
+        // the last successful INSERT on this connection — ANY insert, any table.
+        // Mid-ingest it holds a session/turn rowid, so reading it here handed
+        // back a number that was either no project at all (every session insert
+        // for the file then failed its FOREIGN KEY) or, worse, a DIFFERENT
+        // project's id — silently attributing the session to the wrong project.
+        let id: i64 = conn.query_row(
             "INSERT INTO projects (encoded_dir, display_name, resolved_path)
              VALUES (?1, ?2, ?3)
              ON CONFLICT(encoded_dir) DO UPDATE SET
                display_name = excluded.display_name,
                resolved_path = COALESCE(excluded.resolved_path, projects.resolved_path),
-               last_seen_at = datetime('now')",
+               last_seen_at = datetime('now')
+             RETURNING id",
             params![encoded_dir, display_name, resolved_path],
-        )?;
-        // For ON CONFLICT, last_insert_rowid returns 0 — query the actual id
-        let rowid = conn.last_insert_rowid();
-        if rowid > 0 {
-            return Ok(rowid);
-        }
-        let id: i64 = conn.query_row(
-            "SELECT id FROM projects WHERE encoded_dir = ?1",
-            params![encoded_dir],
             |row| row.get(0),
         )?;
         Ok(id)

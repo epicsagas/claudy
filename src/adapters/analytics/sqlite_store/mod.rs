@@ -237,6 +237,43 @@ mod tests {
         assert_eq!(found.display_name, "claudy");
     }
 
+    /// Upserting an EXISTING project must return that project's true id even
+    /// after unrelated inserts on the same connection. The old implementation
+    /// read last_insert_rowid() — the rowid of the last successful insert on
+    /// the connection, any table — so after a session insert it returned a
+    /// session rowid as the "project id": sessions then failed their FOREIGN
+    /// KEY (files silently skipped) or, when the stale rowid happened to be a
+    /// valid projects.id, were silently filed under the wrong project.
+    #[test]
+    fn test_upsert_existing_project_id_survives_unrelated_inserts() {
+        let store = test_store();
+        let pid = store.upsert_project("-home-x", "x", None).unwrap();
+
+        // Unrelated inserts move the connection's last_insert_rowid away from
+        // the project id (two inserts, so the counter provably diverges even
+        // though both tables' rowids start at 1).
+        let mut sid = 0;
+        for uuid in ["moves-the-rowid-1", "moves-the-rowid-2"] {
+            sid = store
+                .upsert_session(&NewSession {
+                    session_uuid: uuid.into(),
+                    project_id: pid,
+                    source_file: "f".into(),
+                    cwd: None,
+                    model: None,
+                    first_message: None,
+                    started_at: None,
+                    source_kind: None,
+                    is_sidechain: false,
+                })
+                .unwrap();
+        }
+        assert_ne!(sid, pid, "precondition: the counter has moved");
+
+        let again = store.upsert_project("-home-x", "x", None).unwrap();
+        assert_eq!(again, pid, "existing project resolves to its true id");
+    }
+
     #[test]
     fn test_session_lifecycle() {
         let store = test_store();
