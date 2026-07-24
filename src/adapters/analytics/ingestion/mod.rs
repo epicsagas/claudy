@@ -188,8 +188,16 @@ fn ingest_source_dir(
             }
 
             // R2: archive sources only fill gaps — skip files whose session is
-            // already ingested (e.g. still present in the live source).
-            if source.label != "live"
+            // already ingested (e.g. still present in the live source). Only on
+            // incremental runs: a `--full` re-ingest exists to re-evaluate every
+            // transcript, and for a session whose live file retention already
+            // deleted, the archived copy is the ONLY copy — skipping it would
+            // make sessions older than the retention window permanently
+            // un-reprocessable. Re-parsing a file that also exists in live is
+            // safe: turns are UNIQUE(session_id, turn_number), so the second
+            // pass conflicts into no-ops instead of duplicating children.
+            if !full
+                && source.label != "live"
                 && let Some(stem) = file_path.file_stem().and_then(|s| s.to_str())
                 && store.get_session_by_uuid(stem)?.is_some()
             {
@@ -430,6 +438,85 @@ mod tests {
             started_at: None,
             source_kind: None,
         }); // touch trait to ensure it compiles; ignore result
+    }
+
+    /// A `--full` re-ingest must re-evaluate archive files even when their
+    /// session already exists — for a session whose live file retention has
+    /// deleted, the archived copy is the only copy, and the incremental-only
+    /// gap-skip would otherwise make it permanently un-reprocessable (e.g. a
+    /// backfill of columns introduced after the session was first ingested).
+    #[test]
+    fn test_full_reingest_reevaluates_archive_files() {
+        let tmp = TempDir::new().unwrap();
+        let live = tmp.path().join("projects");
+        let archive = tmp.path().join("archive");
+        std::fs::create_dir_all(&live).unwrap();
+        std::fs::create_dir_all(&archive).unwrap();
+
+        // The session exists ONLY in the archive (live copy long purged).
+        write_session_jsonl(&archive, "-proj", "sess-backfill");
+
+        let db = tmp.path().join("analytics.db");
+        let sources = IngestionSources {
+            sources: vec![
+                IngestionSource {
+                    path: live.clone(),
+                    label: "live",
+                },
+                IngestionSource {
+                    path: archive.clone(),
+                    label: "archive",
+                },
+            ],
+            archive_root: Some(archive.clone()),
+            archive_on_ingest: false,
+        };
+        run_ingestion(db.to_str().unwrap(), true, None, &sources).unwrap();
+
+        let store = crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore::open(
+            db.to_str().unwrap(),
+        )
+        .unwrap();
+        store.initialize_schema().unwrap();
+        assert!(
+            store
+                .get_session_by_uuid("sess-backfill")
+                .unwrap()
+                .is_some()
+        );
+
+        // Simulate a DB from before an ingest-derived column existed: the
+        // session row is present, its outcome row is not.
+        store
+            .lock()
+            .unwrap()
+            .execute("DELETE FROM session_outcomes", [])
+            .unwrap();
+
+        // Incremental run: the R2 gap-skip applies — nothing is re-parsed, so
+        // the outcome row stays absent.
+        run_ingestion(db.to_str().unwrap(), false, None, &sources).unwrap();
+        let count_outcomes =
+            |store: &crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore| -> i64 {
+                store
+                    .lock()
+                    .unwrap()
+                    .query_row("SELECT COUNT(*) FROM session_outcomes", [], |r| r.get(0))
+                    .unwrap()
+            };
+        assert_eq!(
+            count_outcomes(&store),
+            0,
+            "incremental keeps the gap-skip: archive file not re-parsed"
+        );
+
+        // Full run: the archive file IS re-parsed and the outcome row returns.
+        run_ingestion(db.to_str().unwrap(), true, None, &sources).unwrap();
+        assert_eq!(
+            count_outcomes(&store),
+            1,
+            "--full re-evaluates the archived transcript and backfills"
+        );
     }
 
     /// AC-R2: archiver copies new live JSONL into archive_root (retention-proof).
