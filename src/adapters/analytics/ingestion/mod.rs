@@ -175,7 +175,7 @@ fn ingest_source_dir(
         let project_id = store.upsert_project(&encoded_dir, &display_name, resolved)?;
 
         let jsonl_files = collect_jsonl_files(&entry.path())?;
-        for file_path in jsonl_files {
+        for (file_path, is_sidechain) in jsonl_files {
             result.files_scanned += 1;
             let path_str = file_path.to_string_lossy().to_string();
             let modified = file_metadata(&file_path);
@@ -226,6 +226,7 @@ fn ingest_source_dir(
                     full,
                     source_kind: Some(source.label),
                     start_byte_offset: start_offset,
+                    is_sidechain,
                 },
             ) {
                 Ok(stats) => {
@@ -314,28 +315,33 @@ fn walk_jsonl(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
     Ok(out)
 }
 
-fn collect_jsonl_files(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
-    let mut files = Vec::new();
-    let entries = std::fs::read_dir(dir)?;
-    for entry in entries {
-        let entry = entry?;
-        let path = entry.path();
-        if path.extension().is_some_and(|ext| ext == "jsonl") {
-            files.push(path);
-        }
-    }
-    // Also check subagents/ subdirectory
-    let subagents = dir.join("subagents");
-    if subagents.exists() {
-        let entries = std::fs::read_dir(&subagents)?;
-        for entry in entries {
+/// JSONL transcripts under one project directory, each paired with whether it
+/// is a sidechain (subagent) transcript.
+///
+/// Top-level files are the project's main session transcripts. Anything nested
+/// deeper — `<session-uuid>/subagents/agent-*.jsonl` in current layouts — is a
+/// transcript spawned by a session, holding real API usage that would
+/// otherwise go uncounted; it is collected as a session of its own and marked
+/// sidechain so aggregations can separate delegated work from the sessions a
+/// person actually opened. The walk is fully recursive rather than pinned to
+/// today's `subagents/` layout (an earlier version looked for
+/// `<project>/subagents/`, one level shallower than where the files actually
+/// live, and so found nothing). Symlinks are not followed.
+fn collect_jsonl_files(dir: &Path) -> anyhow::Result<Vec<(PathBuf, bool)>> {
+    fn walk(dir: &Path, nested: bool, out: &mut Vec<(PathBuf, bool)>) -> anyhow::Result<()> {
+        for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.extension().is_some_and(|ext| ext == "jsonl") {
-                files.push(path);
+            if entry.file_type()?.is_dir() {
+                walk(&path, true, out)?;
+            } else if path.extension().is_some_and(|ext| ext == "jsonl") {
+                out.push((path, nested));
             }
         }
+        Ok(())
     }
+    let mut files = Vec::new();
+    walk(dir, false, &mut files)?;
     files.sort();
     Ok(files)
 }
@@ -376,6 +382,77 @@ mod tests {
         let assistant = r#"{"type":"assistant","timestamp":"2026-07-20T10:00:01Z","message":{"role":"assistant","model":"claude-sonnet-5","content":[{"type":"text","text":"hi"}],"usage":{"input_tokens":10,"output_tokens":5,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}"#;
         std::fs::write(&file, format!("{user}\n{assistant}\n")).unwrap();
         file
+    }
+
+    /// Sidechain (subagent) transcripts live nested under a session's directory
+    /// — `<project>/<session-uuid>/subagents/agent-*.jsonl` — and hold real API
+    /// usage. They must be ingested as sessions of their own (else their tokens
+    /// are invisible), flagged `is_sidechain`, and their turns must never count
+    /// as human-authored: a sidechain's "user" messages are the parent agent's
+    /// prompts, not a person's.
+    #[test]
+    fn test_nested_sidechain_transcripts_are_ingested_and_flagged() {
+        let tmp = TempDir::new().unwrap();
+        let live = tmp.path().join("projects");
+        let main = write_session_jsonl(&live, "-proj", "sess-main");
+        // A subagent transcript nested under the main session's directory.
+        let sub_dir = main.parent().unwrap().join("sess-main").join("subagents");
+        std::fs::create_dir_all(&sub_dir).unwrap();
+        let agent = sub_dir.join("agent-abc123.jsonl");
+        let user = r#"{"type":"user","timestamp":"2026-07-20T10:00:02Z","message":{"role":"user","content":"delegated task"}}"#;
+        let assistant = r#"{"type":"assistant","timestamp":"2026-07-20T10:00:03Z","message":{"role":"assistant","model":"claude-sonnet-5","content":[{"type":"text","text":"done"}],"usage":{"input_tokens":7,"output_tokens":3,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}"#;
+        std::fs::write(&agent, format!("{user}\n{assistant}\n")).unwrap();
+
+        let db = tmp.path().join("analytics.db");
+        let sources = IngestionSources {
+            sources: vec![IngestionSource {
+                path: live.clone(),
+                label: "live",
+            }],
+            archive_root: None,
+            archive_on_ingest: false,
+        };
+        let r = run_ingestion(db.to_str().unwrap(), true, None, &sources).unwrap();
+        assert_eq!(
+            r.sessions_created, 2,
+            "main + sidechain both become sessions"
+        );
+
+        let store = crate::adapters::analytics::sqlite_store::SqliteAnalyticsStore::open(
+            db.to_str().unwrap(),
+        )
+        .unwrap();
+        store.initialize_schema().unwrap();
+        let conn = store.lock().unwrap();
+        let flags: Vec<(String, i64)> = conn
+            .prepare("SELECT session_uuid, is_sidechain FROM sessions ORDER BY session_uuid")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(
+            flags,
+            vec![
+                ("agent-abc123".to_string(), 1),
+                ("sess-main".to_string(), 0)
+            ],
+            "nested transcript flagged sidechain; top-level not"
+        );
+
+        let (sub_tokens, sub_human): (i64, i64) = conn
+            .query_row(
+                "SELECT COALESCE(SUM(tu.output_tokens),0), COALESCE(SUM(t.human_authored),0)
+                 FROM sessions s
+                 JOIN turns t ON t.session_id = s.id
+                 LEFT JOIN token_usage tu ON tu.turn_id = t.id
+                 WHERE s.is_sidechain = 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(sub_tokens, 3, "sidechain tokens are counted");
+        assert_eq!(sub_human, 0, "sidechain turns are never human-authored");
     }
 
     /// AC-R2: a session placed in archive_root only (removed from live) appears
@@ -437,6 +514,7 @@ mod tests {
             first_message: None,
             started_at: None,
             source_kind: None,
+            is_sidechain: false,
         }); // touch trait to ensure it compiles; ignore result
     }
 

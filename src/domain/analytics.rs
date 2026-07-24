@@ -14,6 +14,11 @@ pub struct NewSession {
     /// Neutral source label (e.g. "live", "archive") for R2 archive fallback.
     /// NULL for pre-R2 rows.
     pub source_kind: Option<String>,
+    /// A sidechain transcript — one spawned by another session (a subagent),
+    /// found nested under that session's directory rather than at the project
+    /// top level. Stored so aggregations can separate delegated work from the
+    /// sessions a person actually opened.
+    pub is_sidechain: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -107,6 +112,9 @@ pub struct ProjectRecord {
 pub struct SessionRecord {
     pub id: i64,
     pub session_uuid: String,
+    // NOTE: `is_sidechain` is stored on the sessions table but not carried on
+    // this read model yet — no reader needs it; consumers that filter sidechains
+    // do so in SQL.
     pub project_id: i64,
     pub cwd: Option<String>,
     pub model: Option<String>,

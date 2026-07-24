@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     source_file       TEXT    NOT NULL,
     file_modified_at  TEXT,
     ingested_at       TEXT    NOT NULL DEFAULT (datetime('now')),
-    source_kind       TEXT
+    source_kind       TEXT,
+    is_sidechain      INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at);
@@ -250,6 +251,7 @@ mod tests {
                 first_message: Some("hello".into()),
                 started_at: Some("2026-01-01T00:00:00".into()),
                 source_kind: None,
+                is_sidechain: false,
             })
             .unwrap();
         assert!(sid > 0);
@@ -278,6 +280,7 @@ mod tests {
                 first_message: None,
                 started_at: None,
                 source_kind: None,
+                is_sidechain: false,
             })
             .unwrap();
         let tid = store
@@ -323,6 +326,7 @@ mod tests {
                 first_message: None,
                 started_at: None,
                 source_kind: None,
+                is_sidechain: false,
             })
             .unwrap();
         let tid = store
@@ -456,6 +460,7 @@ mod tests {
                 first_message: None,
                 started_at: Some("2026-01-01T00:00:00".into()),
                 source_kind: None,
+                is_sidechain: false,
             })
             .unwrap();
         store
@@ -513,6 +518,7 @@ mod tests {
                 first_message: Some("hi".into()),
                 started_at: Some("2026-01-01T00:00:00".into()),
                 source_kind: None,
+                is_sidechain: false,
             })
             .unwrap();
         store

@@ -35,11 +35,11 @@ pub(super) fn upsert_session_impl(
         }
     }
     conn.execute(
-        "INSERT INTO sessions (session_uuid, project_id, source_file, cwd, model, first_message, started_at, source_kind)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO sessions (session_uuid, project_id, source_file, cwd, model, first_message, started_at, source_kind, is_sidechain)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![session.session_uuid, session.project_id, session.source_file,
                 session.cwd, session.model, session.first_message, session.started_at,
-                session.source_kind],
+                session.source_kind, session.is_sidechain as i32],
     )?;
     Ok(conn.last_insert_rowid())
 }
@@ -526,6 +526,7 @@ mod tests {
             first_message: None,
             started_at: Some(started_at.into()),
             source_kind: source_kind.map(String::from),
+            is_sidechain: false,
         });
         // upsert_session returns Result; unwrap in test
         let sid = sid.unwrap();

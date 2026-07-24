@@ -113,6 +113,18 @@ pub(super) fn apply(conn: &mut Connection) -> anyhow::Result<()> {
         )?;
     }
 
+    if current < 5 {
+        // v5: sidechain flag on sessions — a transcript spawned by another
+        // session (a subagent), ingested as its own session so its tokens are
+        // counted, and marked so aggregations can separate delegated work from
+        // the sessions a person actually opened.
+        add_column_if_missing(conn, "sessions", "is_sidechain", "INTEGER DEFAULT 0")?;
+        conn.execute(
+            "INSERT OR REPLACE INTO migration_version (version) VALUES (5)",
+            [],
+        )?;
+    }
+
     // Self-healing guard: runs on every initialize_schema, but it only reads one
     // row from sqlite_master (cheap) and no-ops when the index is already UNIQUE.
     // This repairs the one realistic failure mode the version gate can't catch —
@@ -254,6 +266,7 @@ mod tests {
                 first_message: None,
                 started_at: None,
                 source_kind: None,
+                is_sidechain: false,
             })
             .expect("session");
         let tid = store
@@ -396,6 +409,7 @@ mod tests {
                 first_message: None,
                 started_at: None,
                 source_kind: None,
+                is_sidechain: false,
             })
             .expect("session");
         let tid = store
@@ -488,13 +502,14 @@ mod tests {
         let db_path = dir.path().join("v3.db");
         let mut conn = Connection::open(&db_path).unwrap();
         conn.execute_batch("PRAGMA foreign_keys=ON;").unwrap();
-        // Minimal pre-v4 schema: version 3, no session_outcomes table. tool_calls and
-        // its UNIQUE index are what a real v3 DB carries, and the self-healing
-        // guard at the end of `apply` inspects them.
+        // Minimal pre-v4 schema: version 3, no session_outcomes table. tool_calls
+        // and its UNIQUE index are what the self-healing guard inspects, and a
+        // bare sessions table is what the later v5 column-add step touches.
         conn.execute_batch(
             r#"
             CREATE TABLE migration_version (version INTEGER PRIMARY KEY);
             INSERT INTO migration_version (version) VALUES (3);
+            CREATE TABLE sessions (id INTEGER PRIMARY KEY, session_uuid TEXT);
             CREATE TABLE tool_calls (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 turn_id INTEGER,
@@ -541,6 +556,57 @@ mod tests {
         assert!(version >= 4);
 
         // Idempotent: a second pass over an already-migrated DB is a no-op.
+        apply(&mut conn).expect("re-apply is safe");
+    }
+
+    /// AC (v5): a pre-v5 DB gains `sessions.is_sidechain` from the migration
+    /// itself. Driven through `apply` directly, like the v4 test, so it fails
+    /// if the v5 step is deleted even though the base SCHEMA also carries the
+    /// column for fresh DBs.
+    #[test]
+    fn test_migration_v5_adds_sidechain_flag_to_existing_db() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("v4.db");
+        let mut conn = Connection::open(&db_path).unwrap();
+        // Minimal pre-v5 schema: version 4, sessions without is_sidechain, plus
+        // the tool_calls shape the self-healing guard inspects.
+        conn.execute_batch(
+            r#"
+            CREATE TABLE migration_version (version INTEGER PRIMARY KEY);
+            INSERT INTO migration_version (version) VALUES (4);
+            CREATE TABLE sessions (id INTEGER PRIMARY KEY, session_uuid TEXT);
+            CREATE TABLE tool_calls (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                turn_id INTEGER,
+                tool_use_id TEXT,
+                tool_name TEXT
+            );
+            CREATE UNIQUE INDEX idx_tool_calls_use_id ON tool_calls(tool_use_id);
+            "#,
+        )
+        .unwrap();
+
+        apply(&mut conn).expect("v5 migration on a bare v4 DB");
+
+        let has_col: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('sessions')
+                 WHERE name='is_sidechain'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(has_col, 1, "v5 must add sessions.is_sidechain");
+
+        let version: i64 = conn
+            .query_row(
+                "SELECT COALESCE(MAX(version), 0) FROM migration_version",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(version >= 5);
+
         apply(&mut conn).expect("re-apply is safe");
     }
 }

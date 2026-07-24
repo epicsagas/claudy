@@ -273,6 +273,11 @@ pub struct IngestFileArgs<'a> {
     pub full: bool,
     pub source_kind: Option<&'a str>,
     pub start_byte_offset: i64,
+    /// The file is a sidechain (subagent) transcript, found nested under a
+    /// session's directory rather than at the project top level. Its session
+    /// row is flagged, and its turns are never human-authored — the "user"
+    /// messages in a sidechain are the parent agent's prompts.
+    pub is_sidechain: bool,
 }
 
 pub fn parse_and_ingest(
@@ -287,6 +292,7 @@ pub fn parse_and_ingest(
         full,
         source_kind,
         start_byte_offset,
+        is_sidechain,
     } = args;
 
     // R1: resume from the last committed byte offset. Clamp to file length so a
@@ -481,7 +487,9 @@ pub fn parse_and_ingest(
                 // metadata the parser already inspects. Meta/command injections
                 // are skipped below, so persisted turns are human-authored by
                 // construction; this records that invariant explicitly.
-                let human_authored = !(is_meta || is_command);
+                // A sidechain's "user" messages are the parent agent's prompts,
+                // never a person's.
+                let human_authored = !(is_meta || is_command || is_sidechain);
 
                 if is_meta || is_command {
                     continue;
@@ -507,6 +515,7 @@ pub fn parse_and_ingest(
                         first_message: text.as_ref().map(|t| redact_secrets(t)),
                         started_at: ts,
                         source_kind: source_kind.map(|s| s.to_string()),
+                        is_sidechain,
                     }) {
                         Ok(sid) => sid,
                         Err(e) => {
@@ -1000,6 +1009,7 @@ mod tests {
                 full,
                 source_kind: None,
                 start_byte_offset,
+                is_sidechain: false,
             },
         )
         .unwrap()
