@@ -1,0 +1,21 @@
+name: kanban-claudy-lane
+version: 1.0.0
+description: >-
+  Hermes Kanban worker → claudy (Claude CLI launcher) implementation
+  delegation lane. A Codex-substitute for subscriptionless setups: a Hermes
+  worker keeps ownership of the task lifecycle while delegating bounded
+  implementation work to an isolated git worktree, then reconciles and tests.
+  Designed for the claudy harness but works on any Hermes Agent install with
+  a kanban board and claudy on PATH.
+author: epicsagas
+homepage: https://github.com/epicsagas/claudy
+license: Apache-2.0
+provides_skills:
+  - kanban-claudy-lane
+# No hooks or commands — this is a pure skill plugin. The lane is invoked
+# by a kanban worker (e.g. the dev-lead profile) that loads the skill and
+# follows its worktree → delegate → reconcile flow.
+compatibility:
+  hermes: ">=1.0"
+  requires_cli:
+    - claudy
