@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-08-16
+
 ### Fixed
 
 - **OpenRouter sessions no longer fail to resume with `400 diagnostics.previous_message_id`.** OpenRouter writes assistant `message.id` as `gen-<epoch>-<slug>`; on resume the Claude CLI replays the last assistant id as `diagnostics.previous_message_id`, which the Anthropic API rejects unless it matches `msg_[a-zA-Z0-9_]+`. Session sanitization now remaps those ids (and the sibling `requestId`) to `msg_*`. The failure was self-propagating: the CLI records its own 400 as a synthetic assistant message with a UUID id, which becomes the next `previous_message_id`.
@@ -17,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **`claudy handoff` — continue a quota-exhausted Codex or Antigravity session in Claude.** Foreign CLI sessions cannot be resumed with `--resume` (different formats), so handoff extracts a conversation digest (user prompts verbatim, assistant replies and tool activity truncated, final state, workspace path) under a 16 KiB budget and seeds a new interactive Claude session with it. Codex rollout JSONL is parsed natively; the undocumented Antigravity session DB is read best-effort (generic protobuf string scan + prompt-history index) with a prompts-only fallback. Usage: `claudy [profile] handoff [codex|agy] [-c|-r] [flags]` — `-c` hands off the most recent session across both stores, `-r` picks among the 5 most recent, `--yolo`/unknown flags forward verbatim to the Claude session.
+- `plugins/kanban-claudy-lane` — hermes plugin that drives claudy channel lanes from a kanban board.
 - `rusqlite` is now an unconditional dependency (it was already compiled in default builds via the analytics feature chain), so `handoff --from agy` works in every build.
 
 ## [0.5.1] - 2026-07-23
