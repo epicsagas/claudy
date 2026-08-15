@@ -1,6 +1,6 @@
 [package]
 name = "claudy"
-version = "0.7.1"
+version = "0.7.2-dev"
 edition = "2024"
 rust-version = "1.92"
 description = "Modern multi-provider launcher for Claude CLI"
@@ -45,7 +45,7 @@ eula = false
 
 [features]
 default = ["analytics-ui"]
-analytics = ["rusqlite"]
+analytics = []
 analytics-ui = ["analytics", "tauri", "tauri-build"]
 
 [dependencies]
@@ -89,8 +89,8 @@ serde_urlencoded = "0.7"
 async-trait = "0.1"
 bytes = "1.11.1"
 
-# Analytics (feature-gated)
-rusqlite = { version = "0.40", features = ["bundled"], optional = true }
+# Analytics store + foreign session readers (handoff)
+rusqlite = { version = "0.40", features = ["bundled"] }
 
 # Tauri dashboard (feature-gated)
 tauri = { version = "2", optional = true , features = [] }

@@ -4,4 +4,5 @@ pub mod channel_events;
 pub mod channel_session;
 pub mod commands;
 pub mod context;
+pub mod handoff;
 pub mod launch_blueprint;

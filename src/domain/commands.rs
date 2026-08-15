@@ -32,6 +32,10 @@ pub enum DomainCommand {
     Mcp(McpAction),
     Analytics(AnalyticsAction),
     Session(SessionAction),
+    Handoff {
+        profile: Option<String>,
+        args: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone)]

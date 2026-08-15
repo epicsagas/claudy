@@ -54,6 +54,7 @@ Claudy를 사용하면 Anthropic, Z.AI, OpenRouter, Ollama, 커스텀 엔드포�
 | 📊 | 사용량 분석 | 토큰 사용량, 비용, 도구 패턴을 로컬 Tauri 대시보드에서 추적 |
 | 🔐 | 안전한 프로세스 제어 | SIGINT/SIGTERM 전달, 원자적 설정 쓰기, 0600 자격 증명 저장 |
 | 🔀 | 크로스 프로바이더 세션 연속성 | 크레딧이 끝나도 세션을 종료하고 다른 프로바이더에서 같은 대화를 이어서 계속 — 기록은 자동 복구 |
+| 🫴 | 크로스 CLI 세션 핸드오프 | Codex나 Antigravity에서 할당량이 소진되면 `claudy handoff`로 세션을 추출해 새 Claude 세션에 시딩 |
 | 🛠️ | 운영 UX | 설치, 업데이트, 제거, 진단, 핑 — 모든 것을 하나의 바이너리에서 |
 
 ## 사용량 한도에 걸렸다면? 다른 프로바이더에서 세션 이어가기
@@ -72,7 +73,16 @@ claudy anthropic --resume <session-id>
 
 같은 작업 디렉토리, 같은 설정 모드, 같은 대화 기록 — 바뀌는 것은 프로바이더뿐입니다. 양방향 모두 동작합니다 (Anthropic → Z.AI, Z.AI → Anthropic).
 
-**내부 동작:** 프로바이더마다 세션 파일을 기록하는 방식이 조금씩 다릅니다. 비 Anthropic 프로바이더(Z.AI / GLM 등)로 세션을 만들면 Claude CLI는 빈 signature를 가진 thinking 블록을 기록합니다. Anthropic API는 이 signature를 검증하다가 세션 재개 시 전체 기록을 HTTP 400으로 거부합니다. Claudy는 Claude 프로세스를 시작하기 전에 세션 파일을 자동으로 정리합니다 — 유효하지 않은 thinking 블록을 일반 텍스트로 변환하고(추론 내용은 읽기 가능한 컨텍스트로 보존) 비표준 tool-use ID를 재매핑해서, 크로스 프로바이더 재개가 그냥 동작하도록 합니다. 수동 단계도, 외워야 할 것도 없습니다.
+**내부 동작:** 프로바이더마다 세션 파일을 기록하는 방식이 조금씩 다르고, Anthropic API는 자신이 만들지 않은 형식을 보면 전체 기록을 HTTP 400으로 거부합니다. Claudy는 Claude 프로세스를 시작하기 전에 세션 파일을 자동으로 복구하므로 크로스 프로바이더 재개가 그냥 동작합니다. 수동 단계도, 외워야 할 것도 없습니다. 복구 대상:
+
+| 기록 주체 | 재개 시 증상 | 복구 |
+|---|---|---|
+| Z.AI / GLM | signature가 빈 `thinking` 블록 | 일반 텍스트로 변환(추론 내용은 읽기 가능한 컨텍스트로 보존) |
+| Z.AI / GLM | OpenAI 형식 `call_<hex>` tool-use ID | `toolu_*`로 재매핑, 짝이 되는 `tool_result`도 갱신 |
+| Z.AI / GLM | 비표준 `server_tool_use` ID | `srvtoolu_*`로 재매핑 |
+| OpenRouter | `gen-<epoch>-<slug>` 메시지 ID가 `previous_message_id`로 재전송됨 | `msg_*`로 재매핑 |
+
+OpenRouter 케이스는 방치하면 자기증식합니다. CLI가 자신이 받은 `400` 에러를 UUID ID를 가진 합성 assistant 메시지로 기록하고, 그것이 다음 `previous_message_id`가 되어 다시 실패합니다.
 
 **절대 자동이 아닙니다.** Claudy는 사용량 소진을 감지하지 않고 스스로 프로바이더를 전환하지도 않습니다. 언제 종료하고 어디서 재개할지는 사용자가 결정합니다.
 
@@ -92,7 +102,7 @@ claudy session sanitize --all --yes
 출력 예시:
 
 ```
-Sessions with invalid thinking blocks
+Sessions needing sanitization
 ──────────────────────────────────────────────────────────────────────────────────
  #   Project           Session ID  Age      Last message                          Blocks
 ──────────────────────────────────────────────────────────────────────────────────
@@ -108,6 +118,39 @@ Select session to sanitize (or "Sanitize ALL"):
 **채널 브릿지:** Telegram/Slack/Discord 세션이 재개될 때 채널 서버는 Claude 프로세스를 띄우기 전에 같은 변환을 자동으로 적용합니다 — `/sessions`는 최근 세션 목록과 전환 버튼을 제공합니다.
 
 **제한 사항:** 세션 연속성은 대화 기록의 호환성에 따라 달라집니다. 세션 도중 프로바이더를 전환하면 sanitization 이후에도 미묘한 맥락 변화가 발생할 수 있습니다.
+
+## Codex나 Antigravity에서 한도에 걸렸다면? 세션을 Claude로 넘기기
+
+크로스 프로바이더 재개는 Claude CLI 내부에서만 동작합니다 — Codex와 Antigravity는 자체 포맷의 세션 저장소를 쓰기 때문에 `--resume`으로 로드할 수 없습니다. 이 CLI들의 할당량이 소진되었을 때 `claudy handoff`가 외부 세션에서 대화 다이제스트를 추출해 **새** Claude 세션에 시딩합니다:
+
+```bash
+# 대화형 — 현재 디렉토리의 codex + agy 세션 목록 표시
+claudy handoff
+
+# 특정 프로필로 (모든 프로필 접두사 동작)
+claudy zai handoff
+
+# 두 CLI 통틀어 가장 최근 세션, 피커 없이
+claudy zai handoff -c
+
+# 최근 5개 세션 중에서 선택
+claudy handoff -r
+
+# 한 CLI로 제한; 실행 없이 다이제스트 미리보기
+claudy handoff codex -c --print
+claudy handoff agy -c --print
+
+# 특정 세션 id
+claudy handoff --id <session-id>
+```
+
+`-c`는 Claude의 `--continue`(최근 세션), `-r`은 `--resume`(선택)에 대응하지만 외부 세션 저장소를 대상으로 동작합니다. `--yolo`와 그 외 인식되지 않은 플래그는 Claude 세션에 그대로 전달됩니다.
+
+**추출 내용:** 원본 유저 프롬프트(그대로, 길이 제한), 어시스턴트 응답과 툴 활동(한 줄 요약으로 절단), 마지막 어시스턴트 상태, 워크스페이스 경로 — 16 KiB 예산 안에서 단일 프롬프트로 렌더링됩니다. Codex rollout 파일은 네이티브로 파싱합니다. Antigravity 세션 DB는 미공개 포맷이라 best-effort로 읽습니다(일반 protobuf 문자열 스캔 + 프롬프트 히스토리 인덱스) 레이아웃이 바뀌면 프롬프트만으로 강등됩니다.
+
+새 Claude 세션은 같은 작업 디렉토리에서 다이제스트를 첫 메시지로 시작합니다 — 대화 요약과 현재 저장소 상태(`git status`/`git diff` 권장)를 검토하고 거기서 이어갑니다. 이것은 맥락 핸드오프이지 비트 단위 재개가 아닙니다: 모델이 세부사항을 재생하는 대신 재확인할 것으로 기대하세요.
+
+**플래그:** 위치인자 `codex|agy` (생략 시 둘 다 스캔) · `-c, --continue` (가장 최근 세션) · `-r, --resume` (최근 5개 중 선택) · `--id <session-id>` (피커 건너뛰기) · `--cwd <dir>` (기본: 현재 디렉토리, 매칭이 없으면 전체 폴백) · `--profile <p>` (또는 프로필 접두사: `claudy zai handoff`) · `--print` (stdout 출력만) · `--yolo` (`--dangerously-skip-permissions` 전달, 그 외 미인식 플래그는 그대로 전달).
 
 ## 지원 프로바이더
 
@@ -327,7 +370,8 @@ claudy <profile> gstack
 - `claudy channel <subcommand>`: 채널 브릿지 관리.
 - `claudy mcp`: 에이전트 브릿지용 MCP 서버로 실행.
 - `claudy analytics <subcommand>`: 사용량 분석 대시보드.
-- `claudy session sanitize`: 비 Anthropic 프로바이더의 잘못된 thinking 블록이 있는 세션을 복구합니다.
+- `claudy session sanitize`: 비 Anthropic 프로바이더가 남긴 Anthropic API 비호환 항목(thinking 블록, tool-use ID, 메시지 ID)을 복구합니다.
+- `claudy [profile] handoff [codex|agy] [-c|-r]`: 할당량이 소진된 codex/agy 세션을 새 Claude 세션에서 이어받습니다.
 
 ### 모드 명령어
 

@@ -338,6 +338,7 @@ pub(super) async fn handle_text_message(
                 server_tool_uses = r.server_tool_uses,
                 id_remaps = r.server_tool_use_ids_remapped,
                 tool_use_ids = r.tool_use_ids_remapped,
+                message_ids = r.message_ids_remapped,
                 session_id = %sid,
                 "Sanitized session before resume"
             ),

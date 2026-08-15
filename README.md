@@ -60,6 +60,7 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
 | 📊 | Usage analytics | Track token usage, costs, and tool patterns with a local Tauri dashboard |
 | 🔐 | Safe process control | SIGINT/SIGTERM forwarding, atomic config writes, 0600 credential storage |
 | 🔀 | Cross-provider session continuity | Out of credits? Exit and resume the same conversation on another provider — history is repaired automatically |
+| 🫴 | Cross-CLI session handoff | Quota exhausted in Codex or Antigravity? `claudy handoff` extracts the session and seeds a new Claude session with it |
 | 🛠️ | Operational UX | Install, update, uninstall, doctor, ping — everything from one binary |
 
 ## Hit a Usage Limit? Continue the Session on Another Provider
@@ -78,7 +79,16 @@ claudy anthropic --resume <session-id>
 
 Same working directory, same config mode, same conversation history — only the provider changes. Both directions work (Anthropic → Z.AI and Z.AI → Anthropic).
 
-**What happens under the hood:** providers write session files slightly differently. When a session is created with a non-Anthropic provider (such as Z.AI / GLM), the Claude CLI records thinking blocks with an empty signature. The Anthropic API validates these signatures and rejects the whole history with HTTP 400 when the session is resumed. Before the Claude process starts, claudy silently sanitizes the session file — converting invalid thinking blocks to plain text (preserving the reasoning as readable context) and remapping non-conforming tool-use IDs — so cross-provider resume just works. No manual step, nothing to remember.
+**What happens under the hood:** providers write session files slightly differently, and the Anthropic API rejects the whole history with HTTP 400 when it sees a shape it did not produce. Before the Claude process starts, claudy silently repairs the session file so cross-provider resume just works. No manual step, nothing to remember. It fixes:
+
+| Written by | Symptom on resume | Repair |
+|---|---|---|
+| Z.AI / GLM | `thinking` block with an empty signature | converted to plain text (reasoning preserved as readable context) |
+| Z.AI / GLM | OpenAI-style `call_<hex>` tool-use ids | remapped to `toolu_*`, paired `tool_result` updated |
+| Z.AI / GLM | non-conforming `server_tool_use` ids | remapped to `srvtoolu_*` |
+| OpenRouter | `gen-<epoch>-<slug>` message ids replayed as `previous_message_id` | remapped to `msg_*` |
+
+The OpenRouter case is self-propagating if left alone: the CLI records its own `400` error as a synthetic assistant message with a UUID id, which then becomes the next `previous_message_id` and fails again.
 
 **Never automatic.** Claudy does not detect quota exhaustion and never switches providers on its own. You decide when to exit and where to resume.
 
@@ -98,9 +108,9 @@ claudy session sanitize --all --yes
 Output example:
 
 ```
-Sessions with invalid thinking blocks
+Sessions needing sanitization
 ──────────────────────────────────────────────────────────────────────────────────
- #   Project           Session ID  Age      Last message                          Blocks
+ #   Project           Session ID  Age      Last message                          Fixes
 ──────────────────────────────────────────────────────────────────────────────────
  1   book-forge        ad2f38c0    2d       oss-dist 스킬로 book-forge 프로젝트…   7
  2   obsidian-forge    17e75a8c    5d       LaunchAgent 설정 구현…                 12
@@ -109,11 +119,44 @@ Sessions with invalid thinking blocks
 Select session to sanitize (or "Sanitize ALL"):
 ```
 
-The session file is updated atomically; sessions with valid Anthropic signatures are not touched.
+The session file is updated atomically; already-conforming sessions are not touched. A session that is still running is skipped with a warning rather than overwritten — exit it first.
 
 **Channel bridge:** when a Telegram/Slack/Discord session resumes, the channel server applies the same conversion automatically before spawning the Claude process — and `/sessions` lists recent sessions with switch buttons.
 
 **Limitation:** session continuity depends on the conversation history being compatible. Switching providers mid-session may cause subtle context shifts even after sanitization.
+
+## Hit a Usage Limit in Codex or Antigravity? Hand the Session to Claude
+
+Cross-provider resume only works inside the Claude CLI — Codex and Antigravity keep their own session stores in their own formats, so `--resume` cannot load them. When those CLIs run out of quota, `claudy handoff` extracts a conversation digest from the foreign session and seeds a **new** Claude session with it:
+
+```bash
+# Interactive — lists codex + agy sessions for the current directory
+claudy handoff
+
+# Under a specific profile (any profile prefix works)
+claudy zai handoff
+
+# Most recent session across both CLIs, no picker
+claudy zai handoff -c
+
+# Pick among the 5 most recent sessions
+claudy handoff -r
+
+# Restrict to one CLI; preview the digest without launching
+claudy handoff codex -c --print
+claudy handoff agy -c --print
+
+# A specific session id
+claudy handoff --id <session-id>
+```
+
+`-c` mirrors Claude's `--continue` (most recent) and `-r` mirrors `--resume` (choose) — but over the foreign session stores. `--yolo` and any other unrecognized flags are forwarded to the Claude session verbatim.
+
+**What gets extracted:** the original user prompts (verbatim, capped), assistant replies and tool activity (truncated to one-liners), the final assistant state, and the workspace path — rendered into a single prompt under a 16 KiB budget. Codex rollout files are parsed natively. Antigravity's session DB is an undocumented format, so claudy reads it best-effort (a generic protobuf string scan plus the prompt history index) and falls back to prompts-only when the layout changes.
+
+The new Claude session starts in the same working directory with the digest as its first message — it reviews the conversation summary plus the current repo state (`git status`/`git diff` are suggested to it) and continues from there. This is a context handoff, not a bit-for-bit resume: expect the model to re-verify details rather than replay them.
+
+**Flags:** `[codex|agy]` positional source (scan both when omitted) · `-c, --continue` (most recent session) · `-r, --resume` (pick among the 5 most recent) · `--id <session-id>` (skip the picker) · `--cwd <dir>` (default: current directory; falls back to all sessions when nothing matches) · `--profile <p>` (or a profile prefix: `claudy zai handoff`) · `--print` (stdout only) · `--yolo` (pass `--dangerously-skip-permissions` to Claude; other unknown flags forward verbatim).
 
 ## Supported Providers
 
@@ -334,6 +377,7 @@ Each mode directory is a self-contained `CLAUDE_CONFIG_DIR`, so frameworks never
 - `claudy mcp`: run as MCP server for agent bridge.
 - `claudy analytics <subcommand>`: usage analytics dashboard.
 - `claudy session sanitize`: fix sessions with invalid thinking blocks from non-Anthropic providers.
+- `claudy [profile] handoff [codex|agy] [-c|-r]`: continue a quota-exhausted codex/agy session in a new Claude session.
 
 ### Mode commands
 

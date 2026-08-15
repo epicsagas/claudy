@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **OpenRouter sessions no longer fail to resume with `400 diagnostics.previous_message_id`.** OpenRouter writes assistant `message.id` as `gen-<epoch>-<slug>`; on resume the Claude CLI replays the last assistant id as `diagnostics.previous_message_id`, which the Anthropic API rejects unless it matches `msg_[a-zA-Z0-9_]+`. Session sanitization now remaps those ids (and the sibling `requestId`) to `msg_*`. The failure was self-propagating: the CLI records its own 400 as a synthetic assistant message with a UUID id, which becomes the next `previous_message_id`.
+- **`claudy session sanitize` no longer misses sessions that need repair.** Flagging counted only invalid thinking blocks, so a session whose sole problem was a non-conforming id reported "no sessions found". It now flags on a full dry run of every sanitizer.
+- **`claudy session sanitize --project` can reach a project's older sessions.** The 200-session cap was applied before the project filter, so a project's sessions could be hidden behind other projects' newer ones. Discovery now filters first and caps after.
+- **Sanitizing a running session no longer risks discarding lines.** Sanitization rewrites the whole file, so lines appended by a live Claude CLI between read and rename were lost. The file's `(len, mtime)` is now re-checked before the write and the session is skipped with an actionable error instead.
+
+### Added
+
+- **`claudy handoff` — continue a quota-exhausted Codex or Antigravity session in Claude.** Foreign CLI sessions cannot be resumed with `--resume` (different formats), so handoff extracts a conversation digest (user prompts verbatim, assistant replies and tool activity truncated, final state, workspace path) under a 16 KiB budget and seeds a new interactive Claude session with it. Codex rollout JSONL is parsed natively; the undocumented Antigravity session DB is read best-effort (generic protobuf string scan + prompt-history index) with a prompts-only fallback. Usage: `claudy [profile] handoff [codex|agy] [-c|-r] [flags]` — `-c` hands off the most recent session across both stores, `-r` picks among the 5 most recent, `--yolo`/unknown flags forward verbatim to the Claude session.
+- `rusqlite` is now an unconditional dependency (it was already compiled in default builds via the analytics feature chain), so `handoff --from agy` works in every build.
+
 ## [0.5.1] - 2026-07-23
 
 ### Fixed

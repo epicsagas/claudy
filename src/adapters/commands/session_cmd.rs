@@ -1,8 +1,10 @@
 use crate::adapters::channel::sessions::{
-    SessionInfo, claude_projects_dir, count_invalid_thinking_blocks, discover_sessions,
-    sanitize_session,
+    SessionInfo, claude_projects_dir, count_session_issues, discover_sessions, sanitize_session,
 };
 use crate::domain::context::Context;
+
+/// Most-recent sessions inspected per run, applied after project filtering.
+const SCAN_LIMIT: usize = 200;
 
 pub fn run_session_sanitize(
     ctx: &mut Context,
@@ -15,7 +17,10 @@ pub fn run_session_sanitize(
         return Ok(1);
     };
 
-    let sessions = discover_sessions(&projects_dir, 200);
+    // Discover everything, then filter, then cap. Capping first would hide a
+    // project's older sessions behind other projects' newer ones, making
+    // `--project` unable to reach them at all.
+    let all_sessions = discover_sessions(&projects_dir, usize::MAX);
 
     // If no project filter given, default to the current directory's name.
     let effective_filter: Option<String> = project.map(|s| s.to_string()).or_else(|| {
@@ -24,32 +29,36 @@ pub fn run_session_sanitize(
             .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
     });
 
-    let sessions: Vec<SessionInfo> = if let Some(ref f) = effective_filter {
+    let mut sessions: Vec<SessionInfo> = if let Some(ref f) = effective_filter {
         let f = f.to_lowercase();
-        let filtered: Vec<_> = sessions
-            .into_iter()
+        let filtered: Vec<_> = all_sessions
+            .iter()
             .filter(|s| s.project_name.to_lowercase().contains(&f))
+            .cloned()
             .collect();
+        // A cwd-derived filter that matches nothing falls back to every project;
+        // an explicit --project that matches nothing stays empty.
         if filtered.is_empty() && project.is_none() {
-            discover_sessions(&projects_dir, 200)
+            all_sessions
         } else {
             filtered
         }
     } else {
-        sessions
+        all_sessions
     };
+    sessions.truncate(SCAN_LIMIT);
 
     let flagged: Vec<(SessionInfo, usize)> = sessions
         .into_iter()
         .filter_map(|s| {
-            let n = count_invalid_thinking_blocks(&projects_dir, &s.session_id);
+            let n = count_session_issues(&projects_dir, &s.session_id);
             if n > 0 { Some((s, n)) } else { None }
         })
         .collect();
 
     if flagged.is_empty() {
         ctx.output
-            .success("No sessions with invalid thinking blocks found.");
+            .success("No sessions needing sanitization found.");
         return Ok(0);
     }
 
@@ -108,7 +117,7 @@ pub fn run_session_sanitize(
     // ── confirm & run ────────────────────────────────────────────────────────
     if !yes && !all {
         let ok = ctx.prompt.confirm(
-            "Convert thinking blocks to text and overwrite session file?",
+            "Fix Anthropic API incompatibilities and overwrite session file?",
             true,
         )?;
         if !ok {
@@ -124,7 +133,7 @@ pub fn run_session_sanitize(
             Ok(r) => {
                 total += r.total();
                 ctx.output.success(&format!(
-                    "{} / {} — fixed {} block(s) (thinking={}, tool_result={}, server_tool_use={}, id_remaps={}, tool_use_ids={})",
+                    "{} / {} — fixed {} block(s) (thinking={}, tool_result={}, server_tool_use={}, id_remaps={}, tool_use_ids={}, message_ids={})",
                     s.project_name,
                     &s.session_id[..8],
                     r.total(),
@@ -133,6 +142,7 @@ pub fn run_session_sanitize(
                     r.server_tool_uses,
                     r.server_tool_use_ids_remapped,
                     r.tool_use_ids_remapped,
+                    r.message_ids_remapped,
                 ));
             }
             Err(e) => {
@@ -152,7 +162,7 @@ pub fn run_session_sanitize(
 }
 
 /// Strip control characters, tabs, and zero-width chars to prevent line-wrap in dialoguer.
-fn sanitize_str(s: &str) -> String {
+pub(crate) fn sanitize_str(s: &str) -> String {
     s.chars()
         .filter(|c| !c.is_control() && *c != '\u{200B}' && *c != '\u{FEFF}')
         .collect()
@@ -176,7 +186,7 @@ fn display_width(s: &str) -> usize {
 }
 
 /// Truncate string to at most `max_cols` display columns.
-fn truncate_display(s: &str, max_cols: usize) -> String {
+pub(crate) fn truncate_display(s: &str, max_cols: usize) -> String {
     if max_cols == 0 {
         return String::new();
     }
@@ -218,7 +228,7 @@ fn char_width(c: char) -> usize {
     }
 }
 
-fn format_age(secs: u64) -> String {
+pub(crate) fn format_age(secs: u64) -> String {
     if secs < 3600 {
         format!("{}m", secs / 60)
     } else if secs < 86400 {
