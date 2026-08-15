@@ -152,7 +152,7 @@ pub fn run_session_sanitize(
 }
 
 /// Strip control characters, tabs, and zero-width chars to prevent line-wrap in dialoguer.
-fn sanitize_str(s: &str) -> String {
+pub(crate) fn sanitize_str(s: &str) -> String {
     s.chars()
         .filter(|c| !c.is_control() && *c != '\u{200B}' && *c != '\u{FEFF}')
         .collect()
@@ -176,7 +176,7 @@ fn display_width(s: &str) -> usize {
 }
 
 /// Truncate string to at most `max_cols` display columns.
-fn truncate_display(s: &str, max_cols: usize) -> String {
+pub(crate) fn truncate_display(s: &str, max_cols: usize) -> String {
     if max_cols == 0 {
         return String::new();
     }
@@ -218,7 +218,7 @@ fn char_width(c: char) -> usize {
     }
 }
 
-fn format_age(secs: u64) -> String {
+pub(crate) fn format_age(secs: u64) -> String {
     if secs < 3600 {
         format!("{}m", secs / 60)
     } else if secs < 86400 {

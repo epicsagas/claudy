@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`claudy handoff` — continue a quota-exhausted Codex or Antigravity session in Claude.** Foreign CLI sessions cannot be resumed with `--resume` (different formats), so handoff extracts a conversation digest (user prompts verbatim, assistant replies and tool activity truncated, final state, workspace path) under a 16 KiB budget and seeds a new interactive Claude session with it. Codex rollout JSONL is parsed natively; the undocumented Antigravity session DB is read best-effort (generic protobuf string scan + prompt-history index) with a prompts-only fallback. Usage: `claudy [profile] handoff [codex|agy] [-c|-r] [flags]` — `-c` hands off the most recent session across both stores, `-r` picks among the 5 most recent, `--yolo`/unknown flags forward verbatim to the Claude session.
+- `rusqlite` is now an unconditional dependency (it was already compiled in default builds via the analytics feature chain), so `handoff --from agy` works in every build.
+
 ## [0.5.1] - 2026-07-23
 
 ### Fixed

@@ -3,6 +3,7 @@ pub mod analytics;
 pub mod channel;
 pub mod cli;
 pub mod commands;
+pub mod handoff;
 pub mod mcp;
 pub mod skill;
 pub mod ui;

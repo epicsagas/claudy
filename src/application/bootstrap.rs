@@ -76,6 +76,18 @@ fn run_claude_shim(args: &[String]) -> anyhow::Result<i32> {
 }
 
 fn run_profile_direct(profile: &str, args: &[String]) -> anyhow::Result<i32> {
+    // `claudy <profile> handoff ...` — foreign session handoff under this
+    // profile (e.g. `claudy zai handoff -c`).
+    if args.first().is_some_and(|a| a == "handoff") {
+        let mut ctx = load_context()?;
+        let domain_cmd = crate::domain::commands::DomainCommand::Handoff {
+            profile: Some(profile.to_string()),
+            args: args[1..].to_vec(),
+        };
+        let gateway = crate::adapters::commands::LegacyCommandAdapter;
+        return crate::application::command_bus::dispatch_command(&gateway, &mut ctx, domain_cmd);
+    }
+
     let paths = crate::config::layout::discover()?;
     let catalog = crate::providers::index::load_index()?;
     let secrets = crate::config::vault::load_vault(&paths.secrets_file)?;
@@ -85,6 +97,32 @@ fn run_profile_direct(profile: &str, args: &[String]) -> anyhow::Result<i32> {
     crate::application::entrypoint::launch_profile_session(
         &paths, &catalog, &cfg, &secrets, profile, args,
     )
+}
+
+fn load_context() -> anyhow::Result<crate::domain::context::Context> {
+    let paths = crate::config::layout::discover()?;
+    let catalog = crate::providers::index::load_index()?;
+    let secrets = crate::config::vault::load_vault(&paths.secrets_file)?;
+    let mut cfg = crate::config::registry::open_registry(&paths.config_file)?;
+    cfg.ingest_legacy_secrets(&secrets, &catalog);
+    cfg.compact(&catalog);
+
+    let output =
+        crate::adapters::ui::output::Output::new(crate::adapters::ui::output::Format::Human, false);
+    let prompt = crate::adapters::ui::prompt::Prompter::new(io::stdin(), io::stdout());
+
+    Ok(crate::domain::context::Context {
+        paths,
+        config: cfg,
+        secrets,
+        catalog,
+        output: Box::new(output),
+        prompt: Box::new(prompt),
+        options: crate::domain::context::Options {
+            help: false,
+            version: false,
+        },
+    })
 }
 
 fn is_install_command(cmd: &Option<crate::adapters::cli::args::Commands>) -> bool {
@@ -119,6 +157,7 @@ fn is_builtin_subcommand(name: &str) -> bool {
             | "mcp"
             | "analytics"
             | "session"
+            | "handoff"
             | "help"
     )
 }

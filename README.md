@@ -60,6 +60,7 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
 | 📊 | Usage analytics | Track token usage, costs, and tool patterns with a local Tauri dashboard |
 | 🔐 | Safe process control | SIGINT/SIGTERM forwarding, atomic config writes, 0600 credential storage |
 | 🔀 | Cross-provider session continuity | Out of credits? Exit and resume the same conversation on another provider — history is repaired automatically |
+| 🫴 | Cross-CLI session handoff | Quota exhausted in Codex or Antigravity? `claudy handoff` extracts the session and seeds a new Claude session with it |
 | 🛠️ | Operational UX | Install, update, uninstall, doctor, ping — everything from one binary |
 
 ## Hit a Usage Limit? Continue the Session on Another Provider
@@ -114,6 +115,39 @@ The session file is updated atomically; sessions with valid Anthropic signatures
 **Channel bridge:** when a Telegram/Slack/Discord session resumes, the channel server applies the same conversion automatically before spawning the Claude process — and `/sessions` lists recent sessions with switch buttons.
 
 **Limitation:** session continuity depends on the conversation history being compatible. Switching providers mid-session may cause subtle context shifts even after sanitization.
+
+## Hit a Usage Limit in Codex or Antigravity? Hand the Session to Claude
+
+Cross-provider resume only works inside the Claude CLI — Codex and Antigravity keep their own session stores in their own formats, so `--resume` cannot load them. When those CLIs run out of quota, `claudy handoff` extracts a conversation digest from the foreign session and seeds a **new** Claude session with it:
+
+```bash
+# Interactive — lists codex + agy sessions for the current directory
+claudy handoff
+
+# Under a specific profile (any profile prefix works)
+claudy zai handoff
+
+# Most recent session across both CLIs, no picker
+claudy zai handoff -c
+
+# Pick among the 5 most recent sessions
+claudy handoff -r
+
+# Restrict to one CLI; preview the digest without launching
+claudy handoff codex -c --print
+claudy handoff agy -c --print
+
+# A specific session id
+claudy handoff --id <session-id>
+```
+
+`-c` mirrors Claude's `--continue` (most recent) and `-r` mirrors `--resume` (choose) — but over the foreign session stores. `--yolo` and any other unrecognized flags are forwarded to the Claude session verbatim.
+
+**What gets extracted:** the original user prompts (verbatim, capped), assistant replies and tool activity (truncated to one-liners), the final assistant state, and the workspace path — rendered into a single prompt under a 16 KiB budget. Codex rollout files are parsed natively. Antigravity's session DB is an undocumented format, so claudy reads it best-effort (a generic protobuf string scan plus the prompt history index) and falls back to prompts-only when the layout changes.
+
+The new Claude session starts in the same working directory with the digest as its first message — it reviews the conversation summary plus the current repo state (`git status`/`git diff` are suggested to it) and continues from there. This is a context handoff, not a bit-for-bit resume: expect the model to re-verify details rather than replay them.
+
+**Flags:** `[codex|agy]` positional source (scan both when omitted) · `-c, --continue` (most recent session) · `-r, --resume` (pick among the 5 most recent) · `--id <session-id>` (skip the picker) · `--cwd <dir>` (default: current directory; falls back to all sessions when nothing matches) · `--profile <p>` (or a profile prefix: `claudy zai handoff`) · `--print` (stdout only) · `--yolo` (pass `--dangerously-skip-permissions` to Claude; other unknown flags forward verbatim).
 
 ## Supported Providers
 
@@ -334,6 +368,7 @@ Each mode directory is a self-contained `CLAUDE_CONFIG_DIR`, so frameworks never
 - `claudy mcp`: run as MCP server for agent bridge.
 - `claudy analytics <subcommand>`: usage analytics dashboard.
 - `claudy session sanitize`: fix sessions with invalid thinking blocks from non-Anthropic providers.
+- `claudy [profile] handoff [codex|agy] [-c|-r]`: continue a quota-exhausted codex/agy session in a new Claude session.
 
 ### Mode commands
 

@@ -72,6 +72,26 @@ pub enum Commands {
     /// Manage Claude sessions
     #[command(subcommand)]
     Session(SessionCommands),
+
+    /// Continue a quota-exhausted codex/agy session in Claude
+    ///
+    /// Usage: claudy [profile] handoff [codex|agy] [options]
+    ///
+    /// Options (also usable after a profile: `claudy zai handoff -c`):
+    ///   -c, --continue   hand off the most recent session
+    ///   -r, --resume     choose among the 5 most recent sessions
+    ///   --id <ID>        hand off a specific session id
+    ///   --cwd <DIR>      workspace to match (default: current directory)
+    ///   --profile <P>    profile to launch (default: anthropic)
+    ///   --print          print the digest instead of launching
+    ///   --yolo           pass --dangerously-skip-permissions to Claude
+    ///
+    /// Other flags are forwarded to the Claude session verbatim.
+    #[command(name = "handoff", verbatim_doc_comment)]
+    Handoff {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
 }
 
 #[derive(Subcommand, Debug, Clone)]

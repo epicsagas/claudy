@@ -60,6 +60,9 @@ impl CommandRegistry {
                     super::session_cmd::run_session_sanitize(ctx, project.as_deref(), all, yes)
                 }
             },
+            DomainCommand::Handoff { profile, args } => {
+                super::handoff_cmd::run_handoff(ctx, profile, args)
+            }
         }
     }
 }

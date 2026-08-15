@@ -3,6 +3,7 @@ pub mod analytics_cmd;
 pub mod channel_cmd;
 pub mod config_cmd;
 pub mod dispatch;
+pub mod handoff_cmd;
 pub mod info;
 pub mod install;
 pub mod list;
@@ -105,6 +106,10 @@ pub fn map_cli_to_domain(command: Commands) -> DomainCommand {
             crate::adapters::cli::args::SessionCommands::Sanitize { project, all, yes } => {
                 DomainCommand::Session(SessionAction::Sanitize { project, all, yes })
             }
+        },
+        Commands::Handoff { args } => DomainCommand::Handoff {
+            profile: None,
+            args,
         },
         Commands::Analytics(sub) => match sub {
             crate::adapters::cli::args::AnalyticsCommands::Dashboard => {
