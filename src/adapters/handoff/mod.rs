@@ -54,16 +54,27 @@ mod tests {
 
     #[test]
     fn cwd_matches_canonical() {
+        // Build a real symlink instead of relying on a platform-specific one
+        // (macOS has /tmp -> /private/tmp; Linux does not).
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().join("workspace");
+        std::fs::create_dir(&real).unwrap();
+        let link = dir.path().join("workspace-link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
         let s = ForeignSessionSummary {
             source: HandoffSource::Codex,
             id: "x".into(),
             title: None,
-            cwd: Some("/tmp".into()),
+            cwd: Some(link.to_string_lossy().into_owned()),
             last_modified: 0,
             path: None,
         };
-        assert!(cwd_matches(&s, Path::new("/private/tmp")));
-        assert!(!cwd_matches(&s, Path::new("/var")));
+        assert!(cwd_matches(&s, &real), "symlink must resolve to its target");
+        assert!(
+            !cwd_matches(&s, dir.path()),
+            "a different dir must not match"
+        );
     }
 
     #[test]
