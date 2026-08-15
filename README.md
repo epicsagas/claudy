@@ -4,7 +4,8 @@
 
 <p align="center">
 Stop juggling environment variables and config files.<br/>
-Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom endpoints with a single command — keeping credentials, config modes, and Claude frameworks cleanly isolated per profile.
+Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom endpoints with a single command — keeping credentials, config modes, and Claude frameworks cleanly isolated per profile.<br/><br/>
+<b>Hit a usage limit? Exit the session and resume the exact same conversation on another provider.</b>
 </p>
 
 <p align="center">
@@ -58,8 +59,61 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
 | 💬 | Channel bridge | Run Telegram, Slack, and Discord bots with interactive permission prompts |
 | 📊 | Usage analytics | Track token usage, costs, and tool patterns with a local Tauri dashboard |
 | 🔐 | Safe process control | SIGINT/SIGTERM forwarding, atomic config writes, 0600 credential storage |
-| 🔀 | Cross-provider session continuity | Sanitize sessions written by Z.AI/GLM so they resume cleanly with the Anthropic API |
+| 🔀 | Cross-provider session continuity | Out of credits? Exit and resume the same conversation on another provider — history is repaired automatically |
 | 🛠️ | Operational UX | Install, update, uninstall, doctor, ping — everything from one binary |
+
+## Hit a Usage Limit? Continue the Session on Another Provider
+
+Your Anthropic plan ran out, or your Z.AI credits did. The conversation doesn't die with it — exit the session, relaunch on another provider, and resume exactly where you left off:
+
+```bash
+# 1. Exit the current session (/exit or Ctrl+D)
+
+# 2. Resume the most recent session in this directory, on another provider
+claudy zai --continue
+
+# ...or resume a specific session
+claudy anthropic --resume <session-id>
+```
+
+Same working directory, same config mode, same conversation history — only the provider changes. Both directions work (Anthropic → Z.AI and Z.AI → Anthropic).
+
+**What happens under the hood:** providers write session files slightly differently. When a session is created with a non-Anthropic provider (such as Z.AI / GLM), the Claude CLI records thinking blocks with an empty signature. The Anthropic API validates these signatures and rejects the whole history with HTTP 400 when the session is resumed. Before the Claude process starts, claudy silently sanitizes the session file — converting invalid thinking blocks to plain text (preserving the reasoning as readable context) and remapping non-conforming tool-use IDs — so cross-provider resume just works. No manual step, nothing to remember.
+
+**Never automatic.** Claudy does not detect quota exhaustion and never switches providers on its own. You decide when to exit and where to resume.
+
+**Manual repair:** if a resume still fails (for example with `400 Invalid signature in thinking block`), repair the session explicitly:
+
+```bash
+# Interactive — list flagged sessions, pick one
+claudy session sanitize
+
+# Filter by project name
+claudy session sanitize --project book-forge
+
+# Sanitize all flagged sessions at once
+claudy session sanitize --all --yes
+```
+
+Output example:
+
+```
+Sessions with invalid thinking blocks
+──────────────────────────────────────────────────────────────────────────────────
+ #   Project           Session ID  Age      Last message                          Blocks
+──────────────────────────────────────────────────────────────────────────────────
+ 1   book-forge        ad2f38c0    2d       oss-dist 스킬로 book-forge 프로젝트…   7
+ 2   obsidian-forge    17e75a8c    5d       LaunchAgent 설정 구현…                 12
+──────────────────────────────────────────────────────────────────────────────────
+
+Select session to sanitize (or "Sanitize ALL"):
+```
+
+The session file is updated atomically; sessions with valid Anthropic signatures are not touched.
+
+**Channel bridge:** when a Telegram/Slack/Discord session resumes, the channel server applies the same conversion automatically before spawning the Claude process — and `/sessions` lists recent sessions with switch buttons.
+
+**Limitation:** session continuity depends on the conversation history being compatible. Switching providers mid-session may cause subtle context shifts even after sanitization.
 
 ## Supported Providers
 
@@ -69,9 +123,9 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
 |---|---|---|
 | Built-in (Anthropic) | ✅ Tested | Default |
 | Z.AI | ✅ Tested | |
-| OpenRouter alias | ⚠️ Experimental | Not fully tested — report issues on GitHub |
-| Ollama | ⚠️ Experimental | Not fully tested — report issues on GitHub |
-| Custom endpoint | ⚠️ Experimental | Not fully tested — report issues on GitHub |
+| OpenRouter alias | ✅ Tested | Verified by the maintainer |
+| Ollama | ✅ Tested | Verified by the maintainer |
+| Custom endpoint | ✅ Tested | Verified by the maintainer |
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/demo.gif">
@@ -516,51 +570,6 @@ claudy analytics dashboard
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/analytics-dashboard.png">
   <img alt="Analytics Dashboard" src="docs/assets/analytics-dashboard.png" width="100%">
 </picture>
-
----
-
-## Cross-Provider Session Continuity
-
-When you work in a session started with a non-Anthropic provider (such as Z.AI / GLM), the Claude CLI records thinking blocks in the session file with an empty signature. The Anthropic API validates these signatures and rejects them with HTTP 400 when the session is resumed:
-
-```
-API Error: 400 Invalid `signature` in `thinking` block
-```
-
-Claudy handles this in two ways:
-
-**Automatic (channel bridge):** When the channel server resumes a session, it silently converts any thinking blocks with empty signatures to plain text blocks before spawning the Claude process. No action required.
-
-**Manual (CLI):** Use `claudy session sanitize` to repair sessions before resuming with `claude --resume`:
-
-```bash
-# Interactive — list flagged sessions, pick one
-claudy session sanitize
-
-# Filter by project name
-claudy session sanitize --project book-forge
-
-# Sanitize all flagged sessions at once
-claudy session sanitize --all --yes
-```
-
-Output example:
-
-```
-Sessions with invalid thinking blocks
-──────────────────────────────────────────────────────────────────────────────────
- #   Project           Session ID  Age      Last message                          Blocks
-──────────────────────────────────────────────────────────────────────────────────
- 1   book-forge        ad2f38c0    2d       oss-dist 스킬로 book-forge 프로젝트…   7
- 2   obsidian-forge    17e75a8c    5d       LaunchAgent 설정 구현…                 12
-──────────────────────────────────────────────────────────────────────────────────
-
-Select session to sanitize (or "Sanitize ALL"):
-```
-
-**What the conversion does:** thinking blocks with empty signatures are rewritten as plain text blocks, preserving the reasoning content as readable context. The session file is updated atomically. Sessions with valid Anthropic signatures are not touched.
-
-**Limitation:** session continuity requires the conversation history to be compatible. Switching provider mid-session may cause subtle context shifts even after sanitization.
 
 ---
 
