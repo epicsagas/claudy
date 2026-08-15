@@ -174,6 +174,9 @@ mod tests {
 
         let resolved = resolve_working_dir(&link);
         assert_ne!(resolved, link, "symlink was not resolved");
+        // `real` comes from tempdir() and may itself sit behind a symlinked
+        // TMPDIR, so compare against its canonical form.
+        let real = dunce::canonicalize(&real).expect("canonicalize real");
         assert_eq!(resolved, real, "resolved path should point at the real dir");
         assert!(resolved.join("marker").exists());
     }
