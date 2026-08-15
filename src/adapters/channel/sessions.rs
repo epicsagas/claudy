@@ -373,33 +373,21 @@ pub fn discover_project_sessions(
     sessions
 }
 
-/// Count thinking blocks with empty/invalid signatures in a session file.
-pub fn count_invalid_thinking_blocks(claude_projects_dir: &str, session_id: &str) -> usize {
+/// Count the fixes [`sanitize_session`] would apply, without writing anything.
+///
+/// Used to flag sessions that need sanitization before offering them to the
+/// user. Covers every check the sanitizer performs, not just thinking blocks.
+pub fn count_session_issues(claude_projects_dir: &str, session_id: &str) -> usize {
     let Some(path) = find_session_file(claude_projects_dir, session_id) else {
         return 0;
     };
     let Ok(content) = std::fs::read_to_string(&path) else {
         return 0;
     };
-    let mut count = 0usize;
-    for line in content.lines() {
-        let Ok(event) = serde_json::from_str::<serde_json::Value>(line) else {
-            continue;
-        };
-        if event.pointer("/message/role").and_then(|v| v.as_str()) != Some("assistant") {
-            continue;
-        }
-        if let Some(arr) = event.pointer("/message/content").and_then(|v| v.as_array()) {
-            for block in arr {
-                if block["type"].as_str() == Some("thinking")
-                    && block["signature"].as_str().unwrap_or("").is_empty()
-                {
-                    count += 1;
-                }
-            }
-        }
+    match sanitize_content(&content) {
+        Ok((_, report)) => report.total(),
+        Err(_) => 0,
     }
-    count
 }
 
 /// Locate a session JSONL file by scanning all project subdirectories.
@@ -422,32 +410,7 @@ fn write_session_atomic(path: &Path, session_id: &str, content: &str) -> anyhow:
     Ok(())
 }
 
-/// Strip thinking blocks with empty or missing signatures from a session JSONL file.
-///
-/// ZAI and other non-Anthropic providers write thinking blocks without valid
-/// Anthropic signatures. When Claude CLI resumes such a session it sends those
-/// blocks to the API, which rejects them with HTTP 400. This function removes
-/// the offending blocks in-place so the next `--resume` succeeds.
-///
-/// Returns the number of thinking blocks removed. Returns `Ok(0)` when the file
-/// is clean or does not exist.
-pub fn sanitize_session_thinking_blocks(
-    claude_projects_dir: &str,
-    session_id: &str,
-) -> anyhow::Result<usize> {
-    let Some(path) = find_session_file(claude_projects_dir, session_id) else {
-        return Ok(0);
-    };
-
-    let content = std::fs::read_to_string(&path)?;
-    let (new_content, removed) = sanitize_thinking_blocks_in_content(&content)?;
-    if let Some(out) = new_content {
-        write_session_atomic(&path, session_id, &out)?;
-    }
-    Ok(removed)
-}
-
-/// Pure transformation core of [`sanitize_session_thinking_blocks`]: converts
+/// Converts
 /// signature-less `thinking` blocks to `text`. Returns `(Some(new_content), n)`
 /// when anything changed, `(None, 0)` otherwise. Performs no I/O.
 fn sanitize_thinking_blocks_in_content(content: &str) -> anyhow::Result<(Option<String>, usize)> {
@@ -505,38 +468,9 @@ fn sanitize_thinking_blocks_in_content(content: &str) -> anyhow::Result<(Option<
     Ok((Some(out), removed))
 }
 
-/// Rewrite non-conforming `server_tool_use` IDs in a session JSONL file.
-///
-/// ZAI and other non-Anthropic providers write `server_tool_use` blocks whose
-/// `id` field does not match the pattern `^srvtoolu_[a-zA-Z0-9_]+$` required
-/// by the Anthropic API. When Claude CLI resumes such a session the API rejects
-/// the request with HTTP 400. This function:
-///
-/// 1. Scans assistant messages for `server_tool_use` blocks with invalid IDs.
-/// 2. Builds a remapping table: old ID → valid `srvtoolu_<sanitized>` ID.
-/// 3. Rewrites every occurrence — both `server_tool_use.id` in assistant messages
-///    and the paired `server_tool_result.tool_use_id` in user messages — so the
-///    conversation remains internally consistent.
-///
-/// Returns the number of IDs remapped. Returns `Ok(0)` when the file is clean
-/// or does not exist.
-pub fn sanitize_session_server_tool_use_ids(
-    claude_projects_dir: &str,
-    session_id: &str,
-) -> anyhow::Result<usize> {
-    let Some(path) = find_session_file(claude_projects_dir, session_id) else {
-        return Ok(0);
-    };
-
-    let content = std::fs::read_to_string(&path)?;
-    let (new_content, remapped) = sanitize_server_tool_use_ids_in_content(&content)?;
-    if let Some(out) = new_content {
-        write_session_atomic(&path, session_id, &out)?;
-    }
-    Ok(remapped)
-}
-
-/// Pure transformation core of [`sanitize_session_server_tool_use_ids`]. No I/O.
+/// Rewrites `server_tool_use` ids that do not match `^srvtoolu_[a-zA-Z0-9_]+$`
+/// (written by ZAI/GLM and other non-Anthropic providers) and the paired
+/// `server_tool_result.tool_use_id`, keeping the pair consistent. No I/O.
 fn sanitize_server_tool_use_ids_in_content(
     content: &str,
 ) -> anyhow::Result<(Option<String>, usize)> {
@@ -641,39 +575,9 @@ fn sanitize_server_tool_use_ids_in_content(
     Ok((Some(out), id_map.len()))
 }
 
-/// Rewrite non-conforming `tool_use` ids in a session JSONL file.
-///
-/// ZAI/GLM and other OpenAI-compatible providers emit `tool_use` blocks whose
-/// `id` follows the `call_<hex>` pattern instead of the Anthropic-required
-/// `toolu_[a-zA-Z0-9_]+`. When Claude CLI resumes such a session it forwards
-/// the conversation history to the Anthropic API, which rejects the malformed
-/// ids with HTTP 400. This mirrors [`sanitize_session_server_tool_use_ids`]:
-///
-/// 1. Scans assistant messages for `tool_use` blocks with invalid ids.
-/// 2. Builds a remapping table: old id → valid `toolu_<sanitized>` id.
-/// 3. Rewrites every occurrence — both `tool_use.id` in assistant messages and
-///    the paired `tool_result.tool_use_id` in user messages — so the
-///    conversation stays internally consistent.
-///
-/// Returns the number of ids remapped. Returns `Ok(0)` when the file is clean
-/// or does not exist.
-pub fn sanitize_session_tool_use_ids(
-    claude_projects_dir: &str,
-    session_id: &str,
-) -> anyhow::Result<usize> {
-    let Some(path) = find_session_file(claude_projects_dir, session_id) else {
-        return Ok(0);
-    };
-
-    let content = std::fs::read_to_string(&path)?;
-    let (new_content, remapped) = sanitize_tool_use_ids_in_content(&content)?;
-    if let Some(out) = new_content {
-        write_session_atomic(&path, session_id, &out)?;
-    }
-    Ok(remapped)
-}
-
-/// Pure transformation core of [`sanitize_session_tool_use_ids`]. No I/O.
+/// Rewrites `tool_use` ids that do not match `^toolu_[a-zA-Z0-9_]+$` (ZAI/GLM
+/// emit OpenAI-style `call_<hex>`) and the paired `tool_result.tool_use_id`,
+/// keeping the pair consistent. No I/O.
 fn sanitize_tool_use_ids_in_content(content: &str) -> anyhow::Result<(Option<String>, usize)> {
     // Pass 1: collect all non-conforming tool_use ids.
     let mut id_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
@@ -776,6 +680,74 @@ fn sanitize_tool_use_ids_in_content(content: &str) -> anyhow::Result<(Option<Str
     Ok((Some(out), id_map.len()))
 }
 
+/// Pure transformation core that rewrites non-conforming assistant `message.id`
+/// values. Returns `(Some(new_content), n)` when anything changed. No I/O.
+///
+/// OpenRouter (and other OpenAI-shaped gateways) write ids like
+/// `gen-1786791519-alTGK…`. On resume, Claude CLI replays the last assistant
+/// message id as `diagnostics.previous_message_id`, which the Anthropic API
+/// rejects with HTTP 400 unless it matches `msg_[a-zA-Z0-9_]+`. Nothing else in
+/// the transcript references this id except the sibling `requestId` on the same
+/// event, which is rewritten alongside it.
+fn sanitize_message_ids_in_content(content: &str) -> anyhow::Result<(Option<String>, usize)> {
+    let mut remapped = 0usize;
+    let mut out = String::with_capacity(content.len());
+    let mut changed = false;
+
+    for line in content.lines() {
+        let Ok(mut event) = serde_json::from_str::<serde_json::Value>(line) else {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        };
+
+        let is_assistant =
+            event.pointer("/message/role").and_then(|v| v.as_str()) == Some("assistant");
+        let old_id = event
+            .pointer("/message/id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        if let Some(old) = old_id
+            && is_assistant
+            && !is_valid_message_id(&old)
+        {
+            // Sanitize: keep only [a-zA-Z0-9_] chars from the original id.
+            let sanitized: String = old
+                .chars()
+                .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+                .collect();
+            let new_id = if sanitized.is_empty() {
+                format!("msg_patched{}", remapped)
+            } else {
+                format!("msg_{}", sanitized)
+            };
+
+            if let Some(slot) = event.pointer_mut("/message/id") {
+                *slot = serde_json::Value::String(new_id.clone());
+            }
+            // The event-level requestId mirrors the provider id; keep them in sync.
+            if event.get("requestId").and_then(|v| v.as_str()) == Some(old.as_str()) {
+                event["requestId"] = serde_json::Value::String(new_id);
+            }
+
+            remapped += 1;
+            changed = true;
+            out.push_str(&serde_json::to_string(&event)?);
+            out.push('\n');
+            continue;
+        }
+
+        out.push_str(line);
+        out.push('\n');
+    }
+
+    if !changed {
+        return Ok((None, 0));
+    }
+    Ok((Some(out), remapped))
+}
+
 /// Whether `id` starts with `prefix` and is followed by one or more
 /// `[a-zA-Z0-9_]` chars — the shared shape of Anthropic-spec block ids.
 fn is_valid_prefixed_id(id: &str, prefix: &str) -> bool {
@@ -797,6 +769,13 @@ fn is_valid_tool_use_id(id: &str) -> bool {
     is_valid_prefixed_id(id, "toolu_")
 }
 
+/// Whether an assistant `message.id` conforms to the Anthropic pattern
+/// `msg_[a-zA-Z0-9_]+`. OpenRouter emits `gen-<epoch>-<slug>` ids which the API
+/// rejects when replayed as `diagnostics.previous_message_id`.
+fn is_valid_message_id(id: &str) -> bool {
+    is_valid_prefixed_id(id, "msg_")
+}
+
 /// Summary of fixes applied by [`sanitize_session`].
 #[derive(Debug, Default)]
 pub struct SanitizeReport {
@@ -810,6 +789,8 @@ pub struct SanitizeReport {
     pub server_tool_use_ids_remapped: usize,
     /// `tool_use` IDs remapped to conform to Anthropic spec (`toolu_*`).
     pub tool_use_ids_remapped: usize,
+    /// Assistant `message.id` values remapped to conform to Anthropic spec (`msg_*`).
+    pub message_ids_remapped: usize,
 }
 
 impl SanitizeReport {
@@ -819,6 +800,7 @@ impl SanitizeReport {
             + self.server_tool_uses
             + self.server_tool_use_ids_remapped
             + self.tool_use_ids_remapped
+            + self.message_ids_remapped
     }
 }
 
@@ -831,6 +813,8 @@ impl SanitizeReport {
 /// 2. `tool_result` in `assistant` messages → stripped
 /// 3. `server_tool_use` in `assistant` messages (webReader, analyze_image) → stripped
 /// 4. `server_tool_use` IDs with invalid format → remapped to `srvtoolu_*`
+/// 5. `tool_use` IDs with invalid format → remapped to `toolu_*`
+/// 6. assistant `message.id` with invalid format (OpenRouter `gen-*`) → remapped to `msg_*`
 ///
 /// Returns `Ok(report)` with all counts zero when the file is already clean or
 /// does not exist.
@@ -842,11 +826,37 @@ pub fn sanitize_session(
         return Ok(SanitizeReport::default());
     };
 
-    // Read the file ONCE and run every sanitizer's pure transformation core
-    // in memory, threading the content through each stage. Only write back
-    // once at the end if any stage changed it. This avoids re-reading and
-    // re-parsing the (potentially large) JSONL for every sanitizer.
-    let mut content = std::fs::read_to_string(&path)?;
+    // Snapshot the file identity before reading. Sanitizing rewrites the whole
+    // file, so if the session is live and Claude CLI appends while we read, a
+    // blind rename would discard those lines.
+    let before = file_stamp(&path);
+    let content = std::fs::read_to_string(&path)?;
+    let (content, report) = sanitize_content(&content)?;
+
+    if report.total() > 0 {
+        if file_stamp(&path) != before {
+            anyhow::bail!(
+                "session {session_id} changed while being sanitized — it is probably still running; \
+                 exit that session and run the command again"
+            );
+        }
+        write_session_atomic(&path, session_id, &content)?;
+    }
+
+    Ok(report)
+}
+
+/// Cheap change-detection stamp: `(len, mtime)`. `None` when the file vanished.
+fn file_stamp(path: &Path) -> Option<(u64, std::time::SystemTime)> {
+    let meta = std::fs::metadata(path).ok()?;
+    Some((meta.len(), meta.modified().ok()?))
+}
+
+/// Pure core of [`sanitize_session`]: runs every sanitizer stage in memory,
+/// threading the content through each one. Returns the (possibly unchanged)
+/// content and a combined report. No I/O.
+fn sanitize_content(content: &str) -> anyhow::Result<(String, SanitizeReport)> {
+    let mut content = content.to_string();
     let mut report = SanitizeReport::default();
 
     let (next, n) = sanitize_thinking_blocks_in_content(&content)?;
@@ -867,6 +877,12 @@ pub fn sanitize_session(
         content = c;
     }
 
+    let (next, n) = sanitize_message_ids_in_content(&content)?;
+    report.message_ids_remapped = n;
+    if let Some(c) = next {
+        content = c;
+    }
+
     let (next, stripped) = strip_misplaced_blocks_in_content(&content)?;
     report.misplaced_tool_results = stripped.misplaced_tool_results;
     report.server_tool_uses = stripped.server_tool_uses;
@@ -874,11 +890,7 @@ pub fn sanitize_session(
         content = c;
     }
 
-    if report.total() > 0 {
-        write_session_atomic(&path, session_id, &content)?;
-    }
-
-    Ok(report)
+    Ok((content, report))
 }
 
 /// Pure transformation core that strips misplaced `tool_result` and
@@ -1100,20 +1112,17 @@ mod tests {
 
     #[test]
     fn sanitize_converts_empty_signature_thinking_to_text() {
-        let dir = tempfile::tempdir().unwrap();
-        let proj_dir = dir.path().join("-test-project");
-        std::fs::create_dir_all(&proj_dir).unwrap();
+        let jsonl = concat!(
+            r#"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"hello"}]}}"#,
+            "\n",
+            r#"{"type":"assistant","message":{"role":"assistant","model":"glm-5.1","content":[{"type":"thinking","thinking":"some thoughts","signature":""},{"type":"text","text":"response"}]}}"#,
+            "\n",
+        );
 
-        let session_id = "550e8400-e29b-41d4-a716-446655440001";
-        let jsonl = "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"hello\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"model\":\"glm-5.1\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"some thoughts\",\"signature\":\"\"},{\"type\":\"text\",\"text\":\"response\"}]}}\n".to_string();
-        std::fs::write(proj_dir.join(format!("{}.jsonl", session_id)), &jsonl).unwrap();
-
-        let removed =
-            sanitize_session_thinking_blocks(dir.path().to_str().unwrap(), session_id).unwrap();
+        let (patched, removed) = sanitize_thinking_blocks_in_content(jsonl).unwrap();
         assert_eq!(removed, 1);
+        let patched = patched.unwrap();
 
-        let patched =
-            std::fs::read_to_string(proj_dir.join(format!("{}.jsonl", session_id))).unwrap();
         // thinking block converted to text block — type field gone, content preserved
         assert!(
             !patched.contains(r#""type":"thinking""#),
@@ -1131,50 +1140,71 @@ mod tests {
 
     #[test]
     fn sanitize_keeps_valid_signature_thinking_blocks() {
-        let dir = tempfile::tempdir().unwrap();
-        let proj_dir = dir.path().join("-test-project");
-        std::fs::create_dir_all(&proj_dir).unwrap();
-
-        let session_id = "550e8400-e29b-41d4-a716-446655440002";
-        let jsonl = "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"thoughts\",\"signature\":\"valid-sig-abc123\"},{\"type\":\"text\",\"text\":\"ok\"}]}}\n".to_string();
-        std::fs::write(proj_dir.join(format!("{}.jsonl", session_id)), &jsonl).unwrap();
-
-        let removed =
-            sanitize_session_thinking_blocks(dir.path().to_str().unwrap(), session_id).unwrap();
+        let jsonl = concat!(
+            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":"thoughts","signature":"valid-sig-abc123"},{"type":"text","text":"ok"}]}}"#,
+            "\n",
+        );
+        let (patched, removed) = sanitize_thinking_blocks_in_content(jsonl).unwrap();
         assert_eq!(removed, 0, "valid signature must not be stripped");
+        assert!(patched.is_none());
     }
 
     #[test]
-    fn sanitize_returns_zero_for_missing_session() {
+    fn sanitize_session_returns_default_for_missing_session() {
         let dir = tempfile::tempdir().unwrap();
-        let removed = sanitize_session_thinking_blocks(
+        let report = sanitize_session(
             dir.path().to_str().unwrap(),
             "nonexistent-0000-0000-0000-000000000000",
         )
         .unwrap();
-        assert_eq!(removed, 0);
+        assert_eq!(report.total(), 0);
     }
 
     #[test]
-    fn sanitize_server_tool_use_ids_remaps_invalid_ids() {
+    fn sanitize_session_rewrites_file_in_place() {
         let dir = tempfile::tempdir().unwrap();
         let proj_dir = dir.path().join("-test-project");
         std::fs::create_dir_all(&proj_dir).unwrap();
 
-        let session_id = "550e8400-e29b-41d4-a716-446655440010";
+        let session_id = "550e8400-e29b-41d4-a716-446655440099";
+        let path = proj_dir.join(format!("{}.jsonl", session_id));
+        let jsonl = concat!(
+            r#"{"type":"assistant","message":{"id":"gen-1-x","role":"assistant","content":[{"type":"tool_use","id":"call_ab","name":"n","input":{}}]}}"#,
+            "\n",
+            r#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_ab","content":"r"}]}}"#,
+            "\n",
+        );
+        std::fs::write(&path, jsonl).unwrap();
+
+        let report = sanitize_session(dir.path().to_str().unwrap(), session_id).unwrap();
+        assert_eq!(report.tool_use_ids_remapped, 1);
+        assert_eq!(report.message_ids_remapped, 1);
+
+        let patched = std::fs::read_to_string(&path).unwrap();
+        assert!(patched.contains("\"msg_gen1x\""));
+        // Remap keeps the original id's alnum chars, so it becomes toolu_call_ab.
+        assert!(!patched.contains("\"id\":\"call_ab\""));
+        assert!(patched.contains("\"toolu_call_ab\""));
+
+        // Second pass is a no-op: the file is already conforming.
+        let again = sanitize_session(dir.path().to_str().unwrap(), session_id).unwrap();
+        assert_eq!(again.total(), 0, "sanitize must be idempotent");
+    }
+
+    #[test]
+    fn sanitize_server_tool_use_ids_remaps_invalid_ids() {
         // zai-style ID that does not match ^srvtoolu_[a-zA-Z0-9_]+$
         let jsonl = concat!(
-            "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"server_tool_use\",\"id\":\"toolu_glm_abc123\",\"name\":\"web_search\",\"input\":{}}]}}\n",
-            "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"server_tool_result\",\"tool_use_id\":\"toolu_glm_abc123\",\"content\":\"result\"}]}}\n",
+            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"server_tool_use","id":"toolu_glm_abc123","name":"web_search","input":{}}]}}"#,
+            "\n",
+            r#"{"type":"user","message":{"role":"user","content":[{"type":"server_tool_result","tool_use_id":"toolu_glm_abc123","content":"result"}]}}"#,
+            "\n",
         );
-        std::fs::write(proj_dir.join(format!("{}.jsonl", session_id)), jsonl).unwrap();
 
-        let remapped =
-            sanitize_session_server_tool_use_ids(dir.path().to_str().unwrap(), session_id).unwrap();
+        let (patched, remapped) = sanitize_server_tool_use_ids_in_content(jsonl).unwrap();
         assert_eq!(remapped, 1, "one ID should be remapped");
+        let patched = patched.unwrap();
 
-        let patched =
-            std::fs::read_to_string(proj_dir.join(format!("{}.jsonl", session_id))).unwrap();
         assert!(
             !patched.contains("\"toolu_glm_abc123\""),
             "original invalid ID must be replaced"
@@ -1199,17 +1229,13 @@ mod tests {
 
     #[test]
     fn sanitize_server_tool_use_ids_skips_valid_ids() {
-        let dir = tempfile::tempdir().unwrap();
-        let proj_dir = dir.path().join("-test-project");
-        std::fs::create_dir_all(&proj_dir).unwrap();
-
-        let session_id = "550e8400-e29b-41d4-a716-446655440011";
-        let jsonl = "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"server_tool_use\",\"id\":\"srvtoolu_abc123\",\"name\":\"web_search\",\"input\":{}}]}}\n";
-        std::fs::write(proj_dir.join(format!("{}.jsonl", session_id)), jsonl).unwrap();
-
-        let remapped =
-            sanitize_session_server_tool_use_ids(dir.path().to_str().unwrap(), session_id).unwrap();
+        let jsonl = concat!(
+            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"server_tool_use","id":"srvtoolu_abc123","name":"web_search","input":{}}]}}"#,
+            "\n",
+        );
+        let (patched, remapped) = sanitize_server_tool_use_ids_in_content(jsonl).unwrap();
         assert_eq!(remapped, 0, "valid ID must not be remapped");
+        assert!(patched.is_none());
     }
 
     #[test]
@@ -1243,24 +1269,18 @@ mod tests {
 
     #[test]
     fn sanitize_tool_use_ids_remaps_call_ids_on_both_sides() {
-        let dir = tempfile::tempdir().unwrap();
-        let proj_dir = dir.path().join("-test-project");
-        std::fs::create_dir_all(&proj_dir).unwrap();
-
-        let session_id = "660e8400-e29b-41d4-a716-446655440020";
         // ZAI/GLM-style tool_use id that does not match ^toolu_[a-zA-Z0-9_]+$
         let jsonl = concat!(
-            "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"call_c6e7fbb6a99d4dd98d921764\",\"name\":\"get_weather\",\"input\":{\"location\":\"SF\"}}]}}\n",
-            "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"call_c6e7fbb6a99d4dd98d921764\",\"content\":\"65F\"}]}}\n",
+            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"call_c6e7fbb6a99d4dd98d921764","name":"get_weather","input":{"location":"SF"}}]}}"#,
+            "\n",
+            r#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_c6e7fbb6a99d4dd98d921764","content":"65F"}]}}"#,
+            "\n",
         );
-        std::fs::write(proj_dir.join(format!("{}.jsonl", session_id)), jsonl).unwrap();
 
-        let remapped =
-            sanitize_session_tool_use_ids(dir.path().to_str().unwrap(), session_id).unwrap();
+        let (patched, remapped) = sanitize_tool_use_ids_in_content(jsonl).unwrap();
         assert_eq!(remapped, 1, "one tool_use id should be remapped");
+        let patched = patched.unwrap();
 
-        let patched =
-            std::fs::read_to_string(proj_dir.join(format!("{}.jsonl", session_id))).unwrap();
         // No id field may still start with the OpenAI-style "call_" prefix.
         assert!(
             !patched.contains("\"id\":\"call_"),
@@ -1287,52 +1307,66 @@ mod tests {
 
     #[test]
     fn sanitize_tool_use_ids_skips_conforming_toolu_ids() {
-        let dir = tempfile::tempdir().unwrap();
-        let proj_dir = dir.path().join("-test-project");
-        std::fs::create_dir_all(&proj_dir).unwrap();
-
-        let session_id = "660e8400-e29b-41d4-a716-446655440021";
         // Already-conforming Anthropic session must be untouched (regression guard).
-        let jsonl = "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01WbH7drr7XYVvBJYhemu62f\",\"name\":\"get_weather\",\"input\":{}}]}}\n";
-        std::fs::write(proj_dir.join(format!("{}.jsonl", session_id)), jsonl).unwrap();
-
-        let remapped =
-            sanitize_session_tool_use_ids(dir.path().to_str().unwrap(), session_id).unwrap();
+        let jsonl = concat!(
+            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_01WbH7drr7XYVvBJYhemu62f","name":"get_weather","input":{}}]}}"#,
+            "\n",
+        );
+        let (patched, remapped) = sanitize_tool_use_ids_in_content(jsonl).unwrap();
         assert_eq!(remapped, 0, "conforming toolu_ id must not be remapped");
+        assert!(patched.is_none());
     }
 
     #[test]
     fn sanitize_tool_use_ids_does_not_touch_server_tool_use() {
-        let dir = tempfile::tempdir().unwrap();
-        let proj_dir = dir.path().join("-test-project");
-        std::fs::create_dir_all(&proj_dir).unwrap();
-
-        let session_id = "660e8400-e29b-41d4-a716-446655440022";
-        // server_tool_use blocks have their own sanitizer; this one must be left
-        // for sanitize_session_server_tool_use_ids and not touched here.
-        let jsonl = "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"server_tool_use\",\"id\":\"toolu_glm_abc123\",\"name\":\"web_search\",\"input\":{}}]}}\n";
-        std::fs::write(proj_dir.join(format!("{}.jsonl", session_id)), jsonl).unwrap();
-
-        let remapped =
-            sanitize_session_tool_use_ids(dir.path().to_str().unwrap(), session_id).unwrap();
+        // server_tool_use blocks have their own sanitizer; this one must leave
+        // them alone.
+        let jsonl = concat!(
+            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"server_tool_use","id":"toolu_glm_abc123","name":"web_search","input":{}}]}}"#,
+            "\n",
+        );
+        let (patched, remapped) = sanitize_tool_use_ids_in_content(jsonl).unwrap();
         assert_eq!(remapped, 0, "server_tool_use must not be remapped here");
-
-        let patched =
-            std::fs::read_to_string(proj_dir.join(format!("{}.jsonl", session_id))).unwrap();
         assert!(
-            patched.contains("toolu_glm_abc123"),
+            patched.is_none(),
             "server_tool_use content must be untouched"
         );
     }
 
     #[test]
-    fn sanitize_tool_use_ids_returns_zero_for_missing_session() {
-        let dir = tempfile::tempdir().unwrap();
-        let removed = sanitize_session_tool_use_ids(
-            dir.path().to_str().unwrap(),
-            "nonexistent-0000-0000-0000-000000000000",
-        )
-        .unwrap();
-        assert_eq!(removed, 0);
+    fn sanitize_message_ids_remaps_openrouter_gen_ids() {
+        let content = concat!(
+            r#"{"type":"assistant","requestId":"gen-123-abc","message":{"id":"gen-123-abc","role":"assistant","content":[{"type":"text","text":"hi"}]}}"#,
+            "\n",
+            r#"{"type":"assistant","message":{"id":"msg_01Keep","role":"assistant","content":[]}}"#,
+            "\n",
+            r#"{"type":"user","message":{"id":"gen-999","role":"user","content":[]}}"#,
+            "\n",
+        );
+
+        let (out, n) = sanitize_message_ids_in_content(content).unwrap();
+        assert_eq!(n, 1);
+        let lines: Vec<&str> = out.as_deref().unwrap().lines().collect();
+
+        let first: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        assert_eq!(first["message"]["id"], "msg_gen123abc");
+        assert_eq!(first["requestId"], "msg_gen123abc");
+
+        // Valid assistant id and non-assistant roles are untouched.
+        let second: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(second["message"]["id"], "msg_01Keep");
+        let third: serde_json::Value = serde_json::from_str(lines[2]).unwrap();
+        assert_eq!(third["message"]["id"], "gen-999");
+    }
+
+    #[test]
+    fn sanitize_message_ids_skips_clean_content() {
+        let content = concat!(
+            r#"{"type":"assistant","message":{"id":"msg_01Abc","role":"assistant","content":[]}}"#,
+            "\n",
+        );
+        let (out, n) = sanitize_message_ids_in_content(content).unwrap();
+        assert!(out.is_none());
+        assert_eq!(n, 0);
     }
 }

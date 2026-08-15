@@ -73,7 +73,16 @@ claudy anthropic --resume <session-id>
 
 같은 작업 디렉토리, 같은 설정 모드, 같은 대화 기록 — 바뀌는 것은 프로바이더뿐입니다. 양방향 모두 동작합니다 (Anthropic → Z.AI, Z.AI → Anthropic).
 
-**내부 동작:** 프로바이더마다 세션 파일을 기록하는 방식이 조금씩 다릅니다. 비 Anthropic 프로바이더(Z.AI / GLM 등)로 세션을 만들면 Claude CLI는 빈 signature를 가진 thinking 블록을 기록합니다. Anthropic API는 이 signature를 검증하다가 세션 재개 시 전체 기록을 HTTP 400으로 거부합니다. Claudy는 Claude 프로세스를 시작하기 전에 세션 파일을 자동으로 정리합니다 — 유효하지 않은 thinking 블록을 일반 텍스트로 변환하고(추론 내용은 읽기 가능한 컨텍스트로 보존) 비표준 tool-use ID를 재매핑해서, 크로스 프로바이더 재개가 그냥 동작하도록 합니다. 수동 단계도, 외워야 할 것도 없습니다.
+**내부 동작:** 프로바이더마다 세션 파일을 기록하는 방식이 조금씩 다르고, Anthropic API는 자신이 만들지 않은 형식을 보면 전체 기록을 HTTP 400으로 거부합니다. Claudy는 Claude 프로세스를 시작하기 전에 세션 파일을 자동으로 복구하므로 크로스 프로바이더 재개가 그냥 동작합니다. 수동 단계도, 외워야 할 것도 없습니다. 복구 대상:
+
+| 기록 주체 | 재개 시 증상 | 복구 |
+|---|---|---|
+| Z.AI / GLM | signature가 빈 `thinking` 블록 | 일반 텍스트로 변환(추론 내용은 읽기 가능한 컨텍스트로 보존) |
+| Z.AI / GLM | OpenAI 형식 `call_<hex>` tool-use ID | `toolu_*`로 재매핑, 짝이 되는 `tool_result`도 갱신 |
+| Z.AI / GLM | 비표준 `server_tool_use` ID | `srvtoolu_*`로 재매핑 |
+| OpenRouter | `gen-<epoch>-<slug>` 메시지 ID가 `previous_message_id`로 재전송됨 | `msg_*`로 재매핑 |
+
+OpenRouter 케이스는 방치하면 자기증식합니다. CLI가 자신이 받은 `400` 에러를 UUID ID를 가진 합성 assistant 메시지로 기록하고, 그것이 다음 `previous_message_id`가 되어 다시 실패합니다.
 
 **절대 자동이 아닙니다.** Claudy는 사용량 소진을 감지하지 않고 스스로 프로바이더를 전환하지도 않습니다. 언제 종료하고 어디서 재개할지는 사용자가 결정합니다.
 
@@ -93,7 +102,7 @@ claudy session sanitize --all --yes
 출력 예시:
 
 ```
-Sessions with invalid thinking blocks
+Sessions needing sanitization
 ──────────────────────────────────────────────────────────────────────────────────
  #   Project           Session ID  Age      Last message                          Blocks
 ──────────────────────────────────────────────────────────────────────────────────
@@ -361,7 +370,7 @@ claudy <profile> gstack
 - `claudy channel <subcommand>`: 채널 브릿지 관리.
 - `claudy mcp`: 에이전트 브릿지용 MCP 서버로 실행.
 - `claudy analytics <subcommand>`: 사용량 분석 대시보드.
-- `claudy session sanitize`: 비 Anthropic 프로바이더의 잘못된 thinking 블록이 있는 세션을 복구합니다.
+- `claudy session sanitize`: 비 Anthropic 프로바이더가 남긴 Anthropic API 비호환 항목(thinking 블록, tool-use ID, 메시지 ID)을 복구합니다.
 - `claudy [profile] handoff [codex|agy] [-c|-r]`: 할당량이 소진된 codex/agy 세션을 새 Claude 세션에서 이어받습니다.
 
 ### 모드 명령어

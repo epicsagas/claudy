@@ -79,7 +79,16 @@ claudy anthropic --resume <session-id>
 
 Same working directory, same config mode, same conversation history — only the provider changes. Both directions work (Anthropic → Z.AI and Z.AI → Anthropic).
 
-**What happens under the hood:** providers write session files slightly differently. When a session is created with a non-Anthropic provider (such as Z.AI / GLM), the Claude CLI records thinking blocks with an empty signature. The Anthropic API validates these signatures and rejects the whole history with HTTP 400 when the session is resumed. Before the Claude process starts, claudy silently sanitizes the session file — converting invalid thinking blocks to plain text (preserving the reasoning as readable context) and remapping non-conforming tool-use IDs — so cross-provider resume just works. No manual step, nothing to remember.
+**What happens under the hood:** providers write session files slightly differently, and the Anthropic API rejects the whole history with HTTP 400 when it sees a shape it did not produce. Before the Claude process starts, claudy silently repairs the session file so cross-provider resume just works. No manual step, nothing to remember. It fixes:
+
+| Written by | Symptom on resume | Repair |
+|---|---|---|
+| Z.AI / GLM | `thinking` block with an empty signature | converted to plain text (reasoning preserved as readable context) |
+| Z.AI / GLM | OpenAI-style `call_<hex>` tool-use ids | remapped to `toolu_*`, paired `tool_result` updated |
+| Z.AI / GLM | non-conforming `server_tool_use` ids | remapped to `srvtoolu_*` |
+| OpenRouter | `gen-<epoch>-<slug>` message ids replayed as `previous_message_id` | remapped to `msg_*` |
+
+The OpenRouter case is self-propagating if left alone: the CLI records its own `400` error as a synthetic assistant message with a UUID id, which then becomes the next `previous_message_id` and fails again.
 
 **Never automatic.** Claudy does not detect quota exhaustion and never switches providers on its own. You decide when to exit and where to resume.
 
@@ -99,9 +108,9 @@ claudy session sanitize --all --yes
 Output example:
 
 ```
-Sessions with invalid thinking blocks
+Sessions needing sanitization
 ──────────────────────────────────────────────────────────────────────────────────
- #   Project           Session ID  Age      Last message                          Blocks
+ #   Project           Session ID  Age      Last message                          Fixes
 ──────────────────────────────────────────────────────────────────────────────────
  1   book-forge        ad2f38c0    2d       oss-dist 스킬로 book-forge 프로젝트…   7
  2   obsidian-forge    17e75a8c    5d       LaunchAgent 설정 구현…                 12
@@ -110,7 +119,7 @@ Sessions with invalid thinking blocks
 Select session to sanitize (or "Sanitize ALL"):
 ```
 
-The session file is updated atomically; sessions with valid Anthropic signatures are not touched.
+The session file is updated atomically; already-conforming sessions are not touched. A session that is still running is skipped with a warning rather than overwritten — exit it first.
 
 **Channel bridge:** when a Telegram/Slack/Discord session resumes, the channel server applies the same conversion automatically before spawning the Claude process — and `/sessions` lists recent sessions with switch buttons.
 
