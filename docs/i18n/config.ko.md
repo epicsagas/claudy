@@ -237,6 +237,27 @@ agents:
 
 ---
 
+## guard
+
+송신 가드 설정. `claudy --guard <profile>`에서 사용합니다. 모든 필드는 선택 사항입니다.
+
+| 필드 | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| `strip_images` | `bool` | `true` | `{"type":"image"}` 콘텐츠 블록을 요청이 머신을 떠나기 전에 텍스트 플레이스홀더로 치환합니다. |
+| `on_secret` | `string` | `"redact"` | 요청 본문에서 시크릿 패턴 감지 시 액션: `allow` (그대로 전달), `redact` (토큰을 `[REDACTED:<kind>]`로 치환), `warn` (전달 + 원장 기록), `block` (HTTP 400으로 거부, 업스트림 미접촉). |
+| `trusted_providers` | `string[]` | `["native"]` | 신뢰하는 송신 대상 프로바이더 id. 신뢰하지 않는 프로바이더에서 민감 내용이 감지되면 일회성 재경로 권고(stderr + 원장 항목)를 출력합니다. |
+
+```yaml
+guard:
+  strip_images: true
+  on_secret: redact
+  trusted_providers: ["native"]
+```
+
+가드의 판정 원장은 `~/.claudy/guard/ledger.jsonl`에 기록됩니다. 미리보기는 마스킹되며(`sk-a****f789`) 원본 시크릿은 절대 원장에 기록되지 않습니다.
+
+---
+
 ## 전체 예시
 
 ```yaml
@@ -289,4 +310,9 @@ agents:
     args: ["--prompt", "{prompt}"]
     description: "나의 커스텀 코딩 에이전트"
     timeout: 300
+
+guard:
+  strip_images: true
+  on_secret: redact
+  trusted_providers: ["native"]
 ```

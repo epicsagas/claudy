@@ -55,6 +55,7 @@ Claudy를 사용하면 Anthropic, Z.AI, OpenRouter, Ollama, 커스텀 엔드포�
 | 🔐 | 안전한 프로세스 제어 | SIGINT/SIGTERM 전달, 원자적 설정 쓰기, 0600 자격 증명 저장 |
 | 🔀 | 크로스 프로바이더 세션 연속성 | 크레딧이 끝나도 세션을 종료하고 다른 프로바이더에서 같은 대화를 이어서 계속 — 기록은 자동 복구 |
 | 🫴 | 크로스 CLI 세션 핸드오프 | Codex나 Antigravity에서 할당량이 소진되면 `claudy handoff`로 세션을 추출해 새 Claude 세션에 시딩 |
+| 🛡️ | 송신 가드 | `claudy --guard <profile>` — 로컬 DLP 프록시가 이미지 블록을 걷어내고 유출된 시크릿을 가려준 뒤 송신 |
 | 🛠️ | 운영 UX | 설치, 업데이트, 제거, 진단, 핑 — 모든 것을 하나의 바이너리에서 |
 
 ## 사용량 한도에 걸렸다면? 다른 프로바이더에서 세션 이어가기
@@ -151,6 +152,45 @@ claudy handoff --id <session-id>
 새 Claude 세션은 같은 작업 디렉토리에서 다이제스트를 첫 메시지로 시작합니다 — 대화 요약과 현재 저장소 상태(`git status`/`git diff` 권장)를 검토하고 거기서 이어갑니다. 이것은 맥락 핸드오프이지 비트 단위 재개가 아닙니다: 모델이 세부사항을 재생하는 대신 재확인할 것으로 기대하세요.
 
 **플래그:** 위치인자 `codex|agy` (생략 시 둘 다 스캔) · `-c, --continue` (가장 최근 세션) · `-r, --resume` (최근 5개 중 선택) · `--id <session-id>` (피커 건너뛰기) · `--cwd <dir>` (기본: 현재 디렉토리, 매칭이 없으면 전체 폴백) · `--profile <p>` (또는 프로필 접두사: `claudy zai handoff`) · `--print` (stdout 출력만) · `--yolo` (`--dangerously-skip-permissions` 전달, 그 외 미인식 플래그는 그대로 전달).
+
+## 게이트웨이로 시크릿과 이미지가 새어가지 못하게: `--guard`
+
+서드파티 게이트웨이는 모든 것을 봅니다 — 세션 전체가 평문으로 전송되고, 모델이 봐야 하는 바이너리(스크린샷, 로컬 이미지 읽기)는 base64로 업로드됩니다. 일부 게이트웨이는 이 바이너리를 통보 없이 자체 스토리지 버킷에 재업로드합니다. `--guard`는 Claude CLI와 프로바이더 사이에 로컬 리버스 프록시를 두고, 요청 본문을 **머신 밖으로 나가기 전에** 검사해 재작성합니다. 응답은 그대로 스트리밍됩니다.
+
+```bash
+claudy --guard zai          # 위치 무관: claudy zai --guard도 동일
+claudy --guard zai work     # 모드 조합도 평소처럼
+```
+
+시작 시 프록시 리스닝 주소를 출력합니다:
+
+```
+  [claudy] guard active: 127.0.0.1:53467 -> https://api.z.ai/api/anthropic (images stripped, secrets scanned)
+```
+
+**요청별 동작:**
+
+| 검출 | 기본 액션 | 설명 |
+|---|---|---|
+| `{"type":"image"}` 콘텐츠 블록 (메시지 content, `system` 배열, 중첩 `tool_result` content) | 텍스트 플레이스홀더로 치환 | 바이너리가 게이트웨이에 도달하지 않으므로 재업로드 자체가 불가능 |
+| API 키 — `sk-*`, `AKIA…`, `gh[posu]_…`, Slack `xox[bpas]-…` | 토큰을 `[REDACTED:<kind>]`로 치환 | charset이 따옴표/JSON 구조를 배제해 요청이 파싱 가능한 상태로 유지 |
+| `Bearer`/`Basic` 토큰, `key=value` 쌍 | 토큰만 치환, 접두사 보존 | 최소 길이 제한으로 일반 문장 오탐 억제 |
+| non-JSON 또는 파싱 불가 본문 | 통과 + 원장 경고 | fail-open: 스캐너 한계로 요청을 막지 않음 |
+
+클린 요청은 바이트 단위로 동일하게 전달됩니다. 모든 요청은 `~/.claudy/guard/ledger.jsonl`에 기록됩니다(메서드, 경로, 업스트림 호스트, 바이트 수, findings). 미리보기는 마스킹되며(`sk-a****f789`) 원본 시크릿은 절대 기록되지 않습니다.
+
+**정책**은 `config.yaml`의 `guard:` 섹션에 있습니다:
+
+```yaml
+guard:
+  strip_images: true          # 송신 전 이미지 블록 치환
+  on_secret: redact           # allow | redact | warn | block
+  trusted_providers: [native] # 신뢰하지 않는 프로바이더에서 발견 시 재경로 권고
+```
+
+`block`은 요청을 400으로 거부하고 업스트림에 접촉하지 않습니다. `trusted_providers`는 민감 내용이 신뢰하지 않는 프로바이더에서 감지되었을 때 일회성 권고(stderr + 원장)를 담당합니다 — 세션 중 프로바이더 전환은 불가능하므로 제안에 그칩니다.
+
+**한계:** `--guard` 하에서는 의도적으로 비전이 동작하지 않습니다(모델은 플레이스홀더를 봄 — 그게 목적). 드물게 정상 콘텐츠 속 키 형태 문자열이 가려질 수 있습니다(예: 대형 base64 blob 내 `AKIA` 유사 패턴). 채널 브릿지와 `handoff` 실행은 아직 가드를 거치지 않습니다.
 
 ## 지원 프로바이더
 
@@ -304,6 +344,12 @@ agents:
     binary: "aider"
     args: ["--message", "{prompt}"]
     timeout: 300
+
+# 송신 가드 (claudy --guard <profile>)
+guard:
+  strip_images: true                  # 기본값: true
+  on_secret: redact                   # allow | redact | warn | block
+  trusted_providers: ["native"]       # 기본값: ["native"]
 ```
 
 </details>
