@@ -53,7 +53,81 @@ Claudy memungkinkan Anda beralih antara Anthropic, Z.AI, OpenRouter, Ollama, dan
 | 📊 | Analitik penggunaan | Lacak penggunaan token, biaya, dan pola tool dengan dasbor Tauri lokal |
 | 🔐 | Kontrol proses yang aman | Penerusan SIGINT/SIGTERM, penulisan konfigurasi atomik, penyimpanan kredensial 0600 |
 | 🔀 | Kontinuitas sesi lintas penyedia | Memperbaiki sesi Z.AI/GLM secara otomatis agar dapat dilanjutkan dengan Anthropic API tanpa gangguan |
+| 🫴 | Handoff sesi lintas CLI | Kuota habis di Codex atau Antigravity? `claudy handoff` mengekstrak sesi dan menyemai sesi Claude baru dengannya |
+| 🛡️ | Guard egress | `claudy --guard <profile>` — proxy DLP lokal mencabut blok gambar dan menyamarkan rahasia yang bocor sebelum apa pun meninggalkan mesin |
 | 🛠️ | UX operasional | Instal, perbarui, hapus instalasi, doctor, ping — semuanya dari satu binary |
+
+## Kena Batas Kuota di Codex atau Antigravity? Serahkan Sesi ke Claude
+
+Melanjutkan lintas penyedia hanya bekerja di dalam Claude CLI — Codex dan Antigravity menyimpan sesi mereka sendiri dalam formatnya sendiri, sehingga `--resume` tidak bisa memuatnya. Saat kuota CLI-CLI tersebut habis, `claudy handoff` mengekstrak ringkasan percakapan dari sesi asing dan menyemai sesi Claude **baru** dengannya:
+
+```bash
+# Interaktif — mencantumkan sesi codex + agy untuk direktori saat ini
+claudy handoff
+
+# Di bawah profil tertentu (semua prefiks profil berfungsi)
+claudy zai handoff
+
+# Sesi terbaru dari kedua CLI, tanpa pemilih
+claudy zai handoff -c
+
+# Pilih di antara 5 sesi terbaru
+claudy handoff -r
+
+# Batasi ke satu CLI; pratinjau ringkasan tanpa meluncurkan
+claudy handoff codex -c --print
+claudy handoff agy -c --print
+
+# ID sesi tertentu
+claudy handoff --id <session-id>
+```
+
+`-c` mencerminkan `--continue` milik Claude (terbaru) dan `-r` mencerminkan `--resume` (pilih) — tetapi di atas penyimpanan sesi asing. `--yolo` dan flag tidak dikenal lainnya diteruskan verbatim ke sesi Claude.
+
+**Yang diekstrak:** prompt pengguna asli (verbatim, dengan batas), balasan asisten dan aktivitas tool (dipotong jadi satu baris), status akhir asisten, dan path ruang kerja — dirender menjadi satu prompt dalam anggaran 16 KiB. File rollout Codex diurai secara native. Database sesi Antigravity berformat tidak terdokumentasi, jadi claudy membacanya sebisanya (pemindaian string protobuf generik plus indeks riwayat prompt) dan beralih ke prompt-saja bila tata letaknya berubah.
+
+Sesi Claude baru dimulai di direktori kerja yang sama dengan ringkasan sebagai pesan pertamanya — ia meninjau ringkasan percakapan plus kondisi repo saat ini (`git status`/`git diff` disarankan padanya) lalu melanjutkan dari sana. Ini adalah handoff konteks, bukan pelanjutan bit-per-bit: harapkan model memverifikasi ulang detail alih-alih memutarnya ulang.
+
+**Flag:** `[codex|agy]` sumber posisional (memindai keduanya bila dihilangkan) · `-c, --continue` (sesi terbaru) · `-r, --resume` (pilih di antara 5 terbaru) · `--id <session-id>` (lewati pemilih) · `--cwd <dir>` (default: direktori saat ini; beralih ke semua sesi bila tidak ada yang cocok) · `--profile <p>` (atau prefiks profil: `claudy zai handoff`) · `--print` (hanya stdout) · `--yolo` (teruskan `--dangerously-skip-permissions` ke Claude; flag tidak dikenal lainnya diteruskan verbatim).
+
+## Jauhkan Rahasia dan Gambar dari Gateway: `--guard`
+
+Gateway pihak ketiga melihat semuanya — seluruh sesi sebagai teks polos, dan binary apa pun yang perlu dilihat model (tangkapan layar, pembacaan gambar lokal) terunggah sebagai base64. Beberapa gateway mengunggah ulang binary tersebut ke bucket penyimpanan miliknya tanpa memberi tahu Anda. `--guard` menempatkan proxy balik lokal antara Claude CLI dan penyedia: body permintaan diperiksa dan ditulis ulang **sebelum meninggalkan mesin**, respons dialirkan kembali tanpa diubah.
+
+```bash
+claudy --guard zai          # posisi mana pun berfungsi: claudy zai --guard juga bisa
+claudy --guard zai work     # dikombinasikan dengan mode seperti biasa
+```
+
+Saat mulai, claudy mencetak di mana proxy mendengarkan:
+
+```
+  [claudy] guard active: 127.0.0.1:53467 -> https://api.z.ai/api/anthropic (images stripped, secrets scanned)
+```
+
+**Yang dilakukan pada setiap permintaan:**
+
+| Deteksi | Aksi default | Detail |
+|---|---|---|
+| Blok konten `{"type":"image"}` (konten pesan, array `system`, konten `tool_result` bersarang) | diganti dengan placeholder teks | binary tidak pernah sampai ke gateway, jadi tidak bisa diunggah ulang |
+| Kunci API — `sk-*`, `AKIA…`, `gh[posu]_…`, Slack `xox[bpas]-…` | token diganti dengan `[REDACTED:<kind>]` | kumpulan karakter mengecualikan tanda kutip/struktur JSON, jadi permintaan tetap bisa diurai |
+| Token `Bearer`/`Basic`, pasangan `key=value` | token diganti, prefiks dipertahankan | panjang minimum menekan positif palsu pada prosa |
+| Body non-JSON atau tak terurai | diteruskan + peringatan buku besar | fail-open: tidak pernah memblokir karena keterbatasan pemindai |
+
+Permintaan bersih diteruskan identik-bit. Setiap permintaan dicatat ke `~/.claudy/guard/ledger.jsonl` (metode, path, host upstream, jumlah byte, temuan) — pratinjau disamarkan (`sk-a****f789`), materi rahasia mentah tidak pernah ditulis.
+
+**Kebijakan** berada di bawah `guard:` di `config.yaml`:
+
+```yaml
+guard:
+  strip_images: true          # ganti blok gambar sebelum egress
+  on_secret: redact           # allow | redact | warn | block
+  trusted_providers: [native] # temuan pada lainnya menambah saran re-route
+```
+
+`block` menolak permintaan dengan 400 dan tidak pernah menghubungi upstream. `trusted_providers` mendorong saran sekali saja (stderr + buku besar) yang menyarankan penyedia tepercaya saat konten sensitif terdeteksi pada penyedia yang tidak tepercaya — mengganti penyedia di tengah sesi tidak mungkin, jadi tetap berupa saran.
+
+**Keterbatasan:** visi sengaja rusak di bawah `--guard` (model melihat placeholder — memang itu tujuannya); positif palsu yang jarang bisa menyamarkan string berbentuk kunci di dalam konten yang sah (mis. untaian mirip `AKIA` di dalam blob base64 besar); bridge channel dan peluncuran `handoff` belum melewati guard.
 
 ## Penyedia yang didukung
 
@@ -207,6 +281,12 @@ agents:
     binary: "aider"
     args: ["--message", "{prompt}"]
     timeout: 300
+
+# Guard egress (claudy --guard <profile>)
+guard:
+  strip_images: true                  # default: true
+  on_secret: redact                   # allow | redact | warn | block
+  trusted_providers: ["native"]       # default: ["native"]
 ```
 
 </details>
@@ -274,6 +354,7 @@ Setiap direktori mode adalah `CLAUDE_CONFIG_DIR` yang mandiri, sehingga framewor
 - `claudy mcp`: jalankan sebagai server MCP untuk bridge agen.
 - `claudy analytics <subcommand>`: dasbor analitik penggunaan.
 - `claudy session sanitize`: memperbaiki sesi dengan blok thinking tidak valid yang ditulis oleh penyedia non-Anthropic.
+- `claudy [profile] handoff [codex|agy] [-c|-r]`: melanjutkan sesi codex/agy yang kehabisan kuota dalam sesi Claude baru.
 
 ### Perintah mode
 

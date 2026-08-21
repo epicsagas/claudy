@@ -53,6 +53,8 @@ Claudy vous permet de basculer entre Anthropic, Z.AI, OpenRouter, Ollama et des 
 | 📊 | Analytique d'utilisation | Suivez l'utilisation des jetons, les coûts et les modèles d'outils avec un tableau de bord Tauri local |
 | 🔐 | Contrôle de processus sûr | Transmission SIGINT/SIGTERM, écritures atomiques de configuration, stockage des identifiants en mode 0600 |
 | 🔀 | Continuité de session inter-fournisseurs | Réparer automatiquement les sessions Z.AI/GLM pour les reprendre sans interruption avec l'API Anthropic |
+| 🫴 | Transfert de session inter-CLI | Quota épuisé dans Codex ou Antigravity ? `claudy handoff` extrait la session et initialise une nouvelle session Claude avec |
+| 🛡️ | Garde de sortie | `claudy --guard <profile>` — un proxy DLP local retire les blocs d'images et masque les secrets divulgués avant tout envoi hors de la machine |
 | 🛠️ | UX opérationnelle | Installation, mise à jour, désinstallation, diagnostic, ping — tout depuis un seul binaire |
 
 ## Fournisseurs pris en charge
@@ -207,6 +209,12 @@ agents:
     binary: "aider"
     args: ["--message", "{prompt}"]
     timeout: 300
+
+# Garde de sortie (claudy --guard <profile>)
+guard:
+  strip_images: true                  # par défaut : true
+  on_secret: redact                   # allow | redact | warn | block
+  trusted_providers: ["native"]       # par défaut : ["native"]
 ```
 
 </details>
@@ -274,6 +282,7 @@ Chaque répertoire de mode est un `CLAUDE_CONFIG_DIR` autonome, donc les framewo
 - `claudy mcp` : exécuter en tant que serveur MCP pour le pont d'agents.
 - `claudy analytics <sous-commande>` : tableau de bord d'analytique d'utilisation.
 - `claudy session sanitize` : réparer les sessions contenant des blocs thinking invalides écrits par des fournisseurs non-Anthropic.
+- `claudy [profile] handoff [codex|agy] [-c|-r]` : poursuivre une session codex/agy épuisée dans une nouvelle session Claude.
 
 ### Commandes de mode
 
@@ -542,6 +551,82 @@ claudy session sanitize --all --yes
 **Ce que fait la conversion :** Les blocs thinking à signature vide sont réécrits en blocs texte ordinaires, préservant le contenu du raisonnement. Les blocs avec une signature Anthropic valide ne sont pas modifiés.
 
 **Limitation :** La continuité de session dépend de la compatibilité de l'historique de conversation. Un changement de fournisseur en cours de session peut entraîner de légères variations de contexte même après la correction.
+
+---
+
+## Quota épuisé dans Codex ou Antigravity ? Transférez la session à Claude
+
+La reprise inter-fournisseurs ne fonctionne qu'au sein de la CLI Claude — Codex et Antigravity conservent leurs sessions dans leurs propres formats, `--resume` ne peut donc pas les charger. Quand le quota de ces CLIs est épuisé, `claudy handoff` extrait un résumé de conversation de la session étrangère et initialise avec une **nouvelle** session Claude :
+
+```bash
+# Interactif — liste les sessions codex + agy du répertoire courant
+claudy handoff
+
+# Sous un profil spécifique (tout préfixe de profil fonctionne)
+claudy zai handoff
+
+# Session la plus récente sur les deux CLIs, sans sélection
+claudy zai handoff -c
+
+# Choisir parmi les 5 sessions les plus récentes
+claudy handoff -r
+
+# Se limiter à une CLI ; afficher le résumé sans lancer
+claudy handoff codex -c --print
+claudy handoff agy -c --print
+
+# Un identifiant de session précis
+claudy handoff --id <session-id>
+```
+
+`-c` reprend le `--continue` de Claude (plus récente) et `-r` le `--resume` (choix) — mais sur les magasins de sessions étrangers. `--yolo` et tout autre drapeau non reconnu sont transmis tels quels à la session Claude.
+
+**Ce qui est extrait :** les invites utilisateur d'origine (mot pour mot, tronquées), les réponses de l'assistant et l'activité d'outils (condensées en une ligne), le dernier état de l'assistant et le chemin de l'espace de travail — le tout rendu en une seule invite sous un budget de 16 Kio. Les fichiers de session Codex sont analysés nativement. La base de sessions d'Antigravity est un format non documenté ; claudy la lit au mieux (scan générique de chaînes protobuf plus index de l'historique d'invites) et retombe sur les invites seules quand la disposition change.
+
+La nouvelle session Claude démarre dans le même répertoire de travail avec le résumé comme premier message — elle passe en revue le résumé de conversation et l'état actuel du dépôt (`git status`/`git diff` lui sont suggérés) et continue à partir de là. C'est un transfert de contexte, pas une reprise bit à bit : attendez-vous à ce que le modèle revérifie les détails plutôt qu'il ne les rejoue.
+
+**Drapeaux :** source positionnelle `[codex|agy]` (les deux scannés si omise) · `-c, --continue` (session la plus récente) · `-r, --resume` (choisir parmi les 5 plus récentes) · `--id <session-id>` (passer la sélection) · `--cwd <dir>` (défaut : répertoire courant ; toutes les sessions si rien ne correspond) · `--profile <p>` (ou un préfixe de profil : `claudy zai handoff`) · `--print` (stdout uniquement) · `--yolo` (passer `--dangerously-skip-permissions` à Claude ; les autres drapeaux inconnus sont transmis tels quels).
+
+---
+
+## Garder les secrets et les images loin de la passerelle : `--guard`
+
+Une passerelle tierce voit tout — la session entière en texte brut, et chaque binaire que le modèle doit examiner (captures d'écran, lectures d'images locales) téléversé en base64. Certaines passerelles re-téléversent ces binaires vers leurs propres buckets de stockage sans vous prévenir. `--guard` place un proxy inverse local entre la CLI Claude et le fournisseur : les corps de requête sont inspectés et réécrits **avant de quitter la machine**, les réponses sont retransmises telles quelles.
+
+```bash
+claudy --guard zai          # la position est libre : claudy zai --guard fonctionne aussi
+claudy --guard zai work     # se combine avec les modes comme d'habitude
+```
+
+Au démarrage, claudy affiche où écoute le proxy :
+
+```
+  [claudy] guard active: 127.0.0.1:53467 -> https://api.z.ai/api/anthropic (images stripped, secrets scanned)
+```
+
+**Ce que cela fait à chaque requête :**
+
+| Détection | Action par défaut | Détail |
+|---|---|---|
+| Blocs de contenu `{"type":"image"}` (contenu de message, tableaux `system`, contenu `tool_result` imbriqué) | remplacés par un marqueur texte | le binaire n'atteint jamais la passerelle, donc ne peut pas être re-téléversé |
+| Clés API — `sk-*`, `AKIA…`, `gh[posu]_…`, Slack `xox[bpas]-…` | jeton remplacé par `[REDACTED:<kind>]` | les jeux de caractères excluent guillemets et structure JSON, la requête reste analysable |
+| Jetons `Bearer`/`Basic`, paires `key=value` | jeton remplacé, préfixe conservé | des longueurs minimales suppriment les faux positifs en prose |
+| Corps non-JSON ou inanalysables | transmis + avertissement au registre | fail-open : ne bloque jamais sur les limites du scanner |
+
+Les requêtes propres sont transmises octet pour octet à l'identique. Chaque requête est consignée dans `~/.claudy/guard/ledger.jsonl` (méthode, chemin, hôte amont, compteurs d'octets, constats) — les aperçus sont masqués (`sk-a****f789`), le matériel secret brut n'est jamais écrit.
+
+La **politique** se trouve sous `guard:` dans `config.yaml` :
+
+```yaml
+guard:
+  strip_images: true          # remplacer les blocs d'images avant l'envoi
+  on_secret: redact           # allow | redact | warn | block
+  trusted_providers: [native] # les constats sur d'autres déclenchent un avis de reroutage
+```
+
+`block` refuse la requête avec un 400 et ne contacte jamais l'amont. `trusted_providers` déclenche un avis unique (stderr + registre) suggérant un fournisseur de confiance quand du contenu sensible est détecté sur un fournisseur non fiable — changer de fournisseur en pleine session est impossible, donc cela reste une suggestion.
+
+**Limitations :** la vision est volontairement cassée sous `--guard` (le modèle voit un marqueur — c'est le but) ; de rares faux positifs peuvent masquer des chaînes en forme de clé dans du contenu légitime (p. ex. des séquences type `AKIA` dans de gros blobs base64) ; le pont de canaux et les lancements `handoff` ne passent pas encore par la garde.
 
 ---
 

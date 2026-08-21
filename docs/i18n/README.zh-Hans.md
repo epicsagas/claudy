@@ -54,7 +54,81 @@ Claudy 让你在 Anthropic、Z.AI、OpenRouter、Ollama 和自定义端点之间
 | 📊 | 使用分析 | 通过本地 Tauri 仪表板追踪 token 用量、成本和工具使用模式 |
 | 🔐 | 安全进程控制 | SIGINT/SIGTERM 信号转发、原子配置写入、0600 凭证存储 |
 | 🔀 | 跨提供商会话连续性 | 自动修复 Z.AI/GLM 创建的会话，使其可以通过 Anthropic API 无缝续接 |
+| 🫴 | 跨 CLI 会话交接 | 在 Codex 或 Antigravity 中配额耗尽时，`claudy handoff` 提取会话并注入新的 Claude 会话 |
+| 🛡️ | 出站防护 | `claudy --guard <profile>` —— 本地 DLP 代理在流量离开本机前剥离图片块并遮蔽泄漏的密钥 |
 | 🛠️ | 运维体验 | 安装、更新、卸载、诊断、连通测试 —— 一个二进制文件搞定一切 |
+
+## 在 Codex 或 Antigravity 中遇到用量上限？把会话交接给 Claude
+
+跨提供商恢复只在 Claude CLI 内部有效 —— Codex 和 Antigravity 使用各自格式的会话存储，`--resume` 无法加载。当这些 CLI 的配额耗尽时，`claudy handoff` 从外部会话中提取对话摘要，注入一个**新的** Claude 会话：
+
+```bash
+# 交互式 — 列出当前目录的 codex + agy 会话
+claudy handoff
+
+# 在指定配置下运行（任意配置前缀均可）
+claudy zai handoff
+
+# 两个 CLI 中最近的一个会话，无需选择器
+claudy zai handoff -c
+
+# 从最近 5 个会话中选择
+claudy handoff -r
+
+# 限定一个 CLI；只预览摘要不启动
+claudy handoff codex -c --print
+claudy handoff agy -c --print
+
+# 指定会话 id
+claudy handoff --id <session-id>
+```
+
+`-c` 对应 Claude 的 `--continue`（最近会话），`-r` 对应 `--resume`（选择）—— 但作用对象是外部会话存储。`--yolo` 及其他未识别的标志会原样转发给 Claude 会话。
+
+**提取内容：** 原始用户提示词（原样、有长度上限）、助手回复与工具活动（截断为单行摘要）、最后的助手状态、工作区路径 —— 在 16 KiB 预算内渲染为单个提示词。Codex 的 rollout 文件按原生格式解析。Antigravity 的会话数据库是未公开格式，claudy 以尽力而为的方式读取（通用 protobuf 字符串扫描 + 提示词历史索引），布局变化时回退到仅提示词模式。
+
+新的 Claude 会话在同一工作目录中启动，并以摘要作为第一条消息 —— 它会审视对话概要与当前仓库状态（建议附带 `git status`/`git diff`）后从那里继续。这是上下文交接，不是逐位恢复：请预期模型会重新核实细节，而不是原样复述。
+
+**标志：** 位置参数 `codex|agy`（省略时扫描两者）· `-c, --continue`（最近会话）· `-r, --resume`（从最近 5 个中选择）· `--id <session-id>`（跳过选择器）· `--cwd <dir>`（默认：当前目录，无匹配时回退到全部）· `--profile <p>`（或配置前缀：`claudy zai handoff`）· `--print`（仅输出到 stdout）· `--yolo`（向 Claude 传递 `--dangerously-skip-permissions`，其余未知标志原样转发）。
+
+## 别让密钥和图片泄漏到网关：`--guard`
+
+第三方网关能看到一切 —— 整个会话以明文传输，模型需要查看的任何二进制内容（截图、本地图片读取）都以 base64 上传。某些网关会在不加告知的情况下把这些二进制内容重新上传到自己的存储桶。`--guard` 在 Claude CLI 与提供商之间放置一个本地反向代理，在请求体**离开本机之前**进行检查和改写。响应原样流式返回。
+
+```bash
+claudy --guard zai          # 位置不限：claudy zai --guard 效果相同
+claudy --guard zai work     # 与模式组合照常可用
+```
+
+启动时输出代理的监听地址：
+
+```
+  [claudy] guard active: 127.0.0.1:53467 -> https://api.z.ai/api/anthropic (images stripped, secrets scanned)
+```
+
+**对每个请求的处理：**
+
+| 检测项 | 默认动作 | 说明 |
+|---|---|---|
+| `{"type":"image"}` 内容块（消息 content、`system` 数组、嵌套的 `tool_result` content） | 替换为文本占位符 | 二进制内容根本不会到达网关，重新上传无从谈起 |
+| API 密钥 —— `sk-*`、`AKIA…`、`gh[posu]_…`、Slack `xox[bpas]-…` | 令牌替换为 `[REDACTED:<kind>]` | 字符集排除引号/JSON 结构，请求保持可解析 |
+| `Bearer`/`Basic` 令牌、`key=value` 键值对 | 仅替换令牌，保留前缀 | 最小长度限制抑制普通语句的误报 |
+| 非 JSON 或无法解析的请求体 | 直接放行 + 台账警告 | fail-open：绝不因扫描器局限而拦截请求 |
+
+干净请求按字节原样转发。每个请求都记录到 `~/.claudy/guard/ledger.jsonl`（方法、路径、上游主机、字节数、findings）。预览经过掩码处理（`sk-a****f789`），绝不写入原始密钥材料。
+
+**策略**位于 `config.yaml` 的 `guard:` 小节：
+
+```yaml
+guard:
+  strip_images: true          # 出站前替换图片块
+  on_secret: redact           # allow | redact | warn | block
+  trusted_providers: [native] # 在不受信任的提供商上检出时给出重路由建议
+```
+
+`block` 以 400 拒绝请求且不接触上游。`trusted_providers` 负责在不受信任的提供商上检出敏感内容时发出一次性建议（stderr + 台账）—— 会话中切换提供商不可能，因此仅止于建议。
+
+**限制：** `--guard` 下视觉功能被有意禁用（模型看到的是占位符 —— 这正是目的）。极少数情况下正常内容中形似密钥的字符串可能被遮蔽（例如大型 base64 blob 中的 `AKIA` 类模式）。频道桥接与 `handoff` 启动尚未经过防护。
 
 ## 支持的提供商
 
@@ -208,6 +282,12 @@ agents:
     binary: "aider"
     args: ["--message", "{prompt}"]
     timeout: 300
+
+# Egress guard (claudy --guard <profile>)
+guard:
+  strip_images: true                  # default: true
+  on_secret: redact                   # allow | redact | warn | block
+  trusted_providers: ["native"]       # default: ["native"]
 ```
 
 </details>
@@ -275,6 +355,7 @@ claudy <profile> gstack
 - `claudy mcp`：作为 MCP 服务器运行，用于代理桥接。
 - `claudy analytics <subcommand>`：使用分析仪表板。
 - `claudy session sanitize`：修复包含非 Anthropic 提供商写入的无效 thinking 块的会话。
+- `claudy [profile] handoff [codex|agy] [-c|-r]`：将配额耗尽的 codex/agy 会话交接到新的 Claude 会话继续。
 
 ### 模式命令
 

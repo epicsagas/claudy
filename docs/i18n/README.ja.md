@@ -53,7 +53,81 @@ Claudyを使えば、Anthropic、Z.AI、OpenRouter、Ollama、カスタムエン
 | 📊 | 使用量分析 | トークン使用量、コスト、ツールパターンをローカルTauriダッシュボードで追跡 |
 | 🔐 | 安全なプロセス制御 | SIGINT/SIGTERM転送、アトミック設定書き込み、0600認証情報ストレージ |
 | 🔀 | クロスプロバイダーセッション継続性 | Z.AI/GLMで作成したセッションをAnthropic APIで引き継いで作業できるよう自動修復 |
+| 🫴 | クロスCLIセッションハンドオフ | CodexやAntigravityで割り当て量を使い切ったら、`claudy handoff`でセッションを抽出して新しいClaudeセッションにシード |
+| 🛡️ | 送信ガード | `claudy --guard <profile>` — ローカルDLPプロキシがイメージブロックを除去し、漏洩したシークレットをマスクしてから送信 |
 | 🛠️ | 運用UX | インストール、更新、アンインストール、診断、ping — すべて1つのバイナリから |
+
+## CodexやAntigravityで上限に達したら？セッションをClaudeに引き継ぐ
+
+クロスプロバイダー再開はClaude CLI内部でしか動作しません — CodexとAntigravityは独自フォーマットのセッションストアを使うため、`--resume`ではロードできません。こうしたCLIの割り当て量が尽きたとき、`claudy handoff`が外部セッションから会話ダイジェストを抽出し、**新しい**Claudeセッションにシードします:
+
+```bash
+# インタラクティブ — 現在のディレクトリのcodex + agyセッションを一覧表示
+claudy handoff
+
+# 特定プロファイルで (プロファイルプレフィックスならどれでも動作)
+claudy zai handoff
+
+# 両CLI通じて最新のセッション、ピッカーなし
+claudy zai handoff -c
+
+# 直近5件のセッションから選択
+claudy handoff -r
+
+# 1つのCLIに限定、起動せずにダイジェストをプレビュー
+claudy handoff codex -c --print
+claudy handoff agy -c --print
+
+# 特定のセッションid
+claudy handoff --id <session-id>
+```
+
+`-c`はClaudeの`--continue`(最新セッション)、`-r`は`--resume`(選択)に相当しますが、外部セッションストアに対して動作します。`--yolo`とその他の未認識フラグはClaudeセッションにそのまま渡されます。
+
+**抽出される内容:** 元のユーザープロンプト(そのまま、上限付き)、アシスタントの応答とツール活動(1行要約に切り詰め)、最後のアシスタント状態、ワークスペースパス — 16 KiBの予算内で単一プロンプトにレンダリングされます。Codexのrolloutファイルはネイティブにパースします。AntigravityのセッションDBは非公開フォーマットのため、ベストエフォートで読み取ります(汎用protobuf文字列スキャン + プロンプト履歴インデックス)、レイアウトが変わるとプロンプトのみにフォールバックします。
+
+新しいClaudeセッションは同じ作業ディレクトリで、ダイジェストを最初のメッセージとして開始します — 会話サマリーと現在のリポジトリ状態(`git status`/`git diff`を推奨)を確認し、そこから続行します。これはコンテキストのハンドオフであり、ビット単位の再開ではありません: モデルは詳細を再生するのではなく再検証すると考えてください。
+
+**フラグ:** 位置引数 `codex|agy` (省略時は両方をスキャン) · `-c, --continue` (最新セッション) · `-r, --resume` (直近5件から選択) · `--id <session-id>` (ピッカーをスキップ) · `--cwd <dir>` (デフォルト: 現在のディレクトリ、マッチなしの場合は全体にフォールバック) · `--profile <p>` (またはプロファイルプレフィックス: `claudy zai handoff`) · `--print` (stdoutのみ) · `--yolo` (`--dangerously-skip-permissions`を渡す、他の未知のフラグはそのまま転送)。
+
+## シークレットとイメージをゲートウェイに漏らさない: `--guard`
+
+サードパーティゲートウェイはすべてを見ます — セッション全体が平文で送信され、モデルが参照すべきバイナリ(スクリーンショット、ローカルイメージの読み取り)はbase64でアップロードされます。ゲートウェイによっては、このバイナリを通知なく独自のストレージバケットに再アップロードするものもあります。`--guard`はClaude CLIとプロバイダーの間にローカルリバースプロキシを置き、リクエストボディを**マシンの外に出る前に**検査して書き換えます。レスポンスはそのままストリーミングされます。
+
+```bash
+claudy --guard zai          # 位置は不問: claudy zai --guardでも同じ
+claudy --guard zai work     # モードとの組み合わせも通常どおり
+```
+
+起動時にプロキシのリスニングアドレスを出力します:
+
+```
+  [claudy] guard active: 127.0.0.1:53467 -> https://api.z.ai/api/anthropic (images stripped, secrets scanned)
+```
+
+**リクエストごとの動作:**
+
+| 検出 | デフォルトアクション | 説明 |
+|---|---|---|
+| `{"type":"image"}`コンテンツブロック (メッセージcontent、`system`配列、ネストされた`tool_result` content) | テキストプレースホルダーに置換 | バイナリがゲートウェイに到達しないため、再アップロード自体が不可能 |
+| APIキー — `sk-*`、`AKIA…`、`gh[posu]_…`、Slack `xox[bpas]-…` | トークンを`[REDACTED:<kind>]`に置換 | 文字セットがクォート/JSON構造を除外するため、リクエストはパース可能な状態を維持 |
+| `Bearer`/`Basic`トークン、`key=value`ペア | トークンのみ置換、プレフィックス保持 | 最小長の制限で通常文の誤検知を抑制 |
+| non-JSONまたはパース不能なボディ | パススルー + 台帳警告 | fail-open: スキャナーの制限でリクエストをブロックしない |
+
+クリーンなリクエストはバイト同一で転送されます。すべてのリクエストは`~/.claudy/guard/ledger.jsonl`に記録されます(メソッド、パス、アップストリームホスト、バイト数、findings)。プレビューはマスクされ(`sk-a****f789`)、生のシークレットが書き込まれることはありません。
+
+**ポリシー**は`config.yaml`の`guard:`セクションにあります:
+
+```yaml
+guard:
+  strip_images: true          # 送信前にイメージブロックを置換
+  on_secret: redact           # allow | redact | warn | block
+  trusted_providers: [native] # 信頼しないプロバイダーでの検出時に再ルート勧告
+```
+
+`block`はリクエストを400で拒否し、アップストリームに接触しません。`trusted_providers`は、信頼していないプロバイダーで機密内容が検出されたときの一回限りの勧告(stderr + 台帳)を担います — セッション中のプロバイダー切り替えは不可能なため、提案に留まります。
+
+**制限事項:** `--guard`下では意図的にビジョンが動作しません(モデルはプレースホルダーを見る — それが目的です)。稀に正常なコンテンツ内のキー状の文字列がマスクされることがあります(例: 大型base64 blob内の`AKIA`類似パターン)。チャネルブリッジと`handoff`起動はまだガードを経由しません。
 
 ## サポートプロバイダー
 
@@ -207,6 +281,12 @@ agents:
     binary: "aider"
     args: ["--message", "{prompt}"]
     timeout: 300
+
+# 送信ガード (claudy --guard <profile>)
+guard:
+  strip_images: true                  # デフォルト: true
+  on_secret: redact                   # allow | redact | warn | block
+  trusted_providers: ["native"]       # デフォルト: ["native"]
 ```
 
 </details>
@@ -274,6 +354,7 @@ claudy <profile> gstack
 - `claudy mcp`: エージェントブリッジ用MCPサーバーとして実行。
 - `claudy analytics <subcommand>`: 使用量分析ダッシュボード。
 - `claudy session sanitize`: 非Anthropicプロバイダーによる無効なthinkingブロックを持つセッションを修復します。
+- `claudy [profile] handoff [codex|agy] [-c|-r]`: 割り当て量を使い切ったcodex/agyセッションを新しいClaudeセッションで引き継ぎます。
 
 ### モードコマンド
 
