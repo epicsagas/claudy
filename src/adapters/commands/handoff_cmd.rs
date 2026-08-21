@@ -279,6 +279,7 @@ fn launch_seeded_session(
         &env,
         crate::launcher::binary::SessionOptions {
             suppress_banner: false,
+            guard: false,
         },
         None,
     )

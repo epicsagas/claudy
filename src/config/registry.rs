@@ -260,6 +260,8 @@ pub struct AppRegistry {
     pub channel: BridgeSettings,
     #[serde(default)]
     pub analytics: AnalyticsSettings,
+    #[serde(default)]
+    pub guard: GuardSettings,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub agents: HashMap<String, crate::domain::agent::AgentConfig>,
 }
@@ -309,6 +311,54 @@ fn default_version() -> i32 {
     1
 }
 
+/// Action taken when the guard scanner finds a secret in an outgoing request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SecretPolicy {
+    Allow,
+    Redact,
+    Warn,
+    Block,
+}
+
+/// DLP guard (`--guard`) settings: local egress proxy that strips image
+/// content blocks and redacts leaked credentials before they reach the
+/// provider gateway.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuardSettings {
+    /// Replace image content blocks with a text placeholder before egress.
+    #[serde(default = "default_guard_strip_images")]
+    pub strip_images: bool,
+    /// Action when a secret pattern is detected in a request body.
+    #[serde(default = "default_guard_on_secret")]
+    pub on_secret: SecretPolicy,
+    /// Provider ids considered trusted egress targets. Findings on other
+    /// providers additionally emit a re-route suggestion (advisory only).
+    #[serde(default = "default_guard_trusted_providers")]
+    pub trusted_providers: Vec<String>,
+}
+
+fn default_guard_strip_images() -> bool {
+    true
+}
+
+fn default_guard_on_secret() -> SecretPolicy {
+    SecretPolicy::Redact
+}
+
+fn default_guard_trusted_providers() -> Vec<String> {
+    vec!["native".to_string()]
+}
+
+impl Default for GuardSettings {
+    fn default() -> Self {
+        GuardSettings {
+            strip_images: true,
+            on_secret: SecretPolicy::Redact,
+            trusted_providers: default_guard_trusted_providers(),
+        }
+    }
+}
+
 impl Default for AppRegistry {
     fn default() -> Self {
         AppRegistry {
@@ -320,6 +370,7 @@ impl Default for AppRegistry {
             model_settings: HashMap::new(),
             channel: BridgeSettings::default(),
             analytics: AnalyticsSettings::default(),
+            guard: GuardSettings::default(),
             agents: HashMap::new(),
         }
     }

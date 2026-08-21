@@ -30,6 +30,7 @@ impl<'a> RuntimeGateway for LauncherAdapter<'a> {
         forwarded_args: &[String],
         env: &[String],
         hide_banner: bool,
+        guard: bool,
         mode: Option<&str>,
     ) -> anyhow::Result<i32> {
         crate::launcher::binary::run_session(
@@ -39,6 +40,7 @@ impl<'a> RuntimeGateway for LauncherAdapter<'a> {
             env,
             crate::launcher::binary::SessionOptions {
                 suppress_banner: hide_banner,
+                guard,
             },
             mode,
         )

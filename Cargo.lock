@@ -525,6 +525,7 @@ dependencies = [
  "libc",
  "llm-kernel",
  "rand",
+ "regex",
  "reqwest",
  "rusqlite",
  "serde",

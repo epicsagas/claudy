@@ -6,16 +6,31 @@ pub fn run_cli_session(argv0: &str, args: &[String]) -> anyhow::Result<i32> {
         return run_claude_shim(args);
     }
 
+    // `--guard` must be stripped before clap sees it (flag-first argv would die
+    // in `Cli::parse`, which reads the process argv directly) and before it is
+    // forwarded to the claude CLI.
+    let (guard, args) = crate::adapters::cli::parse::split_guard_flag(args);
+    if guard {
+        let valid = args
+            .first()
+            .is_some_and(|a| !a.starts_with('-') && !is_builtin_subcommand(a));
+        if !valid {
+            anyhow::bail!(
+                "usage: claudy --guard <profile> [args...]\n\nguard applies to profile launches only"
+            );
+        }
+    }
+
     let (launcher_profile, is_launcher) =
         crate::routing::resolver::detect_symlink_invocation(argv0);
     if is_launcher {
-        return run_profile_direct(&launcher_profile, args);
+        return run_profile_direct(&launcher_profile, &args, guard);
     }
 
     if !args.is_empty() {
         let cmd_or_profile = &args[0];
         if !is_builtin_subcommand(cmd_or_profile) && !cmd_or_profile.starts_with('-') {
-            return run_profile_direct(cmd_or_profile, &args[1..]);
+            return run_profile_direct(cmd_or_profile, &args[1..], guard);
         }
     }
 
@@ -75,7 +90,7 @@ fn run_claude_shim(args: &[String]) -> anyhow::Result<i32> {
     crate::launcher::shim::run_claude_shim(&paths, args)
 }
 
-fn run_profile_direct(profile: &str, args: &[String]) -> anyhow::Result<i32> {
+fn run_profile_direct(profile: &str, args: &[String], guard: bool) -> anyhow::Result<i32> {
     // `claudy <profile> handoff ...` — foreign session handoff under this
     // profile (e.g. `claudy zai handoff -c`).
     if args.first().is_some_and(|a| a == "handoff") {
@@ -95,7 +110,7 @@ fn run_profile_direct(profile: &str, args: &[String]) -> anyhow::Result<i32> {
     cfg.ingest_legacy_secrets(&secrets, &catalog);
     cfg.compact(&catalog);
     crate::application::entrypoint::launch_profile_session(
-        &paths, &catalog, &cfg, &secrets, profile, args,
+        &paths, &catalog, &cfg, &secrets, profile, args, guard,
     )
 }
 

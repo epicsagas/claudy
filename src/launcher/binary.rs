@@ -7,6 +7,7 @@ use crate::launcher::args;
 
 pub struct SessionOptions {
     pub suppress_banner: bool,
+    pub guard: bool,
 }
 
 /// Launch Claude with the given target and environment.
@@ -23,6 +24,25 @@ pub fn run_session(
     let config = open_registry(&paths.config_file)?;
 
     let (mut env, cleanup) = super::overlay::prepare_provider_env(target, &args, env, &config)?;
+
+    if policy.guard {
+        let upstream = if target.base_url.trim().is_empty() {
+            "https://api.anthropic.com"
+        } else {
+            target.base_url.trim().trim_end_matches('/')
+        };
+        let port = crate::guard::start_guard_proxy(
+            upstream,
+            config.guard.clone(),
+            &target.profile,
+            &paths.guard_ledger_file,
+        )?;
+        env = crate::guard::apply_guard_env(&env, port);
+        let _ = writeln!(
+            std::io::stderr(),
+            "  [claudy] guard active: 127.0.0.1:{port} -> {upstream} (images stripped, secrets scanned)"
+        );
+    }
 
     if let Some(mode_name) = mode {
         let mode_dir = std::path::Path::new(&paths.modes_dir).join(mode_name);

@@ -54,6 +54,7 @@ pub fn show_full(w: &mut dyn OutputPort, catalog: &ProviderIndex) -> io::Result<
     w.write_line("Options:")?;
     w.write_line("  -h, --help")?;
     w.write_line("  -V, --version")?;
+    w.write_line("  --guard <provider>          Launch behind the local DLP guard proxy")?;
     w.write_line("")?;
     w.write_line("Examples:")?;
     w.write_line("  claudy zai                  Launch Claude with ZAI provider")?;
@@ -61,6 +62,7 @@ pub fn show_full(w: &mut dyn OutputPort, catalog: &ProviderIndex) -> io::Result<
     w.write_line("  claudy zai --yolo           Skip permission prompts")?;
     w.write_line("  claudy zai work --yolo      Use 'work' mode with ZAI provider")?;
     w.write_line("  claudy or <alias>           Launch via OpenRouter alias")?;
+    w.write_line("  claudy --guard zai          Strip images/redact secrets before egress")?;
     w.write_line("")?;
     w.write_line("Providers:")?;
     for category in catalog.categories() {

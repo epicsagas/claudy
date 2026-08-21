@@ -33,6 +33,7 @@ pub trait RuntimeGateway: BinaryLookupPort + ProcessSpawnPort {
         forwarded_args: &[String],
         env: &[String],
         hide_banner: bool,
+        guard: bool,
         mode: Option<&str>,
     ) -> anyhow::Result<i32>;
 }

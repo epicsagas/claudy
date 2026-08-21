@@ -266,6 +266,8 @@ mod tests {
                 channel_logs_dir: String::new(),
                 analytics_dir: "/tmp/test-analytics".to_string(),
                 analytics_db: "/tmp/test-analytics/analytics.db".to_string(),
+                guard_dir: String::new(),
+                guard_ledger_file: String::new(),
             },
             config: AppRegistry::default(),
             secrets: SecretVault::empty(),

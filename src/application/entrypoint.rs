@@ -11,6 +11,7 @@ pub fn launch_profile_session(
     secrets: &crate::config::vault::SecretVault,
     profile: &str,
     args: &[String],
+    guard: bool,
 ) -> anyhow::Result<i32> {
     let (hide_banner, mut forwarded_args) = parse_entry_args(args);
     let resolved_profile = resolve_profile_alias(profile, &forwarded_args)?;
@@ -37,6 +38,7 @@ pub fn launch_profile_session(
         profile: resolved_profile,
         forwarded_args,
         hide_banner,
+        guard,
         mode,
     })
 }

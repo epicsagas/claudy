@@ -21,5 +21,6 @@ pub struct LaunchBlueprint {
     pub profile: String,
     pub forwarded_args: Vec<String>,
     pub hide_banner: bool,
+    pub guard: bool,
     pub mode: Option<String>,
 }

@@ -29,6 +29,7 @@ where
             &blueprint.forwarded_args,
             &env,
             blueprint.hide_banner,
+            blueprint.guard,
             blueprint.mode.as_deref(),
         )
     }

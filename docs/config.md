@@ -237,6 +237,27 @@ agents:
 
 ---
 
+## guard
+
+Egress-guard settings, used by `claudy --guard <profile>`. All fields are optional.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `strip_images` | `bool` | `true` | Replace `{"type":"image"}` content blocks with a text placeholder before the request leaves the machine. |
+| `on_secret` | `string` | `"redact"` | Action when a secret pattern is detected in a request body: `allow` (forward untouched), `redact` (replace the token with `[REDACTED:<kind>]`), `warn` (forward + ledger entry), `block` (refuse with HTTP 400, never contact the upstream). |
+| `trusted_providers` | `string[]` | `["native"]` | Provider ids treated as trusted egress targets. When sensitive findings occur on an untrusted provider, claudy emits a one-time re-route advisory (stderr + ledger entry). |
+
+```yaml
+guard:
+  strip_images: true
+  on_secret: redact
+  trusted_providers: ["native"]
+```
+
+The guard writes its decision ledger to `~/.claudy/guard/ledger.jsonl`. Previews are masked (`sk-a****f789`) — raw secret material is never written to the ledger.
+
+---
+
 ## Full example
 
 ```yaml
@@ -289,4 +310,9 @@ agents:
     args: ["--prompt", "{prompt}"]
     description: "My custom coding agent"
     timeout: 300
+
+guard:
+  strip_images: true
+  on_secret: redact
+  trusted_providers: ["native"]
 ```

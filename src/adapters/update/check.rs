@@ -291,6 +291,8 @@ mod tests {
             channel_logs_dir: String::new(),
             analytics_dir: "/tmp/test-analytics".to_string(),
             analytics_db: "/tmp/test-analytics/analytics.db".to_string(),
+            guard_dir: String::new(),
+            guard_ledger_file: String::new(),
         }
     }
 
@@ -380,6 +382,8 @@ mod tests {
             channel_logs_dir: String::new(),
             analytics_dir: "/tmp/test-analytics".to_string(),
             analytics_db: "/tmp/test-analytics/analytics.db".to_string(),
+            guard_dir: String::new(),
+            guard_ledger_file: String::new(),
         };
         let result = maybe_message(&paths, "dev").expect("maybe_message");
         assert!(result.is_none(), "dev builds should not check for updates");
@@ -407,6 +411,8 @@ mod tests {
             channel_logs_dir: String::new(),
             analytics_dir: "/tmp/test-analytics".to_string(),
             analytics_db: "/tmp/test-analytics/analytics.db".to_string(),
+            guard_dir: String::new(),
+            guard_ledger_file: String::new(),
         };
         let result = maybe_message(&paths, "").expect("maybe_message");
         assert!(

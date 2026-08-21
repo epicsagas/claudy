@@ -2,6 +2,7 @@ pub mod adapters;
 pub mod application;
 pub mod config;
 pub mod domain;
+pub mod guard;
 pub mod launcher;
 pub mod ports;
 pub mod providers;

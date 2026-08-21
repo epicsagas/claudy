@@ -61,6 +61,7 @@ Claudy lets you switch between Anthropic, Z.AI, OpenRouter, Ollama, and custom e
 | 🔐 | Safe process control | SIGINT/SIGTERM forwarding, atomic config writes, 0600 credential storage |
 | 🔀 | Cross-provider session continuity | Out of credits? Exit and resume the same conversation on another provider — history is repaired automatically |
 | 🫴 | Cross-CLI session handoff | Quota exhausted in Codex or Antigravity? `claudy handoff` extracts the session and seeds a new Claude session with it |
+| 🛡️ | Egress guard | `claudy --guard <profile>` — local DLP proxy strips image blocks and redacts leaked secrets before anything leaves the machine |
 | 🛠️ | Operational UX | Install, update, uninstall, doctor, ping — everything from one binary |
 
 ## Hit a Usage Limit? Continue the Session on Another Provider
@@ -157,6 +158,45 @@ claudy handoff --id <session-id>
 The new Claude session starts in the same working directory with the digest as its first message — it reviews the conversation summary plus the current repo state (`git status`/`git diff` are suggested to it) and continues from there. This is a context handoff, not a bit-for-bit resume: expect the model to re-verify details rather than replay them.
 
 **Flags:** `[codex|agy]` positional source (scan both when omitted) · `-c, --continue` (most recent session) · `-r, --resume` (pick among the 5 most recent) · `--id <session-id>` (skip the picker) · `--cwd <dir>` (default: current directory; falls back to all sessions when nothing matches) · `--profile <p>` (or a profile prefix: `claudy zai handoff`) · `--print` (stdout only) · `--yolo` (pass `--dangerously-skip-permissions` to Claude; other unknown flags forward verbatim).
+
+## Keep Secrets and Images Off the Gateway: `--guard`
+
+A third-party gateway sees everything — the whole session as plain text, and any binary the model needs to look at (screenshots, local image reads) uploaded as base64. Some gateways re-upload those binaries to their own storage buckets without telling you. `--guard` puts a local reverse proxy between the Claude CLI and the provider: request bodies are inspected and rewritten **before they leave the machine**, responses stream back untouched.
+
+```bash
+claudy --guard zai          # any position works: claudy zai --guard does too
+claudy --guard zai work     # combines with modes as usual
+```
+
+On startup claudy prints where the proxy is listening:
+
+```
+  [claudy] guard active: 127.0.0.1:53467 -> https://api.z.ai/api/anthropic (images stripped, secrets scanned)
+```
+
+**What it does to each request:**
+
+| Detection | Default action | Detail |
+|---|---|---|
+| `{"type":"image"}` content blocks (message content, `system` arrays, nested `tool_result` content) | replaced with a text placeholder | the binary never reaches the gateway, so it cannot be re-uploaded |
+| API keys — `sk-*`, `AKIA…`, `gh[posu]_…`, Slack `xox[bpas]-…` | token replaced with `[REDACTED:<kind>]` | charsets exclude quotes/JSON structure, so the request stays parseable |
+| `Bearer`/`Basic` tokens, `key=value` pairs | token replaced, prefix preserved | minimum lengths suppress prose false positives |
+| non-JSON or unparseable bodies | passed through + ledger warning | fail-open: never blocks on scanner limitations |
+
+Clean requests are forwarded byte-identical. Every request is logged to `~/.claudy/guard/ledger.jsonl` (method, path, upstream host, byte counts, findings) — previews are masked (`sk-a****f789`), raw secret material is never written.
+
+**Policy** lives under `guard:` in `config.yaml`:
+
+```yaml
+guard:
+  strip_images: true          # replace image blocks before egress
+  on_secret: redact           # allow | redact | warn | block
+  trusted_providers: [native] # findings on others add a re-route advisory
+```
+
+`block` refuses the request with a 400 and never contacts the upstream. `trusted_providers` drives a one-time advisory (stderr + ledger) suggesting a trusted provider when sensitive content is detected on an untrusted one — switching providers mid-session is impossible, so it stays a suggestion.
+
+**Limitations:** vision is intentionally broken under `--guard` (the model sees a placeholder — that is the point); rare false positives can redact key-shaped strings inside legitimate content (e.g. `AKIA`-like runs inside large base64 blobs); the channel bridge and `handoff` launches do not go through the guard yet.
 
 ## Supported Providers
 
@@ -310,6 +350,12 @@ agents:
     binary: "aider"
     args: ["--message", "{prompt}"]
     timeout: 300
+
+# Egress guard (claudy --guard <profile>)
+guard:
+  strip_images: true                  # default: true
+  on_secret: redact                   # allow | redact | warn | block
+  trusted_providers: ["native"]       # default: ["native"]
 ```
 
 </details>

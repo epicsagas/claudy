@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`--guard` — local DLP egress proxy for provider launches.** Third-party gateways receive the entire session as plain text, and some re-upload binaries the model needs to see (image tool results, local file reads) to their own storage buckets without notice. `claudy --guard <profile>` starts a localhost reverse proxy before launching the Claude CLI, rewrites `ANTHROPIC_BASE_URL` to point at it, and inspects every request body before it leaves the machine; responses (including SSE streams) pass through untouched and byte-identical. The flag works in any position (`claudy --guard zai`, `claudy zai --guard`, symlink launchers); a `--guard` after `--` is forwarded to the Claude CLI verbatim.
+  - **Image stripping:** `{"type":"image"}` content blocks (message content, `system` block arrays, nested `tool_result` content) are replaced with a text placeholder before egress, so the gateway never receives the binary to re-upload. Vision-dependent work should run on a provider you trust without `--guard`.
+  - **Secret redaction:** API-key patterns (`sk-*`, `AKIA…`, `gh[posu]_…`, Slack `xox[bpas]-…`, `Bearer`/`Basic` tokens, `key=value` pairs) are matched with JSON-safe charsets — redaction replaces only the token, never quotes or structure, so the request stays parseable. Clean requests round-trip byte-identical. Default action is `redact`; `allow`, `warn`, and `block` are configurable.
+  - **Decision ledger:** every request is appended to `~/.claudy/guard/ledger.jsonl` (method, path, upstream host, bytes, findings). Previews are masked (`sk-a****f789`) — raw secret material is never written.
+  - **Policy config** under `guard:` in `config.yaml` (`strip_images`, `on_secret`, `trusted_providers`). Findings on an untrusted provider additionally emit a one-time re-route advisory (stderr + ledger); a mid-session provider switch is impossible, so re-route stays advisory.
+  - Fail-open boundaries: non-JSON or unparseable bodies pass through with a ledger warning. Upstream failures return a 502 in Anthropic error shape; redirects are never followed (a followed redirect would move egress somewhere this layer never inspected).
+  - Scanner and policy live behind the `ContentScanner`/`GuardPolicy` port traits — the inline regex engine will be swapped for llm-kernel's DLP primitives without touching the proxy.
+
 ## [0.7.2] - 2026-08-16
 
 ### Fixed

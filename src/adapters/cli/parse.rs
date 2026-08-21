@@ -44,6 +44,25 @@ pub fn parse(args: &[String]) -> Result<Parsed, String> {
     })
 }
 
+/// Split a standalone `--guard` token out of args before the first `--`.
+/// `claudy zai -- --guard` forwards the flag to the claude CLI verbatim.
+pub fn split_guard_flag(args: &[String]) -> (bool, Vec<String>) {
+    let mut guard = false;
+    let mut rest = Vec::with_capacity(args.len());
+    for (i, arg) in args.iter().enumerate() {
+        if arg == "--" {
+            rest.extend_from_slice(&args[i..]);
+            break;
+        }
+        if arg == "--guard" {
+            guard = true;
+        } else {
+            rest.push(arg.clone());
+        }
+    }
+    (guard, rest)
+}
+
 pub fn parse_launcher(args: &[String]) -> (Options, Vec<String>) {
     let options = Options::default();
     let mut forwarded: Vec<String> = Vec::new();
@@ -64,4 +83,34 @@ pub fn parse_launcher(args: &[String]) -> (Options, Vec<String>) {
     }
 
     (options, forwarded)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn guard_flag_stripped_before_profile() {
+        let (guard, rest) = split_guard_flag(&args(&["zai", "--guard", "--yolo"]));
+        assert!(guard);
+        assert_eq!(rest, args(&["zai", "--yolo"]));
+    }
+
+    #[test]
+    fn guard_flag_flag_first_removed() {
+        let (guard, rest) = split_guard_flag(&args(&["--guard", "zai"]));
+        assert!(guard);
+        assert_eq!(rest, args(&["zai"]));
+    }
+
+    #[test]
+    fn guard_flag_not_stripped_after_double_dash() {
+        let (guard, rest) = split_guard_flag(&args(&["zai", "--", "--guard"]));
+        assert!(!guard);
+        assert_eq!(rest, args(&["zai", "--", "--guard"]));
+    }
 }

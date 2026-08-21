@@ -21,6 +21,8 @@ pub struct AppPaths {
     pub channel_logs_dir: String,
     pub analytics_dir: String,
     pub analytics_db: String,
+    pub guard_dir: String,
+    pub guard_ledger_file: String,
 }
 
 pub fn discover() -> anyhow::Result<AppPaths> {
@@ -49,6 +51,13 @@ pub fn discover() -> anyhow::Result<AppPaths> {
 
     let analytics_db = Path::new(&analytics_dir)
         .join("analytics.db")
+        .to_string_lossy()
+        .to_string();
+
+    let guard_dir = claudy_home_path.join("guard").to_string_lossy().to_string();
+
+    let guard_ledger_file = Path::new(&guard_dir)
+        .join("ledger.jsonl")
         .to_string_lossy()
         .to_string();
 
@@ -98,6 +107,8 @@ pub fn discover() -> anyhow::Result<AppPaths> {
         channel_dir,
         analytics_dir,
         analytics_db,
+        guard_dir,
+        guard_ledger_file,
     })
 }
 
@@ -112,6 +123,7 @@ impl AppPaths {
             &self.modes_dir,
             &self.channel_dir,
             &self.analytics_dir,
+            &self.guard_dir,
         ] {
             std::fs::create_dir_all(dir)?;
         }
