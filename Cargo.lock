@@ -2237,16 +2237,18 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
 name = "llm-kernel"
-version = "0.20.0"
+version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c450ba446d11cd2b7e4088894d160fe9980d329f550f60a1c4ab43ac571cca1"
+checksum = "640e247b83eb3d36a56729d9e0ee4a2fe4bf721cfd5939d8e989979c11e22957"
 dependencies = [
  "async-trait",
+ "getrandom 0.3.4",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.19",
  "tracing",
+ "zeroize",
 ]
 
 [[package]]
