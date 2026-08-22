@@ -215,7 +215,7 @@ async fn proxy_handler(State(state): State<Arc<GuardState>>, req: Request) -> Re
 fn maybe_reroute_advisory(state: &GuardState, findings: &[Finding]) {
     let sensitive = findings
         .iter()
-        .any(|f| !matches!(f.kind.as_str(), "non_json" | "unparseable_json"));
+        .any(|f| super::scan::is_advisory_sensitive(&f.kind));
     if !sensitive
         || state.reroute_notified.swap(true, Ordering::Relaxed)
         || state.policy.is_trusted(&state.provider_id)
@@ -652,7 +652,7 @@ mod tests {
         .await;
 
         let body = serde_json::json!({
-            "messages": [{"role": "user", "content": "leak: Bearer abcdefghijklmnop123456"}]
+            "messages": [{"role": "user", "content": "leak: Authorization: Bearer abcdefghijklmnop123456"}]
         });
         let resp = reqwest::Client::new()
             .post(format!("{guard}/v1/messages"))

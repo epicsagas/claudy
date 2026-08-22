@@ -20,6 +20,13 @@ impl GuardPolicy for SettingsPolicy {
             } else {
                 GuardAction::Allow
             }
+        } else if matches!(
+            finding_kind,
+            "local_path" | "phone" | "bank_account" | "rrn"
+        ) {
+            // KoreanPii / FileSystemPath: record-only. Redacting paths or
+            // routine PII breaks coding sessions; the ledger still shows them.
+            GuardAction::Warn
         } else {
             match self.settings.on_secret {
                 crate::config::registry::SecretPolicy::Allow => GuardAction::Allow,

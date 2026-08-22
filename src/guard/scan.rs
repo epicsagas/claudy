@@ -1,28 +1,27 @@
-use std::sync::LazyLock;
-
-use regex::Regex;
-
 use crate::config::registry::{GuardSettings, SecretPolicy};
 use crate::config::vault::redact_credential;
 use crate::ports::guard_ports::{ContentScanner, Finding, GuardAction, ScanReport};
 
-/// Secret-detection patterns. Adapted from llm-kernel 0.20 `safety::sanitize`
-/// (feature-gated off for claudy) with two divergences: token charsets exclude
-/// quotes/JSON structure so redaction cannot corrupt the enclosing JSON, and
-/// minimum lengths suppress prose false positives ("bearer token was rotated").
-static SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(concat!(
-        r"((?i:bearer|basic) )([A-Za-z0-9_\-.=+/]{16,})",
-        r"|((?:password|token|key|secret|api_key|apikey|access_token|private_key)=)([A-Za-z0-9_\-./+=]{8,})",
-        r"|(sk-[A-Za-z0-9_\-]{8,})",
-        r"|(AKIA[A-Za-z0-9]{16})",
-        r"|(gh[posu]_[A-Za-z0-9]{20,})",
-        r"|(xox[bpas]-[A-Za-z0-9-]{10,})",
-    ))
-    .expect("SECRET_RE is valid")
-});
+use llm_kernel::dlp::{self, FindingCategory};
 
-/// MVP inline `ContentScanner`: JSON image-block surgery + regex secret scan.
+/// MVP engine binding: llm-kernel 0.29 `dlp` L1 scan (18 rules — secrets,
+/// Korean PII with RRN checksum, local filesystem paths) wrapped in the
+/// claudy proxy contract.
+///
+/// Division of ownership with the kernel:
+/// - non-JSON / unparseable-JSON fail-open markers stay proxy-side (the
+///   kernel scans extracted text only);
+/// - byte identity outside detected spans is preserved — masking splices
+///   `[REDACTED:<kind>]` over span bytes and nothing else;
+/// - masking keeps the claudy `[REDACTED:<kind>]` format (documented in
+///   README/ledger) rather than the kernel's `apply_redactions` `****`,
+///   so previews stay kind-labelled.
+///
+/// Category policy: `Secret` follows the user's `on_secret` setting;
+/// `KoreanPii` and `FileSystemPath` are warn-only by default.
+// ponytail: per-category config knobs when a user actually needs PII
+// redaction or path stripping — warn-only keeps coding sessions
+// functional (models need real paths to edit files).
 pub struct RegexScanner {
     strip_images: bool,
     on_secret: SecretPolicy,
@@ -46,6 +45,38 @@ impl RegexScanner {
     }
 }
 
+/// Map a kernel rule label to the claudy finding kind (ledger vocabulary).
+fn kind_for(rule: &str) -> &'static str {
+    match rule {
+        "bearer_header" => "auth_header",
+        "key_value_assignment" => "key_value",
+        "anthropic_key" => "anthropic_key",
+        "openai_style_key" => "api_key",
+        "stripe_secret_key" => "stripe_key",
+        "figma_token" => "figma_token",
+        "aws_access_key_id" | "aws_secret_key" => "aws_key",
+        "github_token" => "github_token",
+        "slack_token" => "slack_token",
+        "private_key_header" => "private_key",
+        "db_connection_string" => "db_connection",
+        "rrn_kr" => "rrn",
+        "bank_account_kr" => "bank_account",
+        "phone_kr" => "phone",
+        "home_path_posix" | "home_path_windows" | "tilde_path" => "local_path",
+        _ => "secret",
+    }
+}
+
+/// Kinds that should trigger the untrusted-provider re-route advisory.
+/// Routine observations (image placeholders, boundary markers, local paths)
+/// must not nag on every request.
+pub fn is_advisory_sensitive(kind: &str) -> bool {
+    !matches!(
+        kind,
+        "non_json" | "unparseable_json" | "local_path" | "image"
+    )
+}
+
 impl ContentScanner for RegexScanner {
     fn scan(&self, body: &[u8], content_type: &str) -> ScanReport {
         if !content_type.starts_with("application/json") {
@@ -64,7 +95,7 @@ impl ContentScanner for RegexScanner {
         // Scan the original bytes when no surgery happened, so clean requests
         // round-trip byte-identical (serde_json reorders object keys on
         // re-serialization).
-        let mut text = if images_stripped == 0 {
+        let text = if images_stripped == 0 {
             match std::str::from_utf8(body) {
                 Ok(s) => s.to_string(),
                 Err(_) => return fail_open("non_json"),
@@ -73,33 +104,59 @@ impl ContentScanner for RegexScanner {
             serde_json::to_string(&root).unwrap_or_default()
         };
 
-        let mut findings = Vec::new();
-        let mut redacted_any = false;
-        if self.on_secret != SecretPolicy::Allow {
-            let action = self.secret_action();
-            let redact = action == GuardAction::Redact;
-            text = SECRET_RE
-                .replace_all(&text, |caps: &regex::Captures| {
-                    let (kind, token) = classify(caps);
-                    findings.push(Finding {
-                        kind: kind.to_string(),
-                        action,
-                        preview: redact_credential(token),
-                    });
-                    redacted_any = redacted_any || redact;
-                    // Keep the `Bearer `/`key=` prefix, replace only the token.
-                    let prefix = caps
-                        .get(1)
-                        .map(|m| m.as_str().to_string())
-                        .or_else(|| caps.get(3).map(|m| m.as_str().to_string()))
-                        .unwrap_or_default();
-                    if redact {
-                        format!("{}[REDACTED:{}]", prefix, kind)
-                    } else {
-                        caps.get(0).unwrap().as_str().to_string()
+        let kreport = dlp::scan(&text);
+
+        // Dedup spans (sk-ant keys double-fire anthropic_key +
+        // openai_style_key; anthropic_key wins the kind label), resolve the
+        // action per category, and collect redaction work.
+        let mut findings: Vec<Finding> = Vec::new();
+        // (span, kind, action) — one entry per unique span.
+        let mut spans: Vec<(dlp::Span, String, GuardAction)> = Vec::new();
+        let secret_action = self.secret_action();
+        for kf in &kreport.findings {
+            let kind = kind_for(&kf.rule);
+            let action = match kf.category {
+                FindingCategory::Secret => secret_action,
+                FindingCategory::KoreanPii | FindingCategory::FileSystemPath => GuardAction::Warn,
+                _ => GuardAction::Warn,
+            };
+            let preview = if matches!(kf.category, FindingCategory::Secret) {
+                redact_credential(&text[kf.span.start..kf.span.end])
+            } else {
+                let raw = &text[kf.span.start..kf.span.end];
+                raw.chars().take(48).collect()
+            };
+            findings.push(Finding {
+                kind: kind.to_string(),
+                action,
+                preview,
+            });
+            match spans.iter_mut().find(|(s, _, _)| *s == kf.span) {
+                Some((_, k, _)) => {
+                    if kind == "anthropic_key" {
+                        *k = kind.to_string();
                     }
-                })
-                .into_owned();
+                }
+                None => spans.push((kf.span, kind.to_string(), action)),
+            }
+        }
+
+        let mut redacted = text;
+        let mut redacted_any = false;
+        if spans
+            .iter()
+            .any(|(_, _, action)| *action == GuardAction::Redact)
+        {
+            // Replace descending by start so earlier byte offsets stay valid.
+            let mut work: Vec<_> = spans
+                .iter()
+                .filter(|(_, _, action)| *action == GuardAction::Redact)
+                .collect();
+            work.sort_by_key(|(span, _, _)| std::cmp::Reverse(span.start));
+            for (span, kind, _) in work {
+                redacted.replace_range(span.start..span.end, &format!("[REDACTED:{}]", kind));
+                redacted_any = true;
+            }
         }
 
         if images_stripped > 0 {
@@ -115,7 +172,7 @@ impl ContentScanner for RegexScanner {
         }
 
         let redacted_body = if images_stripped > 0 || redacted_any {
-            Some(text.into_bytes())
+            Some(redacted.into_bytes())
         } else {
             None
         };
@@ -138,36 +195,6 @@ fn fail_open(kind: &str) -> ScanReport {
         redacted_body: None,
         images_stripped: 0,
     }
-}
-
-/// Classify a SECRET_RE match and return (kind, matched token).
-fn classify<'c>(caps: &regex::Captures<'c>) -> (&'static str, &'c str) {
-    if let Some(m) = caps.get(2) {
-        return ("auth_header", m.as_str());
-    }
-    if let Some(m) = caps.get(4) {
-        return ("key_value", m.as_str());
-    }
-    if let Some(m) = caps.get(5) {
-        return (
-            if m.as_str().starts_with("sk-ant") {
-                "anthropic_key"
-            } else {
-                "api_key"
-            },
-            m.as_str(),
-        );
-    }
-    if let Some(m) = caps.get(6) {
-        return ("aws_key", m.as_str());
-    }
-    if let Some(m) = caps.get(7) {
-        return ("github_token", m.as_str());
-    }
-    if let Some(m) = caps.get(8) {
-        return ("slack_token", m.as_str());
-    }
-    ("secret", "")
 }
 
 /// Replace every `{"type":"image", ...}` block with a text placeholder.
@@ -276,9 +303,9 @@ mod tests {
     }
 
     #[test]
-    fn redacts_bearer_token_in_text_block() {
+    fn redacts_authorization_bearer_header() {
         let body = serde_json::json!({
-            "messages": [{"role": "user", "content": "leak: Bearer abcdefghijklmnop123456 said hi"}]
+            "messages": [{"role": "user", "content": "leak: Authorization: Bearer abcdefghijklmnop123456 said hi"}]
         });
         let report =
             scanner(SecretPolicy::Redact).scan(body.to_string().as_bytes(), "application/json");
@@ -286,21 +313,23 @@ mod tests {
         let out = String::from_utf8(report.redacted_body.unwrap()).unwrap();
         assert!(out.contains("[REDACTED:auth_header]"), "got: {out}");
         assert!(!out.contains("abcdefghijklmnop123456"));
-        assert!(out.contains("Bearer "), "prefix preserved");
         assert_eq!(report.findings[0].kind, "auth_header");
         assert!(!report.findings[0].preview.contains("abcdefghijklmnop"));
     }
 
     #[test]
-    fn redacts_sk_ant_key_and_labels_kind() {
+    fn redacts_sk_ant_key_with_anthropic_priority() {
+        // sk-ant keys double-fire anthropic_key + openai_style_key; the
+        // kind label must resolve to anthropic_key.
         let body = serde_json::json!({
             "messages": [{"role": "user", "content": "key sk-ant-api03-abcdef1234567890abcdef was rotated"}]
         });
         let report =
             scanner(SecretPolicy::Redact).scan(body.to_string().as_bytes(), "application/json");
-        assert_eq!(report.findings[0].kind, "anthropic_key");
+        assert!(report.findings.iter().any(|f| f.kind == "anthropic_key"));
         let out = String::from_utf8(report.redacted_body.unwrap()).unwrap();
         assert!(out.contains("[REDACTED:anthropic_key]"));
+        assert!(!out.contains("abcdef1234567890abcdef"));
     }
 
     #[test]
@@ -317,11 +346,27 @@ mod tests {
 
     #[test]
     fn json_key_colon_value_pair_not_flagged() {
-        // JSON `"api_key":"value"` has no `=` and a short value — no match.
+        // JSON `"api_key":"value"` with a short value — no match.
         let body = br#"{"messages":[{"role":"user","content":"see api_key settings"}],"metadata":{"api_key":"short"}}"#;
         let report = scanner(SecretPolicy::Redact).scan(body, "application/json");
         assert!(report.findings.is_empty());
         assert!(report.redacted_body.is_none());
+    }
+
+    #[test]
+    fn local_path_recorded_but_not_redacted() {
+        let body = serde_json::json!({
+            "messages": [{"role": "user", "content": "edit /Users/tester/dev/proj/src/main.rs please"}]
+        });
+        let report =
+            scanner(SecretPolicy::Redact).scan(body.to_string().as_bytes(), "application/json");
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.kind == "local_path" && f.action == GuardAction::Warn)
+        );
+        assert!(report.redacted_body.is_none(), "paths stay functional");
     }
 
     #[test]
@@ -341,11 +386,16 @@ mod tests {
     #[test]
     fn block_policy_returns_finding_without_redacted_body() {
         let body = serde_json::json!({
-            "messages": [{"role": "user", "content": "leak: Bearer abcdefghijklmnop123456"}]
+            "messages": [{"role": "user", "content": "leak: Authorization: Bearer abcdefghijklmnop123456"}]
         });
         let report =
             scanner(SecretPolicy::Block).scan(body.to_string().as_bytes(), "application/json");
-        assert_eq!(report.findings[0].action, GuardAction::Block);
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.action == GuardAction::Block)
+        );
         assert!(
             report.redacted_body.is_none(),
             "blocked body must not be rewritten/forwarded"
