@@ -20,10 +20,15 @@ impl GuardPolicy for SettingsPolicy {
             } else {
                 GuardAction::Allow
             }
-        } else if matches!(
-            finding_kind,
-            "local_path" | "phone" | "bank_account" | "rrn"
-        ) {
+        } else if finding_kind == "rrn" {
+            // Checksum-validated RRN is severity Critical — redact floor.
+            super::scan::critical_pii_action(match self.settings.on_secret {
+                crate::config::registry::SecretPolicy::Allow => GuardAction::Allow,
+                crate::config::registry::SecretPolicy::Redact => GuardAction::Redact,
+                crate::config::registry::SecretPolicy::Warn => GuardAction::Warn,
+                crate::config::registry::SecretPolicy::Block => GuardAction::Block,
+            })
+        } else if matches!(finding_kind, "local_path" | "phone" | "bank_account") {
             // KoreanPii / FileSystemPath: record-only. Redacting paths or
             // routine PII breaks coding sessions; the ledger still shows them.
             GuardAction::Warn

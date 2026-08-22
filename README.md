@@ -181,7 +181,8 @@ On startup claudy prints where the proxy is listening:
 | `{"type":"image"}` content blocks (message content, `system` arrays, nested `tool_result` content) | replaced with a text placeholder | the binary never reaches the gateway, so it cannot be re-uploaded |
 | Credentials — `sk-ant-*`/`sk-*` keys, `AKIA`/`ASIA` AWS keys, `gh*` GitHub tokens, Slack `xox*`, Stripe/Figma tokens, private-key headers, DB connection strings | token replaced with `[REDACTED:<kind>]` | spans never touch quotes/JSON structure, so the request stays parseable |
 | `Authorization: Bearer` headers, `key=value`/`"key": "value"` pairs | secret part replaced | minimum lengths suppress prose false positives |
-| Korean PII — RRN (checksum-validated), bank accounts, mobile numbers · local filesystem paths | warn-only (ledger entry, forwarded untouched) | redacting paths would break coding sessions; the ledger still records them |
+| Korean PII — RRN (checksum-validated) | replaced with `[REDACTED:rrn]` | severity-Critical floor: structurally certain PII never egresses unredacted (`allow` mode downgrades it to warn) |
+| Korean PII — bank accounts, mobile numbers · local filesystem paths | warn-only (ledger entry, forwarded untouched) | redacting paths would break coding sessions; the ledger still records them |
 | non-JSON or unparseable bodies | passed through + ledger warning | fail-open: never blocks on scanner limitations |
 
 Detection is powered by [llm-kernel](https://github.com/epicsagas/llm-kernel)'s `dlp` L1 scan (18 rules with a benign-corpus false-positive gate).

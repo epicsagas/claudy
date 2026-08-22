@@ -175,7 +175,8 @@ claudy --guard zai work     # 모드 조합도 평소처럼
 | `{"type":"image"}` 콘텐츠 블록 (메시지 content, `system` 배열, 중첩 `tool_result` content) | 텍스트 플레이스홀더로 치환 | 바이너리가 게이트웨이에 도달하지 않으므로 재업로드 자체가 불가능 |
 | 자격 증명 — `sk-ant-*`/`sk-*` 키, `AKIA`/`ASIA` AWS 키, `gh*` GitHub 토큰, Slack `xox*`, Stripe/Figma 토큰, 개인키 헤더, DB 접속 문자열 | 토큰을 `[REDACTED:<kind>]`로 치환 | 스팬이 따옴표/JSON 구조를 건드리지 않아 요청이 파싱 가능한 상태로 유지 |
 | `Authorization: Bearer` 헤더, `key=value`/`"key": "value"` 쌍 | 시크릿 부분만 치환 | 최소 길이 제한으로 일반 문장 오탐 억제 |
-| 한국어 PII — 주민등록번호(체크섬 검증), 계좌번호, 휴대폰 번호 · 로컬 파일시스템 경로 | warn-only (원장 기록, 그대로 전달) | 경로를 가리면 코딩 세션이 깨짐 — 원장에는 기록 |
+| 한국어 PII — 주민등록번호(체크섬 검증) | `[REDACTED:rrn]`로 치환 | severity-Critical 하한: 구조적으로 확실한 PII는 가리지 않고 나가지 않음(`allow` 모드에서만 warn으로 강등) |
+| 한국어 PII — 계좌번호, 휴대폰 번호 · 로컬 파일시스템 경로 | warn-only (원장 기록, 그대로 전달) | 경로를 가리면 코딩 세션이 깨짐 — 원장에는 기록 |
 | non-JSON 또는 파싱 불가 본문 | 통과 + 원장 경고 | fail-open: 스캐너 한계로 요청을 막지 않음 |
 
 감지 엔진은 [llm-kernel](https://github.com/epicsagas/llm-kernel)의 `dlp` L1 스캔(18룰, benign 코퍼스 오탐 게이트 포함) 기반.

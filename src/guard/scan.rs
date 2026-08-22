@@ -2,7 +2,7 @@ use crate::config::registry::{GuardSettings, SecretPolicy};
 use crate::config::vault::redact_credential;
 use crate::ports::guard_ports::{ContentScanner, Finding, GuardAction, ScanReport};
 
-use llm_kernel::dlp::{self, FindingCategory};
+use llm_kernel::dlp::{self, FindingCategory, Severity};
 
 /// MVP engine binding: llm-kernel 0.29 `dlp` L1 scan (18 rules — secrets,
 /// Korean PII with RRN checksum, local filesystem paths) wrapped in the
@@ -18,7 +18,9 @@ use llm_kernel::dlp::{self, FindingCategory};
 ///   so previews stay kind-labelled.
 ///
 /// Category policy: `Secret` follows the user's `on_secret` setting;
-/// `KoreanPii` and `FileSystemPath` are warn-only by default.
+/// `KoreanPii`/`FileSystemPath` are warn-only — EXCEPT checksum-validated
+/// RRN (severity Critical), which gets a redact floor: structurally certain
+/// PII must not egress unredacted just because paths stay functional.
 // ponytail: per-category config knobs when a user actually needs PII
 // redaction or path stripping — warn-only keeps coding sessions
 // functional (models need real paths to edit files).
@@ -77,6 +79,17 @@ pub fn is_advisory_sensitive(kind: &str) -> bool {
     )
 }
 
+/// Severity floor for Critical PII (RRN): escalate to Redact unless the
+/// user ran `on_secret: block` (stronger) or `allow` (explicit full
+/// opt-out — the finding is still recorded as warn).
+pub(crate) fn critical_pii_action(secret_action: GuardAction) -> GuardAction {
+    match secret_action {
+        GuardAction::Block => GuardAction::Block,
+        GuardAction::Allow => GuardAction::Warn,
+        _ => GuardAction::Redact,
+    }
+}
+
 impl ContentScanner for RegexScanner {
     fn scan(&self, body: &[u8], content_type: &str) -> ScanReport {
         if !content_type.starts_with("application/json") {
@@ -117,6 +130,9 @@ impl ContentScanner for RegexScanner {
             let kind = kind_for(&kf.rule);
             let action = match kf.category {
                 FindingCategory::Secret => secret_action,
+                FindingCategory::KoreanPii if kf.severity >= Severity::Critical => {
+                    critical_pii_action(secret_action)
+                }
                 FindingCategory::KoreanPii | FindingCategory::FileSystemPath => GuardAction::Warn,
                 _ => GuardAction::Warn,
             };
@@ -367,6 +383,58 @@ mod tests {
                 .any(|f| f.kind == "local_path" && f.action == GuardAction::Warn)
         );
         assert!(report.redacted_body.is_none(), "paths stay functional");
+    }
+
+    #[test]
+    fn checksum_valid_rrn_gets_critical_redact_floor() {
+        // 901101-1234564 passes the RRN checksum; 901101-1234567 does not.
+        let body = serde_json::json!({
+            "messages": [{"role": "user", "content": "user rrn 901101-1234564 registered"}]
+        });
+        let report =
+            scanner(SecretPolicy::Redact).scan(body.to_string().as_bytes(), "application/json");
+        let rrn = report
+            .findings
+            .iter()
+            .find(|f| f.kind == "rrn")
+            .expect("valid RRN detected");
+        assert_eq!(rrn.action, GuardAction::Redact);
+        let out = String::from_utf8(report.redacted_body.expect("redacted")).unwrap();
+        assert!(out.contains("[REDACTED:rrn]"));
+        assert!(!out.contains("901101-1234564"));
+    }
+
+    #[test]
+    fn checksum_invalid_rrn_shape_not_flagged() {
+        let body = serde_json::json!({
+            "messages": [{"role": "user", "content": "order 901101-1234567 shipped"}]
+        });
+        let report =
+            scanner(SecretPolicy::Redact).scan(body.to_string().as_bytes(), "application/json");
+        assert!(!report.findings.iter().any(|f| f.kind == "rrn"));
+        assert!(report.redacted_body.is_none());
+    }
+
+    #[test]
+    fn bank_account_and_phone_stay_warn() {
+        let body = serde_json::json!({
+            "messages": [{"role": "user", "content": "계좌번호: 123-456-789012 / 010-1234-5678 로 연락"}]
+        });
+        let report =
+            scanner(SecretPolicy::Redact).scan(body.to_string().as_bytes(), "application/json");
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.kind == "bank_account" && f.action == GuardAction::Warn)
+        );
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.kind == "phone" && f.action == GuardAction::Warn)
+        );
+        assert!(report.redacted_body.is_none());
     }
 
     #[test]

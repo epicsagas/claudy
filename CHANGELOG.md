@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Guard detection engine swapped to llm-kernel 0.29 `dlp` (L1 scan, 18 rules).** The inline regex table is gone; the proxy now calls `llm_kernel::dlp::scan` behind the same `ContentScanner` port. What this adds: Stripe/Figma tokens, private-key headers, AWS secret keys, DB connection strings, Korean PII (RRN gated by checksum validity, bank accounts, mobile numbers), and local filesystem paths — plus the kernel's benign-corpus false-positive gate as the tuning baseline. Adapter-level behavior: `Secret` findings follow `on_secret` (default redact, `[REDACTED:<kind>]` masking spliced over kernel byte spans — byte-identical outside spans); Korean PII and filesystem paths are warn-only so coding sessions keep working paths; the re-route advisory fires only on secret-grade findings, not on routine path/image observations. `sk-ant-*` keys resolve to the `anthropic_key` label despite double-firing the generic `sk-*` rule. Direct `regex` dependency dropped (the kernel provides it).
+- Checksum-validated RRN gets a severity-Critical redact floor: Korean PII is warn-only in general (redacting paths/phones breaks coding sessions), but a structurally certain RRN never egresses unredacted — `on_secret: allow` downgrades it to warn, `block` upgrades it to block.
 
 ## [0.7.2] - 2026-08-16
 
