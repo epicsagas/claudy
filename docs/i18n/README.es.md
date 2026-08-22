@@ -56,6 +56,82 @@ Claudy te permite cambiar entre Anthropic, Z.AI, OpenRouter, Ollama y endpoints 
 | 🛡️ | Guardia de salida | `claudy --guard <profile>` — un proxy DLP local elimina bloques de imagen y redacta secretos filtrados antes de que nada salga de la máquina |
 | 🛠️ | UX operacional | Instalar, actualizar, desinstalar, diagnosticar, verificar — todo desde un solo binario |
 
+## ¿Cuota agotada en Codex o Antigravity? Traspasa la sesión a Claude
+
+La reanudación entre proveedores solo funciona dentro de la CLI de Claude — Codex y Antigravity guardan sus sesiones en sus propios formatos, por lo que `--resume` no puede cargarlas. Cuando a esas CLIs se les agota la cuota, `claudy handoff` extrae un resumen de la conversación desde la sesión externa y siembra con él una **nueva** sesión de Claude:
+
+```bash
+# Interactivo — lista las sesiones de codex + agy del directorio actual
+claudy handoff
+
+# Bajo un perfil específico (cualquier prefijo de perfil sirve)
+claudy zai handoff
+
+# La sesión más reciente de ambas CLIs, sin selector
+claudy zai handoff -c
+
+# Elegir entre las 5 sesiones más recientes
+claudy handoff -r
+
+# Limitarse a una CLI; previsualizar el resumen sin lanzar
+claudy handoff codex -c --print
+claudy handoff agy -c --print
+
+# Un id de sesión concreto
+claudy handoff --id <session-id>
+```
+
+`-c` refleja el `--continue` de Claude (la más reciente) y `-r` refleja `--resume` (elegir) — pero sobre los almacenes de sesiones externos. `--yolo` y cualquier otra bandera no reconocida se reenvían tal cual a la sesión de Claude.
+
+**Qué se extrae:** los prompts originales del usuario (literales, acotados), las respuestas del asistente y la actividad de herramientas (resumidas a una línea), el estado final del asistente y la ruta del espacio de trabajo — todo compuesto en un único prompt con un presupuesto de 16 KiB. Los archivos de sesión de Codex se analizan de forma nativa. La base de sesiones de Antigravity es un formato no documentado, así que claudy la lee con el mejor esfuerzo (un escaneo genérico de cadenas protobuf más el índice del historial de prompts) y recurre a solo-prompts cuando el diseño cambia.
+
+La nueva sesión de Claude arranca en el mismo directorio de trabajo con el resumen como primer mensaje — revisa el resumen de la conversación junto con el estado actual del repositorio (se le sugiere `git status`/`git diff`) y continúa desde ahí. Es un traspaso de contexto, no una reanudación bit a bit: espera que el modelo re-verifique detalles en lugar de reproducirlos.
+
+**Banderas:** fuente posicional `[codex|agy]` (escanea ambas si se omite) · `-c, --continue` (la sesión más reciente) · `-r, --resume` (elegir entre las 5 más recientes) · `--id <session-id>` (omitir el selector) · `--cwd <dir>` (por defecto: directorio actual; recurre a todas las sesiones si nada coincide) · `--profile <p>` (o un prefijo de perfil: `claudy zai handoff`) · `--print` (solo stdout) · `--yolo` (pasar `--dangerously-skip-permissions` a Claude; otras banderas desconocidas se reenvían tal cual).
+
+---
+
+## Mantén secretos e imágenes fuera del gateway: `--guard`
+
+Un gateway de terceros lo ve todo — toda la sesión como texto plano, y cualquier binario que el modelo deba examinar (capturas de pantalla, lecturas de imágenes locales) subido como base64. Algunos gateways vuelven a subir esos binarios a sus propios buckets de almacenamiento sin avisarte. `--guard` interpone un proxy inverso local entre la CLI de Claude y el proveedor: los cuerpos de las peticiones se inspeccionan y reescriben **antes de salir de la máquina**, y las respuestas se retransmiten intactas.
+
+```bash
+claudy --guard zai          # la posición da igual: claudy zai --guard también vale
+claudy --guard zai work     # se combina con los modos como de costumbre
+```
+
+Al arrancar, claudy imprime dónde escucha el proxy:
+
+```
+  [claudy] guard active: 127.0.0.1:53467 -> https://api.z.ai/api/anthropic (images stripped, secrets scanned)
+```
+
+**Qué hace con cada petición:**
+
+| Detección | Acción por defecto | Detalle |
+|---|---|---|
+| Bloques de contenido `{"type":"image"}` (contenido de mensajes, arrays de `system`, contenido `tool_result` anidado) | sustituidos por un marcador de texto | el binario nunca llega al gateway, así que no puede volver a subirse |
+| Claves API — `sk-*`, `AKIA…`, `gh[posu]_…`, Slack `xox[bpas]-…` | token sustituido por `[REDACTED:<kind>]` | los juegos de caracteres excluyen comillas y estructura JSON, la petición sigue siendo analizable |
+| Tokens `Bearer`/`Basic`, pares `key=value` | token sustituido, prefijo conservado | las longitudes mínimas suprimen falsos positivos en prosa |
+| Cuerpos no-JSON o no analizables | retransmitidos + aviso en el registro | fail-open: nunca bloquea por limitaciones del escáner |
+
+Las peticiones limpias se reenvían idénticas byte a byte. Cada petición se registra en `~/.claudy/guard/ledger.jsonl` (método, ruta, host de origen, contadores de bytes, hallazgos) — las vistas previas van enmascaradas (`sk-a****f789`), el material secreto en crudo nunca se escribe.
+
+La **política** vive bajo `guard:` en `config.yaml`:
+
+```yaml
+guard:
+  strip_images: true          # sustituir bloques de imagen antes de la salida
+  on_secret: redact           # allow | redact | warn | block
+  trusted_providers: [native] # hallazgos en otros añaden un aviso de re-enrutado
+```
+
+`block` rechaza la petición con un 400 y nunca contacta con el origen. `trusted_providers` genera un aviso único (stderr + registro) que sugiere un proveedor de confianza cuando se detecta contenido sensible en uno no confiable — cambiar de proveedor a mitad de sesión es imposible, así que se queda en sugerencia.
+
+**Limitaciones:** la visión queda intencionadamente rota bajo `--guard` (el modelo ve un marcador — ese es el objetivo); falsos positivos ocasionales pueden redactar cadenas con forma de clave dentro de contenido legítimo (p. ej. secuencias tipo `AKIA` en blobs base64 grandes); el puente de canales y los lanzamientos de `handoff` aún no pasan por la guardia.
+
+---
+
 ## Proveedores compatibles
 
 > Claudy se inspiró en [Clother](https://github.com/jolehuit/clother), un lanzador multi-proveedor para Claude CLI escrito en Go. Z.AI ha sido el proveedor más probado exhaustivamente. Si encuentras problemas con otros proveedores, por favor [abre un issue](https://github.com/epicsagas/claudy/issues).
@@ -550,82 +626,6 @@ claudy session sanitize --all --yes
 **Qué hace la conversión:** Los bloques thinking con firma vacía se reescriben como bloques de texto, preservando el contenido del razonamiento. Los bloques con firma Anthropic válida no se modifican.
 
 **Limitación:** La continuidad de sesión depende de la compatibilidad del historial de conversación. Cambiar de proveedor a mitad de sesión puede causar leves variaciones de contexto incluso después de la corrección.
-
----
-
-## ¿Cuota agotada en Codex o Antigravity? Traspasa la sesión a Claude
-
-La reanudación entre proveedores solo funciona dentro de la CLI de Claude — Codex y Antigravity guardan sus sesiones en sus propios formatos, por lo que `--resume` no puede cargarlas. Cuando a esas CLIs se les agota la cuota, `claudy handoff` extrae un resumen de la conversación desde la sesión externa y siembra con él una **nueva** sesión de Claude:
-
-```bash
-# Interactivo — lista las sesiones de codex + agy del directorio actual
-claudy handoff
-
-# Bajo un perfil específico (cualquier prefijo de perfil sirve)
-claudy zai handoff
-
-# La sesión más reciente de ambas CLIs, sin selector
-claudy zai handoff -c
-
-# Elegir entre las 5 sesiones más recientes
-claudy handoff -r
-
-# Limitarse a una CLI; previsualizar el resumen sin lanzar
-claudy handoff codex -c --print
-claudy handoff agy -c --print
-
-# Un id de sesión concreto
-claudy handoff --id <session-id>
-```
-
-`-c` refleja el `--continue` de Claude (la más reciente) y `-r` refleja `--resume` (elegir) — pero sobre los almacenes de sesiones externos. `--yolo` y cualquier otra bandera no reconocida se reenvían tal cual a la sesión de Claude.
-
-**Qué se extrae:** los prompts originales del usuario (literales, acotados), las respuestas del asistente y la actividad de herramientas (resumidas a una línea), el estado final del asistente y la ruta del espacio de trabajo — todo compuesto en un único prompt con un presupuesto de 16 KiB. Los archivos de sesión de Codex se analizan de forma nativa. La base de sesiones de Antigravity es un formato no documentado, así que claudy la lee con el mejor esfuerzo (un escaneo genérico de cadenas protobuf más el índice del historial de prompts) y recurre a solo-prompts cuando el diseño cambia.
-
-La nueva sesión de Claude arranca en el mismo directorio de trabajo con el resumen como primer mensaje — revisa el resumen de la conversación junto con el estado actual del repositorio (se le sugiere `git status`/`git diff`) y continúa desde ahí. Es un traspaso de contexto, no una reanudación bit a bit: espera que el modelo re-verifique detalles en lugar de reproducirlos.
-
-**Banderas:** fuente posicional `[codex|agy]` (escanea ambas si se omite) · `-c, --continue` (la sesión más reciente) · `-r, --resume` (elegir entre las 5 más recientes) · `--id <session-id>` (omitir el selector) · `--cwd <dir>` (por defecto: directorio actual; recurre a todas las sesiones si nada coincide) · `--profile <p>` (o un prefijo de perfil: `claudy zai handoff`) · `--print` (solo stdout) · `--yolo` (pasar `--dangerously-skip-permissions` a Claude; otras banderas desconocidas se reenvían tal cual).
-
----
-
-## Mantén secretos e imágenes fuera del gateway: `--guard`
-
-Un gateway de terceros lo ve todo — toda la sesión como texto plano, y cualquier binario que el modelo deba examinar (capturas de pantalla, lecturas de imágenes locales) subido como base64. Algunos gateways vuelven a subir esos binarios a sus propios buckets de almacenamiento sin avisarte. `--guard` interpone un proxy inverso local entre la CLI de Claude y el proveedor: los cuerpos de las peticiones se inspeccionan y reescriben **antes de salir de la máquina**, y las respuestas se retransmiten intactas.
-
-```bash
-claudy --guard zai          # la posición da igual: claudy zai --guard también vale
-claudy --guard zai work     # se combina con los modos como de costumbre
-```
-
-Al arrancar, claudy imprime dónde escucha el proxy:
-
-```
-  [claudy] guard active: 127.0.0.1:53467 -> https://api.z.ai/api/anthropic (images stripped, secrets scanned)
-```
-
-**Qué hace con cada petición:**
-
-| Detección | Acción por defecto | Detalle |
-|---|---|---|
-| Bloques de contenido `{"type":"image"}` (contenido de mensajes, arrays de `system`, contenido `tool_result` anidado) | sustituidos por un marcador de texto | el binario nunca llega al gateway, así que no puede volver a subirse |
-| Claves API — `sk-*`, `AKIA…`, `gh[posu]_…`, Slack `xox[bpas]-…` | token sustituido por `[REDACTED:<kind>]` | los juegos de caracteres excluyen comillas y estructura JSON, la petición sigue siendo analizable |
-| Tokens `Bearer`/`Basic`, pares `key=value` | token sustituido, prefijo conservado | las longitudes mínimas suprimen falsos positivos en prosa |
-| Cuerpos no-JSON o no analizables | retransmitidos + aviso en el registro | fail-open: nunca bloquea por limitaciones del escáner |
-
-Las peticiones limpias se reenvían idénticas byte a byte. Cada petición se registra en `~/.claudy/guard/ledger.jsonl` (método, ruta, host de origen, contadores de bytes, hallazgos) — las vistas previas van enmascaradas (`sk-a****f789`), el material secreto en crudo nunca se escribe.
-
-La **política** vive bajo `guard:` en `config.yaml`:
-
-```yaml
-guard:
-  strip_images: true          # sustituir bloques de imagen antes de la salida
-  on_secret: redact           # allow | redact | warn | block
-  trusted_providers: [native] # hallazgos en otros añaden un aviso de re-enrutado
-```
-
-`block` rechaza la petición con un 400 y nunca contacta con el origen. `trusted_providers` genera un aviso único (stderr + registro) que sugiere un proveedor de confianza cuando se detecta contenido sensible en uno no confiable — cambiar de proveedor a mitad de sesión es imposible, así que se queda en sugerencia.
-
-**Limitaciones:** la visión queda intencionadamente rota bajo `--guard` (el modelo ve un marcador — ese es el objetivo); falsos positivos ocasionales pueden redactar cadenas con forma de clave dentro de contenido legítimo (p. ej. secuencias tipo `AKIA` en blobs base64 grandes); el puente de canales y los lanzamientos de `handoff` aún no pasan por la guardia.
 
 ---
 
