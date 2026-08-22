@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-22
+
 ### Added
 
 - **`--guard` — local DLP egress proxy for provider launches.** Third-party gateways receive the entire session as plain text, and some re-upload binaries the model needs to see (image tool results, local file reads) to their own storage buckets without notice. `claudy --guard <profile>` starts a localhost reverse proxy before launching the Claude CLI, rewrites `ANTHROPIC_BASE_URL` to point at it, and inspects every request body before it leaves the machine; responses (including SSE streams) pass through untouched and byte-identical. The flag works in any position (`claudy --guard zai`, `claudy zai --guard`, symlink launchers); a `--guard` after `--` is forwarded to the Claude CLI verbatim.
