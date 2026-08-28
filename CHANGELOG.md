@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0-beta.1] - 2026-08-28
+
+### Added
+
+- **MCP session bridge — exchange messages with existing codex/agy sessions.** Three new tools on the claudy MCP server (alongside `ask_agent`): `list_sessions(source)` lists recent codex/agy sessions newest-first (reuses the handoff readers); `read_session(source, id, tail)` reads the tail of a foreign session's conversation (poll-based snapshot, safe while the session runs); `send_message(source, id, message)` delivers a message into an existing session and returns the reply — codex via `codex queue` + headless `codex exec resume` (the resume turn consumes the queued message; if resume fails, e.g. quota exhaustion, the message stays parked for the next successful resume), agy via `agy --conversation <id> -p` (same thread, prior context intact). Session ids accept unique prefixes. Send timeouts reuse the agent timeout resolution (config > `CLAUDY_AGENT_TIMEOUT` > builtin; codex 3600s / agy 300s fallbacks). Known limits: codex live-TUI instant delivery (app-server daemon) and push-based reads are future work; if the target TUI is live, bridged turns may not appear in its view until restart.
+
 ## [0.8.1] - 2026-08-28
 
 ### Fixed
