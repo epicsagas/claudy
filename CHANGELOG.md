@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-28
+
+Promoted 0.9.0-beta.1 to stable after live validation: agy round-trip on a live session, codex read path on a real session, and MCP registration verified in Claude Code. No code changes from the beta.
+
 ## [0.9.0-beta.1] - 2026-08-28
 
 ### Added
