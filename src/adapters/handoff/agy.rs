@@ -1,12 +1,14 @@
 //! Antigravity (agy) CLI session reader.
 //!
 //! Layout under `~/.gemini/antigravity-cli/`:
-//! - `conversation_summaries.db` — SQLite index (conversation_id, title,
-//!   preview, workspace_uris, last_modified_time). Authoritative listing.
-//! - `history.jsonl` — one line per user prompt, keyed by conversationId.
-//!   Used to enrich titles and as a Tier-1 fallback.
 //! - `conversations/<uuid>.db` — SQLite with a `steps` table whose
 //!   `step_payload` blobs are protobuf envelopes (undocumented format).
+//!   The authoritative session set: live sessions appear here immediately.
+//! - `conversation_summaries.db` — SQLite index (conversation_id, title,
+//!   preview, workspace_uris, last_modified_time). Enrichment only — can lag
+//!   behind live sessions or miss them entirely.
+//! - `history.jsonl` — one line per user prompt, keyed by conversationId.
+//!   Used to enrich titles/workspaces and as a Tier-1 fallback.
 //!
 //! Tier-2 extraction walks the protobuf wire format generically and collects
 //! readable UTF-8 string fields, bucketing them into user / assistant / tool
@@ -20,7 +22,8 @@ use rusqlite::OpenFlags;
 use super::agy_home;
 use crate::domain::handoff::{DigestEvent, ForeignSessionSummary, HandoffSource};
 
-/// List agy conversations from conversation_summaries.db, newest first.
+/// List agy conversations (conversation files ∪ summaries index), newest
+/// first by whichever timestamp is more recent.
 pub fn discover_agy(limit: usize) -> Vec<ForeignSessionSummary> {
     let Some(dir) = agy_home() else {
         return Vec::new();
@@ -29,29 +32,49 @@ pub fn discover_agy(limit: usize) -> Vec<ForeignSessionSummary> {
 }
 
 fn discover_agy_in(dir: &Path, limit: usize) -> Vec<ForeignSessionSummary> {
-    let mut rows = match read_summaries(dir) {
-        Ok(r) => r,
-        Err(_) => return Vec::new(),
-    };
+    let history = read_history(dir);
+    let mut rows = read_summaries(dir).unwrap_or_default();
+    // Live sessions land in `conversations/` immediately, but the summaries
+    // index can lag or miss them entirely (observed: 138 files vs 1 row) —
+    // union in any conversation file the index doesn't know about.
+    let mut known: std::collections::HashSet<String> = rows.iter().map(|r| r.id.clone()).collect();
+    for id in conversation_file_ids(dir) {
+        if known.insert(id.clone()) {
+            rows.push(SummaryRow {
+                id,
+                title: None,
+                workspace_uris: String::new(),
+                last_modified: 0,
+            });
+        }
+    }
+    // Truthful recency: the conversation file's mtime outranks the stale index.
+    for r in &mut rows {
+        r.last_modified = r.last_modified.max(conversation_mtime(dir, &r.id));
+    }
     rows.sort_by_key(|r| std::cmp::Reverse(r.last_modified));
     rows.truncate(limit);
 
-    let history = read_history(dir);
     rows.into_iter()
         .map(|r| {
+            let hist = history.get(&r.id);
             let title = if r.title.as_deref().is_some_and(|t| !t.trim().is_empty()) {
                 r.title
             } else {
-                history.get(&r.id).and_then(|v| v.last().cloned())
+                hist.and_then(|h| h.prompts.last().cloned())
             };
-            let cwd = workspace_paths(&r.workspace_uris).into_iter().next();
+            let cwd = workspace_paths(&r.workspace_uris)
+                .into_iter()
+                .next()
+                .or_else(|| hist.and_then(|h| h.workspace.clone()));
+            let path = dir.join("conversations").join(format!("{}.db", r.id));
             ForeignSessionSummary {
                 source: HandoffSource::Agy,
-                id: r.id.clone(),
+                id: r.id,
                 title,
                 cwd,
                 last_modified: r.last_modified,
-                path: Some(dir.join("conversations").join(format!("{}.db", r.id))),
+                path: path.is_file().then_some(path),
             }
         })
         .collect()
@@ -93,6 +116,15 @@ fn read_summaries(dir: &Path) -> anyhow::Result<Vec<SummaryRow>> {
     Ok(rows.filter_map(|r| r.ok()).collect())
 }
 
+/// mtime of a conversation file in unix seconds, 0 when absent/unreadable.
+fn conversation_mtime(dir: &Path, id: &str) -> u64 {
+    std::fs::metadata(dir.join("conversations").join(format!("{id}.db")))
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_secs())
+}
+
 /// agy stores datetimes like `2026-08-15 17:55:12.345+00:00`.
 fn parse_db_time(s: &str) -> u64 {
     chrono::DateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%.f%:z")
@@ -100,8 +132,13 @@ fn parse_db_time(s: &str) -> u64 {
         .unwrap_or(0)
 }
 
-/// conversationId → all user prompts in order (titles / Tier-1 fallback).
-fn read_history(dir: &Path) -> std::collections::HashMap<String, Vec<String>> {
+/// conversationId → user prompts in order + last seen workspace.
+struct HistoryEntry {
+    prompts: Vec<String>,
+    workspace: Option<String>,
+}
+
+fn read_history(dir: &Path) -> std::collections::HashMap<String, HistoryEntry> {
     let mut map = std::collections::HashMap::new();
     let Ok(text) = std::fs::read_to_string(dir.join("history.jsonl")) else {
         return map;
@@ -116,11 +153,33 @@ fn read_history(dir: &Path) -> std::collections::HashMap<String, Vec<String>> {
         ) else {
             continue;
         };
-        map.entry(id.to_string())
-            .or_default()
-            .push(display.to_string());
+        let entry = map.entry(id.to_string()).or_insert(HistoryEntry {
+            prompts: Vec::new(),
+            workspace: None,
+        });
+        entry.prompts.push(display.to_string());
+        if let Some(ws) = v.get("workspace").and_then(|x| x.as_str())
+            && !ws.trim().is_empty()
+        {
+            entry.workspace = Some(ws.to_string());
+        }
     }
     map
+}
+
+/// Conversation ids present on disk but absent from the summaries index.
+fn conversation_file_ids(dir: &Path) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(dir.join("conversations")) else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            let path = e.path();
+            let id = path.file_stem()?.to_string_lossy().into_owned();
+            path.extension().is_some_and(|x| x == "db").then_some(id)
+        })
+        .collect()
 }
 
 /// Extract events for one conversation. Tier-2 (steps.db protobuf scan)
@@ -144,8 +203,8 @@ fn tier1_events(dir: &Path, id: &str) -> Vec<DigestEvent> {
     read_history(dir)
         .into_iter()
         .filter(|(k, _)| k == id)
-        .flat_map(|(_, prompts)| {
-            prompts
+        .flat_map(|(_, h)| {
+            h.prompts
                 .into_iter()
                 .map(DigestEvent::User)
                 .collect::<Vec<_>>()
@@ -471,6 +530,56 @@ mod tests {
         // empty title falls back to preview (itself user-prompt-derived)
         assert_eq!(found[0].title.as_deref(), Some("fix the build error"));
         assert_eq!(found[1].title.as_deref(), Some("analyze similarity"));
+    }
+
+    #[test]
+    fn stale_summary_ranks_by_conversation_file_mtime() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn =
+            rusqlite::Connection::open(tmp.path().join("conversation_summaries.db")).unwrap();
+        conn.execute(
+            "CREATE TABLE conversation_summaries (
+                conversation_id text PRIMARY KEY, title text NOT NULL DEFAULT '',
+                preview text NOT NULL DEFAULT '', step_count integer NOT NULL DEFAULT 0,
+                last_modified_time datetime NOT NULL, workspace_uris text NOT NULL DEFAULT '',
+                status text NOT NULL DEFAULT '', source text NOT NULL DEFAULT '',
+                project_id text NOT NULL DEFAULT '', agent_name text NOT NULL DEFAULT '',
+                parent_conversation_id text NOT NULL DEFAULT '', nesting_depth integer NOT NULL DEFAULT 0,
+                battle_id text NOT NULL DEFAULT '', winning_conversation_id text NOT NULL DEFAULT '',
+                not_fully_idle numeric NOT NULL DEFAULT false, killed numeric NOT NULL DEFAULT false,
+                last_user_input_time datetime NOT NULL, last_user_input_step_index integer NOT NULL DEFAULT -1,
+                app_data_dir text NOT NULL DEFAULT '')",
+            [],
+        )
+        .unwrap();
+        // Live session: summaries says Aug 1 (stale), but its conversation
+        // file exists with a fresh mtime.
+        conn.execute(
+            "INSERT INTO conversation_summaries (conversation_id, title, preview, last_modified_time, workspace_uris, last_user_input_time)
+             VALUES ('11111111-5bf0-4fb4-b0ce-c2277d520b74', 'live session', '', '2026-08-01 10:00:00.000+00:00', '[\"file:///tmp/proj\"]', '2026-08-01 10:00:00.000+00:00')",
+            [],
+        )
+        .unwrap();
+        // Idle session: newer summaries time, no conversation file at all.
+        conn.execute(
+            "INSERT INTO conversation_summaries (conversation_id, title, preview, last_modified_time, workspace_uris, last_user_input_time)
+             VALUES ('22222222-8ff4-4d8a-b3cc-45c0c682f328', 'idle session', '', '2026-08-15 18:28:00.000+00:00', '[\"file:///other\"]', '2026-08-15 18:27:00.000+00:00')",
+            [],
+        )
+        .unwrap();
+        std::fs::create_dir(tmp.path().join("conversations")).unwrap();
+        std::fs::write(
+            tmp.path()
+                .join("conversations")
+                .join("11111111-5bf0-4fb4-b0ce-c2277d520b74.db"),
+            b"steps",
+        )
+        .unwrap();
+
+        let found = discover_agy_in(tmp.path(), 10);
+        assert_eq!(found.len(), 2);
+        // The file-backed live session outranks the newer-but-idle summary.
+        assert_eq!(found[0].id, "11111111-5bf0-4fb4-b0ce-c2277d520b74");
     }
 
     #[test]
