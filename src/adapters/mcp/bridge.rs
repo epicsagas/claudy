@@ -101,7 +101,46 @@ pub fn read_session(source: BridgeSource, id: &str, tail: usize) -> anyhow::Resu
     ))
 }
 
+/// The nudge that makes the resume turn consume queued bridge messages.
+const CODEX_RESUME_NUDGE: &str =
+    "A bridged message was just queued for you. Process it now and reply with its answer.";
+
+/// `codex queue` argv: park the message on the session's queue.
+fn codex_queue_args(id: &str, message: &str) -> Vec<String> {
+    vec![
+        "queue".to_string(),
+        "--thread".to_string(),
+        id.to_string(),
+        "--message".to_string(),
+        message.to_string(),
+    ]
+}
+
+/// `codex exec resume` argv: resume headlessly; the turn consumes the queue.
+fn codex_resume_args(id: &str) -> Vec<String> {
+    vec![
+        "exec".to_string(),
+        "resume".to_string(),
+        "--skip-git-repo-check".to_string(),
+        id.to_string(),
+        CODEX_RESUME_NUDGE.to_string(),
+    ]
+}
+
+/// `agy` argv: continue the conversation headlessly with one prompt.
+fn agy_send_args(id: &str, message: &str) -> Vec<String> {
+    vec![
+        "--conversation".to_string(),
+        id.to_string(),
+        "-p".to_string(),
+        message.to_string(),
+    ]
+}
+
 /// Deliver a message into an existing foreign session, returning the reply.
+///
+/// codex: if the resume step fails (e.g. quota exhaustion), the queued
+/// message stays parked and is consumed by the next successful resume.
 pub async fn send_message(
     source: BridgeSource,
     id: &str,
@@ -111,7 +150,7 @@ pub async fn send_message(
     if message.is_empty() {
         anyhow::bail!("Message must not be empty");
     }
-    if message.chars().count() > MESSAGE_MAX_CHARS {
+    if message.len() > MESSAGE_MAX_CHARS {
         anyhow::bail!("Message exceeds maximum length of {MESSAGE_MAX_CHARS} characters");
     }
     let summary = find_session(source, id)?;
@@ -121,13 +160,7 @@ pub async fn send_message(
         BridgeSource::Codex => {
             // Park the message, then resume headlessly — the resume turn
             // consumes the queued message.
-            let queue_args = vec![
-                "queue".to_string(),
-                "--thread".to_string(),
-                summary.id.clone(),
-                "--message".to_string(),
-                message.to_string(),
-            ];
+            let queue_args = codex_queue_args(&summary.id, message);
             runner::run_command(
                 "codex queue",
                 "codex",
@@ -137,14 +170,7 @@ pub async fn send_message(
             )
             .await?;
 
-            let nudge = "A bridged message was just queued for you. Process it now and reply with its answer.";
-            let resume_args = vec![
-                "exec".to_string(),
-                "resume".to_string(),
-                "--skip-git-repo-check".to_string(),
-                summary.id.clone(),
-                nudge.to_string(),
-            ];
+            let resume_args = codex_resume_args(&summary.id);
             runner::run_command(
                 "codex exec resume",
                 "codex",
@@ -155,12 +181,7 @@ pub async fn send_message(
             .await
         }
         BridgeSource::Agy => {
-            let args = vec![
-                "--conversation".to_string(),
-                summary.id.clone(),
-                "-p".to_string(),
-                message.to_string(),
-            ];
+            let args = agy_send_args(&summary.id, message);
             runner::run_command("agy", "agy", &args, cwd, Duration::from_secs(timeout_secs)).await
         }
     }
@@ -176,6 +197,9 @@ fn find_in(
     id: &str,
     source_name: &str,
 ) -> anyhow::Result<ForeignSessionSummary> {
+    if id.is_empty() {
+        anyhow::bail!("Id must not be empty");
+    }
     let matches: Vec<&ForeignSessionSummary> = sessions
         .iter()
         .filter(|s| s.id == id || s.id.starts_with(id))
@@ -290,6 +314,47 @@ mod tests {
         assert!(ambiguous.contains("matches 2"));
         let missing = find_in(&sessions, "zzzz", "codex").unwrap_err().to_string();
         assert!(missing.contains("No codex session"));
+        // Empty id would prefix-match every session — rejected outright.
+        assert!(find_in(&sessions, "", "codex").is_err());
+    }
+
+    #[test]
+    fn codex_queue_args_shape() {
+        let args = codex_queue_args("01a04867-abcd", "hello --flag $HOME");
+        assert_eq!(
+            args,
+            vec![
+                "queue",
+                "--thread",
+                "01a04867-abcd",
+                "--message",
+                "hello --flag $HOME",
+            ]
+        );
+    }
+
+    #[test]
+    fn codex_resume_args_shape() {
+        let args = codex_resume_args("01a04867-abcd");
+        assert_eq!(
+            args[..4],
+            ["exec", "resume", "--skip-git-repo-check", "01a04867-abcd"][..]
+        );
+        assert_eq!(args[4], CODEX_RESUME_NUDGE);
+    }
+
+    #[test]
+    fn agy_send_args_shape() {
+        let args = agy_send_args("c4eada91-1234", "what was the codeword?");
+        assert_eq!(
+            args,
+            vec![
+                "--conversation",
+                "c4eada91-1234",
+                "-p",
+                "what was the codeword?"
+            ]
+        );
     }
 
     #[test]
@@ -340,6 +405,15 @@ mod tests {
             };
             let text = read_session(source, &first.id, 5).unwrap();
             assert!(text.contains("Session"));
+            // Header reports the returned event count — tail must bound it.
+            let header = text.lines().next().unwrap_or_default();
+            let shown: usize = header
+                .split("— ")
+                .nth(1)
+                .and_then(|s| s.split(" events").next())
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0);
+            assert!(shown <= 5, "tail=5 but {shown} events returned");
         }
     }
 }
