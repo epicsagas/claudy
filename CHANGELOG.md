@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-08-28
+
+### Fixed
+
+- **`claudy handoff agy` missed live sessions.** The summaries index (`conversation_summaries.db`) lags behind running sessions or misses them entirely (observed: 138 conversation files vs 1 index row), so `-c` could hand off a weeks-old session while a live one was running. Listing now unions the conversation files themselves with the index, ranks each session by the newer of index timestamp and file mtime, and falls back to `history.jsonl` for titles/workspaces when the index has no metadata.
+
 ## [0.8.0] - 2026-08-22
 
 ### Added
