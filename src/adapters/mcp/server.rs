@@ -4,6 +4,7 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 
+use crate::adapters::mcp::bridge;
 use crate::adapters::mcp::discovery;
 use crate::adapters::mcp::runner;
 use crate::config::registry::AppRegistry;
@@ -30,7 +31,78 @@ fn build_server(agents: &[AgentDefinition]) -> McpServer {
     let tool = build_ask_agent_tool(agents);
     let mut server = McpServer::new("claudy-mcp", env!("CARGO_PKG_VERSION"));
     server.register_tool(tool);
+    server.register_tool(build_list_sessions_tool());
+    server.register_tool(build_read_session_tool());
+    server.register_tool(build_send_message_tool());
     server
+}
+
+fn build_list_sessions_tool() -> ToolDescription {
+    ToolDescription {
+        name: "list_sessions".to_string(),
+        description: "List recent codex/agy agent sessions on this machine, newest first. Use this to find session ids before send_message or read_session.".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "enum": ["codex", "agy"],
+                    "description": "Which CLI's sessions to list"
+                }
+            },
+            "required": ["source"]
+        }),
+    }
+}
+
+fn build_read_session_tool() -> ToolDescription {
+    ToolDescription {
+        name: "read_session".to_string(),
+        description: "Read the tail of an existing codex/agy session's conversation (poll-based snapshot of its session store; safe while the session is running).".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "enum": ["codex", "agy"]
+                },
+                "id": {
+                    "type": "string",
+                    "description": "Session id or unique id prefix (from list_sessions)"
+                },
+                "tail": {
+                    "type": "integer",
+                    "description": "Number of trailing events to return (default 20, max 200)"
+                }
+            },
+            "required": ["source", "id"]
+        }),
+    }
+}
+
+fn build_send_message_tool() -> ToolDescription {
+    ToolDescription {
+        name: "send_message".to_string(),
+        description: "Send a message into an existing codex/agy session and return the agent's reply. codex: the message is queued and consumed by a headless resume of that session. agy: the conversation continues headlessly. If the target TUI is live, its in-memory view may not show bridged turns until restart.".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "enum": ["codex", "agy"]
+                },
+                "id": {
+                    "type": "string",
+                    "description": "Session id or unique id prefix (from list_sessions)"
+                },
+                "message": {
+                    "type": "string",
+                    "description": "Message text to deliver into the session"
+                }
+            },
+            "required": ["source", "id", "message"]
+        }),
+    }
 }
 
 fn build_ask_agent_tool(agents: &[AgentDefinition]) -> ToolDescription {
@@ -310,6 +382,10 @@ async fn handle_tools_call(
     params: &Value,
     agents: &HashMap<&str, &AgentDefinition>,
 ) -> Value {
+    let tool = params
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("ask_agent");
     let args = match params.get("arguments") {
         Some(a) => a,
         None => {
@@ -321,6 +397,130 @@ async fn handle_tools_call(
         }
     };
 
+    match tool {
+        "ask_agent" => handle_ask_agent(id, args, agents).await,
+        "list_sessions" => handle_list_sessions(id, args),
+        "read_session" => handle_read_session(id, args),
+        "send_message" => handle_send_message(id, args, agents).await,
+        other => json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "error": { "code": -32602, "message": format!("Unknown tool: {other}") }
+        }),
+    }
+}
+
+fn text_result(id: &Value, text: String) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": {
+            "content": [{ "type": "text", "text": text }]
+        }
+    })
+}
+
+fn text_error(id: &Value, text: String) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": {
+            "content": [{ "type": "text", "text": text }],
+            "isError": true
+        }
+    })
+}
+
+fn handle_list_sessions(id: &Value, args: &Value) -> Value {
+    let Some(source) = parse_bridge_source(args) else {
+        return text_error(
+            id,
+            "Missing or invalid 'source' parameter (expected \"codex\" or \"agy\")".to_string(),
+        );
+    };
+    let sessions = bridge::list_sessions(source);
+    if sessions.is_empty() {
+        return text_result(id, format!("No {} sessions found", source_name(source)));
+    }
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let lines: Vec<String> = sessions
+        .iter()
+        .map(|s| bridge::render_session(s, now))
+        .collect();
+    text_result(id, lines.join("\n"))
+}
+
+fn handle_read_session(id: &Value, args: &Value) -> Value {
+    let Some(source) = parse_bridge_source(args) else {
+        return text_error(
+            id,
+            "Missing or invalid 'source' parameter (expected \"codex\" or \"agy\")".to_string(),
+        );
+    };
+    let Some(session_id) = args["id"].as_str() else {
+        return text_error(id, "Missing 'id' parameter".to_string());
+    };
+    let tail = args["tail"].as_u64().unwrap_or(bridge::TAIL_DEFAULT as u64) as usize;
+    match bridge::read_session(source, session_id, tail) {
+        Ok(text) => text_result(id, text),
+        Err(e) => text_error(id, e.to_string()),
+    }
+}
+
+async fn handle_send_message(
+    id: &Value,
+    args: &Value,
+    agents: &HashMap<&str, &AgentDefinition>,
+) -> Value {
+    let Some(source) = parse_bridge_source(args) else {
+        return text_error(
+            id,
+            "Missing or invalid 'source' parameter (expected \"codex\" or \"agy\")".to_string(),
+        );
+    };
+    let Some(session_id) = args["id"].as_str() else {
+        return text_error(id, "Missing 'id' parameter".to_string());
+    };
+    let Some(message) = args["message"].as_str() else {
+        return text_error(id, "Missing 'message' parameter".to_string());
+    };
+    let timeout = match source {
+        bridge::BridgeSource::Codex => agents
+            .get("codex")
+            .map(|d| d.timeout)
+            .unwrap_or(bridge::CODEX_SEND_TIMEOUT_SECS),
+        bridge::BridgeSource::Agy => agents
+            .get("agy")
+            .map(|d| d.timeout)
+            .unwrap_or(bridge::AGY_SEND_TIMEOUT_SECS),
+    };
+    match bridge::send_message(source, session_id, message, timeout).await {
+        Ok(reply) => text_result(id, reply.trim().to_string()),
+        Err(e) => text_error(id, e.to_string()),
+    }
+}
+
+fn parse_bridge_source(args: &Value) -> Option<bridge::BridgeSource> {
+    args["source"]
+        .as_str()
+        .and_then(|s| bridge::BridgeSource::parse(s).ok())
+}
+
+fn source_name(source: bridge::BridgeSource) -> &'static str {
+    match source {
+        bridge::BridgeSource::Codex => "codex",
+        bridge::BridgeSource::Agy => "agy",
+    }
+}
+
+async fn handle_ask_agent(
+    id: &Value,
+    args: &Value,
+    agents: &HashMap<&str, &AgentDefinition>,
+) -> Value {
     let agent_name = match args["agent"].as_str() {
         Some(n) => n,
         None => {
@@ -442,6 +642,83 @@ mod tests {
     }
 
     // ── handle_tools_call (async) ────────────────────────────────────
+
+    #[test]
+    fn test_build_server_registers_bridge_tools() {
+        let server = build_server(&[]);
+        let names: Vec<&str> = server.tools().iter().map(|t| t.name.as_str()).collect();
+        for expected in ["ask_agent", "list_sessions", "read_session", "send_message"] {
+            assert!(names.contains(&expected), "missing tool {expected}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_tools_call_unknown_tool() {
+        let map: HashMap<&str, &AgentDefinition> = HashMap::new();
+        let resp =
+            handle_tools_call(&json!(1), &json!({"name": "bogus", "arguments": {}}), &map).await;
+        assert_eq!(resp["error"]["code"], -32602);
+        assert!(
+            resp["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("Unknown tool")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_sessions_bad_source() {
+        let map: HashMap<&str, &AgentDefinition> = HashMap::new();
+        let resp = handle_tools_call(
+            &json!(2),
+            &json!({"name": "list_sessions", "arguments": {"source": "slack"}}),
+            &map,
+        )
+        .await;
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(
+            resp["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("source")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_read_session_missing_id() {
+        let map: HashMap<&str, &AgentDefinition> = HashMap::new();
+        let resp = handle_tools_call(
+            &json!(3),
+            &json!({"name": "read_session", "arguments": {"source": "codex"}}),
+            &map,
+        )
+        .await;
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(
+            resp["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("id")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_send_message_missing_message() {
+        let map: HashMap<&str, &AgentDefinition> = HashMap::new();
+        let resp = handle_tools_call(
+            &json!(4),
+            &json!({"name": "send_message", "arguments": {"source": "agy", "id": "x"}}),
+            &map,
+        )
+        .await;
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(
+            resp["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("message")
+        );
+    }
 
     #[tokio::test]
     async fn test_handle_tools_call_missing_arguments() {

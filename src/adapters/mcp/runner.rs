@@ -23,8 +23,27 @@ pub async fn run_agent(
         })
         .collect();
 
-    let mut cmd = tokio::process::Command::new(&def.binary);
-    cmd.args(&args)
+    run_command(
+        &def.name,
+        &def.binary,
+        &args,
+        cwd,
+        Duration::from_secs(def.timeout),
+    )
+    .await
+}
+
+/// Run one command headlessly, capturing stdout (or stderr on failure) under
+/// a timeout. Shared by `ask_agent` and the session bridge.
+pub async fn run_command(
+    label: &str,
+    binary: &str,
+    args: &[String],
+    cwd: Option<&Path>,
+    timeout: Duration,
+) -> anyhow::Result<String> {
+    let mut cmd = tokio::process::Command::new(binary);
+    cmd.args(args)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
@@ -39,7 +58,7 @@ pub async fn run_agent(
 
     let mut child = cmd
         .spawn()
-        .map_err(|e| anyhow::anyhow!("Failed to execute agent '{}': {}", def.name, e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to execute '{}': {}", label, e))?;
 
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
@@ -47,14 +66,14 @@ pub async fn run_agent(
     let status = tokio::select! {
         status = child.wait() => {
             status.map_err(|e| {
-                anyhow::anyhow!("Failed to execute agent '{}': {}", def.name, e)
+                anyhow::anyhow!("Failed to execute '{}': {}", label, e)
             })?
         }
-        _ = tokio::time::sleep(Duration::from_secs(def.timeout)) => {
+        _ = tokio::time::sleep(timeout) => {
             // Timed out — kill the child and reap it.
             let _ = child.kill().await;
             let _ = child.wait().await;
-            anyhow::bail!("Agent '{}' timed out after {}s", def.name, def.timeout);
+            anyhow::bail!("'{}' timed out after {}s", label, timeout.as_secs());
         }
     };
 
@@ -80,12 +99,7 @@ pub async fn run_agent(
             None => String::new(),
         };
         let code = status.code().unwrap_or(-1);
-        anyhow::bail!(
-            "Agent '{}' exited with code {}: {}",
-            def.name,
-            code,
-            stderr.trim()
-        )
+        anyhow::bail!("'{}' exited with code {}: {}", label, code, stderr.trim())
     }
 }
 
