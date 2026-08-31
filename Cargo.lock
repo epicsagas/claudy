@@ -2350,9 +2350,9 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
 name = "llm-kernel"
-version = "0.29.0"
+version = "0.31.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27b11c169d4b131154dc28fe01f9fdb0225ba14b195c138af23ae8d9c0635301"
+checksum = "669732938c852304e018844569956d1fdc00fd5be89c3c362177ff3aafd81596"
 dependencies = [
  "async-trait",
  "getrandom 0.4.2",

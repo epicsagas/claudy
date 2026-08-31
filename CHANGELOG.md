@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   atomically, and a post-splice re-parse falls back to a valid body with a
   `redaction_aborted` ledger finding if corruption is ever detected. Fixes
   upstream `422 json_invalid` errors on guard-routed sessions
-  (llm-kernel#99; kernel-side regex fix tracked separately).
+  (llm-kernel#99; kernel-side regex fix landed in llm-kernel 0.31.2, now
+  required by this release).
 
 ## [0.9.0] - 2026-08-28
 
