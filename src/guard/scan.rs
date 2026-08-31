@@ -157,12 +157,27 @@ impl ContentScanner for RegexScanner {
             }
         }
 
-        let mut redacted = text;
+        let mut redacted = text.clone();
         let mut redacted_any = false;
         if spans
             .iter()
             .any(|(_, _, action)| *action == GuardAction::Redact)
         {
+            // A span ending on `\` immediately before `"` splits a wire-format
+            // escape pair — splicing it would leave a raw quote and corrupt
+            // the JSON (llm-kernel#99). Extend such spans over the closing
+            // quote so the pair is removed atomically.
+            for (span, _, action) in &mut spans {
+                if *action != GuardAction::Redact {
+                    continue;
+                }
+                if span.end > span.start
+                    && text.as_bytes()[span.end - 1] == b'\\'
+                    && text.as_bytes().get(span.end) == Some(&b'"')
+                {
+                    span.end += 1;
+                }
+            }
             // Replace descending by start so earlier byte offsets stay valid.
             let mut work: Vec<_> = spans
                 .iter()
@@ -173,6 +188,21 @@ impl ContentScanner for RegexScanner {
                 redacted.replace_range(span.start..span.end, &format!("[REDACTED:{}]", kind));
                 redacted_any = true;
             }
+        }
+
+        // Belt over the boundary fix above: a redacted body that no longer
+        // parses must never reach the upstream. Fall back to the safest
+        // valid body we have and record why.
+        let mut redaction_aborted = false;
+        if redacted_any && serde_json::from_slice::<serde_json::Value>(redacted.as_bytes()).is_err()
+        {
+            redaction_aborted = true;
+            redacted_any = false;
+            findings.push(Finding {
+                kind: "redaction_aborted".to_string(),
+                action: GuardAction::Warn,
+                preview: "splice produced invalid JSON; secrets forwarded unredacted".to_string(),
+            });
         }
 
         if images_stripped > 0 {
@@ -187,7 +217,16 @@ impl ContentScanner for RegexScanner {
             });
         }
 
-        let redacted_body = if images_stripped > 0 || redacted_any {
+        let redacted_body = if redaction_aborted {
+            // Text redaction was discarded above; only the image-stripped
+            // tree remains a valid fallback (still parses — `root` came from
+            // the upstream-parsed body with only image blocks replaced).
+            if images_stripped > 0 {
+                Some(serde_json::to_vec(&root).unwrap_or_else(|_| body.to_vec()))
+            } else {
+                None
+            }
+        } else if images_stripped > 0 || redacted_any {
             Some(redacted.into_bytes())
         } else {
             None
@@ -468,6 +507,18 @@ mod tests {
             report.redacted_body.is_none(),
             "blocked body must not be rewritten/forwarded"
         );
+    }
+
+    #[test]
+    fn repro_backslash_escape_split_breaks_json() {
+        // Wire format contains `password=hunter2secret1\"` — the key_value
+        // span ends with the backslash of the \" escape pair, so the splice
+        // leaves a raw unescaped quote inside the JSON string.
+        let wire = r#"{"messages":[{"role":"user","content":"check password=hunter2secret1\" in config"}]}"#;
+        let report = scanner(SecretPolicy::Redact).scan(wire.as_bytes(), "application/json");
+        let out = String::from_utf8(report.redacted_body.expect("redacted")).unwrap();
+        let reparse: Result<serde_json::Value, _> = serde_json::from_str(&out);
+        assert!(reparse.is_ok(), "corrupted JSON: {out}");
     }
 
     #[test]
