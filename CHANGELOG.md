@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-08-31
+
+### Fixed
+
+- Guard DLP redaction no longer corrupts outgoing JSON: a `key_value` span
+  ending on a backslash before a quote now removes the escaped pair
+  atomically, and a post-splice re-parse falls back to a valid body with a
+  `redaction_aborted` ledger finding if corruption is ever detected. Fixes
+  upstream `422 json_invalid` errors on guard-routed sessions
+  (llm-kernel#99; kernel-side regex fix tracked separately).
+
 ## [0.9.0] - 2026-08-28
 
 Promoted 0.9.0-beta.1 to stable after live validation: agy round-trip on a live session, codex read path on a real session, and MCP registration verified in Claude Code. No code changes from the beta.
