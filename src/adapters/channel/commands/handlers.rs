@@ -112,6 +112,10 @@ pub async fn handle_model(
             "Model selection",
             vec![
                 Button {
+                    id: "model:fable".to_string(),
+                    label: "Fable".to_string(),
+                },
+                Button {
                     id: "model:sonnet".to_string(),
                     label: "Sonnet".to_string(),
                 },
@@ -127,11 +131,14 @@ pub async fn handle_model(
         )
         .await?;
     } else {
-        if !["sonnet", "opus", "haiku"].contains(&args) {
+        if !["fable", "sonnet", "opus", "haiku"].contains(&args) {
             return reply(
                 channel,
                 channel_id,
-                &format!("Unknown model: {}. Choose from: sonnet, opus, haiku", args),
+                &format!(
+                    "Unknown model: {}. Choose from: fable, sonnet, opus, haiku",
+                    args
+                ),
             )
             .await;
         }

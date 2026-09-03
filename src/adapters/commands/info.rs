@@ -16,7 +16,7 @@ pub fn run_info(ctx: &mut Context, args: &[String]) -> anyhow::Result<i32> {
     if !target.model.is_empty() {
         ctx.output.info(&format!("Model:       {}", target.model));
     }
-    for tier in ["haiku", "sonnet", "opus"] {
+    for tier in ["fable", "haiku", "sonnet", "opus"] {
         if let Some(m) = target.model_tiers.get(tier) {
             ctx.output.info(&format!("  {:<8}   {}", tier, m));
         }

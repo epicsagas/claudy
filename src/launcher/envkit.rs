@@ -101,6 +101,7 @@ impl EnvironmentAssembler {
     pub fn map_tiers(mut self, tiers: &HashMap<String, String>) -> Self {
         for (tier, model) in tiers {
             let key = match tier.as_str() {
+                "fable" => "ANTHROPIC_DEFAULT_FABLE_MODEL",
                 "haiku" => "ANTHROPIC_DEFAULT_HAIKU_MODEL",
                 "sonnet" => "ANTHROPIC_DEFAULT_SONNET_MODEL",
                 "opus" => "ANTHROPIC_DEFAULT_OPUS_MODEL",

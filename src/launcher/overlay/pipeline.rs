@@ -77,6 +77,7 @@ pub fn resolve_model(target: &LaunchTarget, args: &[String], env_map: &EnvMap) -
 
     for key in &[
         "ANTHROPIC_MODEL",
+        "ANTHROPIC_DEFAULT_FABLE_MODEL",
         "ANTHROPIC_DEFAULT_OPUS_MODEL",
         "ANTHROPIC_DEFAULT_SONNET_MODEL",
         "ANTHROPIC_DEFAULT_HAIKU_MODEL",
@@ -101,7 +102,7 @@ pub fn resolve_model(target: &LaunchTarget, args: &[String], env_map: &EnvMap) -
         };
     }
 
-    for key in &["opus", "sonnet", "haiku", "small"] {
+    for key in &["fable", "opus", "sonnet", "haiku", "small"] {
         if let Some(model) = target.model_tiers.get(*key) {
             let trimmed = model.trim();
             if !trimmed.is_empty() {

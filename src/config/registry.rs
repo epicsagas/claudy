@@ -568,7 +568,7 @@ fn resolve_model_choice(
 }
 
 fn prune_empty_tiers(tiers: &HashMap<String, String>) -> HashMap<String, String> {
-    const RECOGNIZED: &[&str] = &["opus", "sonnet", "haiku", "small"];
+    const RECOGNIZED: &[&str] = &["fable", "opus", "sonnet", "haiku", "small"];
     tiers
         .iter()
         .filter(|(k, v)| RECOGNIZED.contains(&k.as_str()) && !v.trim().is_empty())
