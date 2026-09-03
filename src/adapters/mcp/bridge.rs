@@ -28,6 +28,11 @@ pub const CODEX_SEND_TIMEOUT_SECS: u64 = 3600;
 pub const AGY_SEND_TIMEOUT_SECS: u64 = 300;
 /// Max message length, matching ask_agent's prompt cap.
 const MESSAGE_MAX_CHARS: usize = 100_000;
+/// Id prefix length shown in listings. codex ids are UUIDv7, whose first 8
+/// hex chars are a second-resolution timestamp — sessions started in the same
+/// second collide at 8. 13 reaches into the random block, so the displayed
+/// prefix stays unique and can be pasted straight back into read_session.
+const ID_DISPLAY_LEN: usize = 13;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BridgeSource {
@@ -77,12 +82,13 @@ pub fn render_session(s: &ForeignSessionSummary, now_secs: u64) -> String {
         .replace('\n', " ");
     let title: String = title.chars().take(80).collect();
     format!(
-        "{}  {:<9}  {:<4}  {}  {}",
-        &s.id[..s.id.len().min(8)],
+        "{:<width$}  {:<9}  {:<4}  {}  {}",
+        &s.id[..s.id.len().min(ID_DISPLAY_LEN)],
         s.source.as_str(),
         age,
         s.cwd.as_deref().unwrap_or("-"),
-        title
+        title,
+        width = ID_DISPLAY_LEN
     )
 }
 
@@ -187,7 +193,8 @@ pub async fn send_message(
     }
 }
 
-/// Find a session by exact id or unique prefix (the listing shows 8 chars).
+/// Find a session by exact id or unique prefix (the listing shows
+/// `ID_DISPLAY_LEN` chars).
 fn find_session(source: BridgeSource, id: &str) -> anyhow::Result<ForeignSessionSummary> {
     find_in(&list_sessions(source), id, source.handoff_source().as_str())
 }
@@ -242,7 +249,7 @@ fn render_events(
 ) -> String {
     let mut out = format!(
         "Session {} ({}) — {} events, {} earlier elided\n\n",
-        &summary.id[..summary.id.len().min(8)],
+        &summary.id[..summary.id.len().min(ID_DISPLAY_LEN)],
         source.handoff_source().as_str(),
         events.len(),
         elided
@@ -373,6 +380,40 @@ mod tests {
         assert!(line.contains("5m"));
         assert!(line.contains("/tmp/proj"));
         assert!(line.contains("multi line title"));
+    }
+
+    #[test]
+    fn rendered_prefix_separates_same_second_uuidv7_ids() {
+        // Real codex ids from two sessions started in the same second: the
+        // UUIDv7 timestamp block makes them identical for 8 chars, so the
+        // rendered prefix must be long enough to tell them apart and must
+        // still resolve through find_in.
+        let mk = |id: &str| ForeignSessionSummary {
+            source: HandoffSource::Codex,
+            id: id.to_string(),
+            title: None,
+            cwd: None,
+            last_modified: 1_800_000_000,
+            path: None,
+        };
+        let a = mk("01a05675-6cdd-7f92-94e4-522c5a639afe");
+        let b = mk("01a05675-6cde-7ac2-a62c-07ba6ad49de5");
+        assert_eq!(a.id[..8], b.id[..8], "ids collide at the old 8-char width");
+
+        let prefix_of = |s: &ForeignSessionSummary| {
+            render_session(s, 1_800_000_000)
+                .split_whitespace()
+                .next()
+                .unwrap()
+                .to_string()
+        };
+        let (pa, pb) = (prefix_of(&a), prefix_of(&b));
+        assert_ne!(pa, pb);
+
+        // The prefix as displayed is directly usable as a lookup key.
+        let sessions = vec![a.clone(), b.clone()];
+        assert_eq!(find_in(&sessions, &pa, "codex").unwrap().id, a.id);
+        assert_eq!(find_in(&sessions, &pb, "codex").unwrap().id, b.id);
     }
 
     #[test]
