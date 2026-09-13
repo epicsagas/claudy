@@ -99,15 +99,21 @@ impl EnvironmentAssembler {
     }
 
     pub fn map_tiers(mut self, tiers: &HashMap<String, String>) -> Self {
-        for (tier, model) in tiers {
-            let key = match tier.as_str() {
-                "fable" => "ANTHROPIC_DEFAULT_FABLE_MODEL",
-                "haiku" => "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-                "sonnet" => "ANTHROPIC_DEFAULT_SONNET_MODEL",
-                "opus" => "ANTHROPIC_DEFAULT_OPUS_MODEL",
-                _ => continue,
-            };
-            self.vars.insert(key.to_string(), model.to_string());
+        // Fixed order so the mapping is deterministic; an explicit "haiku"
+        // entry wins over a "small" entry (same env var, "small" processed
+        // first as the weaker fallback).
+        for (tier, key) in [
+            ("fable", "ANTHROPIC_DEFAULT_FABLE_MODEL"),
+            ("small", "ANTHROPIC_DEFAULT_HAIKU_MODEL"),
+            ("haiku", "ANTHROPIC_DEFAULT_HAIKU_MODEL"),
+            ("sonnet", "ANTHROPIC_DEFAULT_SONNET_MODEL"),
+            ("opus", "ANTHROPIC_DEFAULT_OPUS_MODEL"),
+        ] {
+            if let Some(model) = tiers.get(tier)
+                && !model.trim().is_empty()
+            {
+                self.vars.insert(key.to_string(), model.to_string());
+            }
         }
         self
     }
@@ -244,6 +250,53 @@ mod tests {
             .filter_map(|s| s.split_once('='))
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect()
+    }
+
+    #[test]
+    fn test_map_tiers_small_and_haiku_precedence() {
+        // Construct directly (not via inherit()) so the process environment
+        // cannot leak ANTHROPIC_* vars into the assertions.
+        let env = EnvironmentAssembler {
+            vars: HashMap::new(),
+        }
+        .map_tiers(&HashMap::from([
+            ("small".to_string(), "small-model".to_string()),
+            ("fable".to_string(), "fable-model".to_string()),
+        ]));
+        assert_eq!(
+            env.vars
+                .get("ANTHROPIC_DEFAULT_HAIKU_MODEL")
+                .map(String::as_str),
+            Some("small-model")
+        );
+        assert_eq!(
+            env.vars
+                .get("ANTHROPIC_DEFAULT_FABLE_MODEL")
+                .map(String::as_str),
+            Some("fable-model")
+        );
+
+        // Explicit haiku wins over small for the same env var.
+        let env = EnvironmentAssembler {
+            vars: HashMap::new(),
+        }
+        .map_tiers(&HashMap::from([
+            ("small".to_string(), "small-model".to_string()),
+            ("haiku".to_string(), "haiku-model".to_string()),
+        ]));
+        assert_eq!(
+            env.vars
+                .get("ANTHROPIC_DEFAULT_HAIKU_MODEL")
+                .map(String::as_str),
+            Some("haiku-model")
+        );
+
+        // Empty tier values are not emitted.
+        let env = EnvironmentAssembler {
+            vars: HashMap::new(),
+        }
+        .map_tiers(&HashMap::from([("opus".to_string(), "  ".to_string())]));
+        assert!(!env.vars.contains_key("ANTHROPIC_DEFAULT_OPUS_MODEL"));
     }
 
     #[test]

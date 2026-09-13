@@ -110,6 +110,7 @@ pub(crate) fn config_builtin(
         ));
 
         let tier_descriptions = [
+            ("fable", "frontier, hardest tasks"),
             ("opus", "most capable, heavy tasks"),
             ("sonnet", "balanced capability & speed"),
             ("haiku", "fast, lightweight tasks"),

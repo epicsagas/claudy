@@ -236,7 +236,7 @@ async fn handle_model_callback(
     scope: &str,
     state: &Arc<tokio::sync::RwLock<ChannelState>>,
 ) -> anyhow::Result<()> {
-    if !["sonnet", "opus", "haiku"].contains(&model) {
+    if !["fable", "sonnet", "opus", "haiku"].contains(&model) {
         return dismiss_keyboard(
             channel,
             channel_id,

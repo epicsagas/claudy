@@ -1,7 +1,8 @@
 use crate::domain::context::Context;
 
 use super::shared::{
-    StepResult, default_alias_name, maybe_config_model_limits, persist_config, valid_name,
+    StepResult, config_tier_mappings, default_alias_name, maybe_config_model_limits,
+    persist_config, valid_name,
 };
 
 pub(crate) fn config_open_router(ctx: &mut Context) -> anyhow::Result<StepResult> {
@@ -60,7 +61,12 @@ pub(crate) fn config_open_router(ctx: &mut Context) -> anyhow::Result<StepResult
                 .error(&format!("The alias '{:?}' is invalid.", name));
             continue;
         }
+        let preset_key = format!("or-{name}");
         ctx.config.openrouter_aliases.insert(name, model);
+
+        if !config_tier_mappings(ctx, &preset_key)? {
+            return Ok(StepResult::Back);
+        }
     }
     persist_config(ctx)?;
     Ok(StepResult::Next)

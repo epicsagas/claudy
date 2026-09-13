@@ -98,6 +98,61 @@ pub(crate) fn select_model(
     }
 }
 
+/// Interactively map Claude tiers (fable/opus/sonnet/haiku) to provider model
+/// IDs for a `provider_overrides` entry keyed by `preset_key` (an OpenRouter
+/// `or-<alias>` or a custom provider name). Free-form input — these providers
+/// have no fixed model list. Returns `false` when the user presses Esc
+/// (caller should return `StepResult::Back`).
+pub(crate) fn config_tier_mappings(
+    ctx: &mut crate::domain::context::Context,
+    preset_key: &str,
+) -> anyhow::Result<bool> {
+    if !ctx.prompt.confirm(
+        "Map Claude tiers (fable/opus/sonnet/haiku) to models?",
+        false,
+    )? {
+        return Ok(true);
+    }
+
+    let mut preset = ctx
+        .config
+        .provider_overrides
+        .get(preset_key)
+        .cloned()
+        .unwrap_or_default();
+
+    for (tier, desc) in [
+        ("fable", "frontier, hardest tasks"),
+        ("opus", "most capable, heavy tasks"),
+        ("sonnet", "balanced capability & speed"),
+        ("haiku", "fast, lightweight tasks"),
+    ] {
+        let current = preset.model_tiers.get(tier).cloned().unwrap_or_default();
+        let label = format!("{} ({}) [empty = clear]", tier, desc);
+        match ctx.prompt.prompt_opt(&label, &current)? {
+            Some(val) => {
+                let val = val.trim().to_string();
+                if val.is_empty() {
+                    preset.model_tiers.remove(tier);
+                } else {
+                    maybe_config_model_limits(ctx, &val)?;
+                    preset.model_tiers.insert(tier.to_string(), val);
+                }
+            }
+            None => return Ok(false),
+        }
+    }
+
+    if !preset.model.is_empty() || !preset.model_tiers.is_empty() {
+        ctx.config
+            .provider_overrides
+            .insert(preset_key.to_string(), preset);
+    } else {
+        ctx.config.provider_overrides.remove(preset_key);
+    }
+    Ok(true)
+}
+
 pub(crate) fn maybe_config_model_limits(
     ctx: &mut crate::domain::context::Context,
     model_id: &str,

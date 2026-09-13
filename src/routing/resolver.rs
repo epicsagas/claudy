@@ -41,32 +41,33 @@ impl<'a> ProfileRouter<'a> {
             .collect()
     }
 
-    fn lookup_catalog(&self, name: &str) -> Option<LaunchTarget> {
-        let p = self.catalog.get(name)?;
-        let model = self
-            .cfg
-            .provider_overrides
-            .get(name)
-            .map(|ov| {
+    /// Merge a provider's base model/tiers with any user `provider_overrides`
+    /// preset stored under `name`. Override values win when non-empty.
+    fn apply_preset(
+        &self,
+        name: &str,
+        base_model: &str,
+        base_tiers: &HashMap<String, String>,
+    ) -> (String, HashMap<String, String>) {
+        match self.cfg.provider_overrides.get(name) {
+            Some(ov) => {
                 let m = ov.model.trim();
-                if m.is_empty() {
-                    p.default_model.clone()
+                let model = if m.is_empty() {
+                    base_model.to_owned()
                 } else {
                     m.to_owned()
-                }
-            })
-            .unwrap_or_else(|| p.default_model.clone());
+                };
+                let mut tiers = base_tiers.clone();
+                tiers.extend(ov.model_tiers.iter().map(|(k, v)| (k.clone(), v.clone())));
+                (model, tiers)
+            }
+            None => (base_model.to_owned(), base_tiers.clone()),
+        }
+    }
 
-        let tiers = self
-            .cfg
-            .provider_overrides
-            .get(name)
-            .map(|ov| {
-                let mut t = p.model_tiers.clone();
-                t.extend(ov.model_tiers.iter().map(|(k, v)| (k.clone(), v.clone())));
-                t
-            })
-            .unwrap_or_else(|| p.model_tiers.clone());
+    fn lookup_catalog(&self, name: &str) -> Option<LaunchTarget> {
+        let p = self.catalog.get(name)?;
+        let (model, tiers) = self.apply_preset(name, &p.default_model, &p.model_tiers);
 
         Some(LaunchTarget {
             profile: name.to_owned(),
@@ -86,7 +87,8 @@ impl<'a> ProfileRouter<'a> {
 
     fn lookup_openrouter(&self, name: &str) -> Option<LaunchTarget> {
         let alias = name.strip_prefix("or-")?;
-        let model = self.cfg.openrouter_aliases.get(alias)?;
+        let alias_model = self.cfg.openrouter_aliases.get(alias)?;
+        let (model, tiers) = self.apply_preset(name, alias_model, &HashMap::new());
         Some(LaunchTarget {
             profile: name.to_owned(),
             display_name: format!("OpenRouter: {}", alias),
@@ -94,8 +96,8 @@ impl<'a> ProfileRouter<'a> {
             category: "openrouter".to_owned(),
             family: "openrouter".to_owned(),
             base_url: "https://openrouter.ai/api".to_owned(),
-            model: model.clone(),
-            model_tiers: HashMap::new(),
+            model,
+            model_tiers: tiers,
             auth_mode: "secret".to_owned(),
             secret_key: "OPENROUTER_API_KEY".to_owned(),
             literal_auth_token: String::new(),
@@ -105,6 +107,7 @@ impl<'a> ProfileRouter<'a> {
 
     fn lookup_custom(&self, name: &str) -> Option<LaunchTarget> {
         let cp = self.cfg.custom_providers.get(name)?;
+        let (model, tiers) = self.apply_preset(name, &cp.default_model, &HashMap::new());
         Some(LaunchTarget {
             profile: name.to_owned(),
             display_name: cp.display_name.clone(),
@@ -112,8 +115,8 @@ impl<'a> ProfileRouter<'a> {
             category: "custom".to_owned(),
             family: "anthropic_compatible_non_claude".to_owned(),
             base_url: cp.base_url.clone(),
-            model: cp.default_model.clone(),
-            model_tiers: HashMap::new(),
+            model,
+            model_tiers: tiers,
             auth_mode: "secret".to_owned(),
             secret_key: cp.api_key_env.clone(),
             literal_auth_token: String::new(),
@@ -273,6 +276,72 @@ mod tests {
         assert_eq!(target.family, "openrouter");
         assert_eq!(target.model, "moonshotai/kimi-k2.5");
         assert_eq!(target.secret_key, "OPENROUTER_API_KEY");
+    }
+
+    #[test]
+    fn test_resolve_open_router_alias_with_tier_overrides() {
+        let catalog = load_catalog();
+        let cfg = AppRegistry {
+            openrouter_aliases: HashMap::from([(
+                "kimi".to_string(),
+                "moonshotai/kimi-k2.5".to_string(),
+            )]),
+            provider_overrides: HashMap::from([(
+                "or-kimi".to_string(),
+                ModelPreset {
+                    model: String::new(),
+                    model_tiers: HashMap::from([
+                        ("haiku".to_string(), "moonshotai/kimi-vl-a3b".to_string()),
+                        ("opus".to_string(), "moonshotai/kimi-k2.5".to_string()),
+                    ]),
+                },
+            )]),
+            ..AppRegistry::default()
+        };
+
+        let target = route_profile("or-kimi", &catalog, &cfg).expect("resolve");
+        assert_eq!(target.model, "moonshotai/kimi-k2.5");
+        assert_eq!(
+            target.model_tiers.get("haiku").unwrap(),
+            "moonshotai/kimi-vl-a3b"
+        );
+        assert_eq!(
+            target.model_tiers.get("opus").unwrap(),
+            "moonshotai/kimi-k2.5"
+        );
+    }
+
+    #[test]
+    fn test_resolve_custom_provider_with_tier_overrides() {
+        let catalog = load_catalog();
+        let cfg = AppRegistry {
+            custom_providers: HashMap::from([(
+                "my-llm".to_string(),
+                crate::config::registry::UserEndpoint {
+                    name: "my-llm".to_string(),
+                    display_name: "My LLM".to_string(),
+                    base_url: "https://my-llm.com/api".to_string(),
+                    api_key_env: "MY_LLM_API_KEY".to_string(),
+                    default_model: "test-model".to_string(),
+                },
+            )]),
+            provider_overrides: HashMap::from([(
+                "my-llm".to_string(),
+                ModelPreset {
+                    model: String::new(),
+                    model_tiers: HashMap::from([
+                        ("haiku".to_string(), "test-mini".to_string()),
+                        ("fable".to_string(), "test-max".to_string()),
+                    ]),
+                },
+            )]),
+            ..AppRegistry::default()
+        };
+
+        let target = route_profile("my-llm", &catalog, &cfg).expect("resolve");
+        assert_eq!(target.model, "test-model");
+        assert_eq!(target.model_tiers.get("haiku").unwrap(), "test-mini");
+        assert_eq!(target.model_tiers.get("fable").unwrap(), "test-max");
     }
 
     #[test]

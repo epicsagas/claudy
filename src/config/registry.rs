@@ -506,19 +506,40 @@ impl AppRegistry {
                 if ov.model.trim().is_empty() && ov.model_tiers.is_empty() {
                     return None;
                 }
-                let provider = catalog.get(&id)?;
-                let model = resolve_model_choice(provider, &ov.model);
                 let tiers = prune_empty_tiers(&ov.model_tiers);
-                if (model.is_empty() || model == provider.default_model) && tiers.is_empty() {
-                    None
+                if let Some(provider) = catalog.get(&id) {
+                    let model = resolve_model_choice(provider, &ov.model);
+                    if (model.is_empty() || model == provider.default_model) && tiers.is_empty() {
+                        None
+                    } else {
+                        Some((
+                            id,
+                            ModelPreset {
+                                model,
+                                model_tiers: tiers,
+                            },
+                        ))
+                    }
+                } else if (id.starts_with("or-") && self.openrouter_aliases.contains_key(&id[3..]))
+                    || self.custom_providers.contains_key(&id)
+                {
+                    // Free-form ids (OpenRouter alias / custom provider): the
+                    // model is free-form, so only drop truly empty presets.
+                    let model = ov.model.trim().to_owned();
+                    if model.is_empty() && tiers.is_empty() {
+                        None
+                    } else {
+                        Some((
+                            id,
+                            ModelPreset {
+                                model,
+                                model_tiers: tiers,
+                            },
+                        ))
+                    }
                 } else {
-                    Some((
-                        id,
-                        ModelPreset {
-                            model,
-                            model_tiers: tiers,
-                        },
-                    ))
+                    // Stale entry for a removed provider.
+                    None
                 }
             })
             .collect();
@@ -637,6 +658,72 @@ mod tests {
             cfg.openrouter_aliases.get("kimi-k25").map(|s| s.as_str()),
             Some("moonshotai/kimi-k2.5")
         );
+    }
+
+    #[test]
+    fn test_compact_keeps_openrouter_and_custom_presets() {
+        let catalog = load_catalog();
+        let mut cfg = AppRegistry {
+            openrouter_aliases: HashMap::from([(
+                "kimi".to_string(),
+                "moonshotai/kimi-k2.5".to_string(),
+            )]),
+            custom_providers: HashMap::from([(
+                "my-llm".to_string(),
+                UserEndpoint {
+                    name: "my-llm".to_string(),
+                    display_name: "My LLM".to_string(),
+                    base_url: "https://my-llm.com/api".to_string(),
+                    api_key_env: "MY_LLM_API_KEY".to_string(),
+                    default_model: "test-model".to_string(),
+                },
+            )]),
+            provider_overrides: HashMap::from([
+                (
+                    "or-kimi".to_string(),
+                    ModelPreset {
+                        model: String::new(),
+                        model_tiers: HashMap::from([
+                            ("haiku".to_string(), "moonshotai/kimi-vl-a3b".to_string()),
+                            ("bogus".to_string(), "x".to_string()),
+                        ]),
+                    },
+                ),
+                // Alias no longer exists: stale entry must be dropped.
+                (
+                    "or-gone".to_string(),
+                    ModelPreset {
+                        model: String::new(),
+                        model_tiers: HashMap::from([(
+                            "opus".to_string(),
+                            "gone/model".to_string(),
+                        )]),
+                    },
+                ),
+                (
+                    "my-llm".to_string(),
+                    ModelPreset {
+                        model: String::new(),
+                        model_tiers: HashMap::from([(
+                            "sonnet".to_string(),
+                            "test-mini".to_string(),
+                        )]),
+                    },
+                ),
+            ]),
+            ..Default::default()
+        };
+
+        cfg.compact(&catalog);
+
+        let or = cfg.provider_overrides.get("or-kimi").expect("or-kimi kept");
+        assert_eq!(
+            or.model_tiers.get("haiku").map(String::as_str),
+            Some("moonshotai/kimi-vl-a3b")
+        );
+        assert!(!or.model_tiers.contains_key("bogus"));
+        assert!(!cfg.provider_overrides.contains_key("or-gone"));
+        assert!(cfg.provider_overrides.contains_key("my-llm"));
     }
 
     #[test]

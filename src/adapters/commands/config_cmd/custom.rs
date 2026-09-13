@@ -1,6 +1,8 @@
 use crate::domain::context::Context;
 
-use super::shared::{StepResult, maybe_config_model_limits, persist_config, valid_name};
+use super::shared::{
+    StepResult, config_tier_mappings, maybe_config_model_limits, persist_config, valid_name,
+};
 
 pub(crate) fn config_custom(ctx: &mut Context) -> anyhow::Result<StepResult> {
     let name = match ctx.prompt.prompt_opt("Provider name", "")? {
@@ -59,6 +61,10 @@ pub(crate) fn config_custom(ctx: &mut Context) -> anyhow::Result<StepResult> {
 
     if !default_model.is_empty() {
         maybe_config_model_limits(ctx, &default_model)?;
+    }
+
+    if !config_tier_mappings(ctx, &name)? {
+        return Ok(StepResult::Back);
     }
 
     let key_var = name.to_uppercase().replace('-', "_") + "_API_KEY";

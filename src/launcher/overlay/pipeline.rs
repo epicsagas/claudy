@@ -29,6 +29,7 @@ pub fn prepare_provider_env(
     if let Some(override_model) = args::model_override(args) {
         env_map.set("ANTHROPIC_MODEL", &override_model);
         for key in &[
+            "ANTHROPIC_DEFAULT_FABLE_MODEL",
             "ANTHROPIC_DEFAULT_HAIKU_MODEL",
             "ANTHROPIC_DEFAULT_SONNET_MODEL",
             "ANTHROPIC_DEFAULT_OPUS_MODEL",
