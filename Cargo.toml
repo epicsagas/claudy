@@ -62,7 +62,7 @@ tar = "0.4"
 sha2 = "0.11"
 hex = "0.4"
 ureq = { version = "3", features = ["native-tls", "json"] }
-dirs = "6"
+dirs = "7"
 which = "8"
 tempfile = "3"
 # Windows-safe canonicalize (strips the `\\?\` prefix std adds) — used when
